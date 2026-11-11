@@ -6529,6 +6529,16 @@
         return out;
       })(),
       seeds: garden.seeds,
+      props: (function () {
+        var out = [];
+        for (var pi = 0; pi < islandProps.length; pi++) {
+          var pp = islandProps[pi];
+          out.push({ k: pp.k, x: round(pp.x), y: round(pp.y), verb: pp.verb || null });
+        }
+        return out;
+      })(),
+      verbAt: islandVerb ? { k: islandVerb.k, x: round(islandVerb.x), y: round(islandVerb.y), rise: propRise(islandVerb) } : null,
+      chip: chipHit ? { x: round(chipHit.x), y: round(chipHit.y), w: round(chipHit.w), h: round(chipHit.h) } : null,
       errandAt: errandAt,
       errand: errandDone() ? null : { line: errand().line, where: errand().where, count: errand().count() },
       visited: visited,
@@ -16939,6 +16949,58 @@ var ANIMAL_SIZES = {
     ctx.restore();
   }
 
+  /* How tall a species is DRAWN, in pixels. One owner: the shadow's length and
+     the reach of the verb chip both take it from here, so neither can drift from
+     the drawing. */
+  function speciesDrawnHeight(e) {
+    if (!e) return 40;
+    if (e.sh === 'beast') return beastHeight(e);
+    if (e.sh === 'plant') return (SPECIES_HEIGHT[e.ps || 'stem'] || 0.3) * KEEPER_PX;
+    if (e.sh === 'bird') return KEEPER_PX * 0.12;
+    if (e.sh === 'insect') return 18;
+    if (e.sh === 'find') return (SPECIES_HEIGHT.find || 0.1) * KEEPER_PX;
+    return KEEPER_PX * 0.34;
+  }
+
+  /* How far a prop rises above the ground point it stands on. A house is a roof
+     and a wall; a stone is a hand's width. Every kind is listed, because a chip
+     that has to sit "above the thing" must know where the thing ends. */
+  var PROP_RISE = {
+    house: 120, door: 100, coopdoor: 100, glassdoor: 100, books: 122,
+    wardrobe: 92, bench: 46, bookcase: 40, bed: 42, boat: 44, lamp: 44,
+    hivebox: 34, well: 36, satchel: 30, pot: 18, cat: 34, stone: 26,
+    carved: 48, sister: 116, tidelinet: 12, pondwater: 0, water: 0,
+    daisy: 20, blade: 12, clover: 10, thatch: 40, antler: 24
+  };
+
+  /* How far a prop reaches BELOW the point it stands on. A house's wall comes
+     down past its door; a stone barely at all. Only the exterior props need it,
+     because only they can be labelled from underneath. */
+  var PROP_DROP = {
+    house: 76, door: 30, coopdoor: 88, glassdoor: 88, sister: 26,
+    bench: 16, well: 34, hivebox: 8, boat: 26, bed: 8, carved: 18,
+    stone: 14, satchel: 30, bookcase: 38, books: 0, wardrobe: 0,
+    lamp: 0, pot: 12, cat: 10, tidelinet: 6, pondwater: 0, water: 0
+  };
+
+  function propDrop(p) {
+    if (!p) return 10;
+    if (p.k === 'species') return 6;
+    var d = PROP_DROP[p.k];
+    return d === undefined ? 10 : d;
+  }
+
+  function propRise(p) {
+    if (!p) return 46;
+    if (p.k === 'species') {
+      var h = speciesDrawnHeight(p.sp);
+      if (p.bedStep) h *= (p.bedStep === 1 ? 0.30 : (p.bedStep === 2 ? 0.78 : 1));
+      return h;
+    }
+    var r = PROP_RISE[p.k];
+    return r === undefined ? 46 : r;
+  }
+
   function drawProp(p) {
     var x = p.x, y = p.y, i;
     var reach = islandVerb && islandVerb.i === p.i;
@@ -16968,12 +17030,7 @@ var ANIMAL_SIZES = {
         : (e.sh === 'plant' ? 70 * sc : 44 * sc);
       // Its height, so a tall cypress lays a long shadow and a bee a speck. The
       // width only sets how wide the shadow is.
-      // The height it is DRAWN at: the table's nominal for its kind, times its
-      // scale. A tree is 339 px; a daisy is 38.
-      var nominal = e.sh === 'plant' ? (SPECIES_HEIGHT[e.ps || 'stem'] || 0.3) * KEEPER_PX
-        : (e.sh === 'bird' ? KEEPER_PX * 0.12
-          : (e.sh === 'insect' ? 18 : KEEPER_PX * 0.34));
-      var shadowH = e.sh === 'beast' ? beastHeight(e) : nominal;
+      var shadowH = speciesDrawnHeight(e);
       if (e.sh !== 'fish' && e.sh !== 'seal' && waterDepthAt(x, y) < 0.02) {
         castShadow(x, y, clamp(shadowW, 3, 96), 0.20, clamp(shadowH, 3, 300));
       }
@@ -17731,13 +17788,43 @@ var ANIMAL_SIZES = {
       ctx.font = '600 14px ' + FONT_UI;
       var label = islandVerb.verb;
       var tw = ctx.measureText(label).width + 44;
-      var bx = cssW / 2 - tw / 2, by = cssH - 76;
+      var th = 40;
+
+      // THE CHIP STANDS AT THE THING IT NAMES. It used to sit at the foot of the
+      // page, which said nothing about what would be touched when three things
+      // stood within reach of each other. It is centred on the prop and lifted
+      // clear of the prop's own height, so it reads as a label on that thing.
+      var sx = islandVerb.x * fitScale + ox;
+      var sy = islandVerb.y * fitScale + oy;
+      var rise = propRise(islandVerb) * fitScale;
+      var gap = 12;
+      var bx = sx - tw / 2;
+      var above = sy - rise - gap - th;
+      // The strip the errand card and the clock occupy, and the page's own foot.
+      var topLimit = 76, footLimit = cssH - 92;
+
+      // Above the thing by default. When there is no room above it - a house
+      // high on the page - the label goes BELOW THE FOOT of the thing, never on
+      // top of it; and if neither side has room it stays as high as the page
+      // allows rather than over the thing's face.
+      var drop = propDrop(islandVerb) * fitScale;
+      var by;
+      if (above >= topLimit) {
+        by = above;
+      } else {
+        var below = sy + drop + gap;
+        by = (below + th <= footLimit) ? below : Math.max(topLimit, Math.min(above, footLimit - th));
+      }
+
+      bx = clamp(bx, 8, Math.max(8, cssW - tw - 8));
+      by = clamp(by, topLimit, Math.max(topLimit, footLimit - th));
+
       ctx.fillStyle = C.terracotta;
-      roundRect(bx, by, tw, 44, 22);
+      roundRect(bx, by, tw, th, th / 2);
       ctx.fill();
       ctx.fillStyle = C.paper;
-      ctx.fillText(label, cssW / 2, by + 23);
-      chipHit = { x: bx, y: by, w: tw, h: 44 };
+      ctx.fillText(label, bx + tw / 2, by + th / 2 + 0.5);
+      chipHit = { x: bx, y: by, w: tw, h: th };
     } else {
       ctx.font = 'italic 400 12px ' + FONT_SERIF;
       ctx.fillStyle = 'rgba(42,35,32,0.45)';
