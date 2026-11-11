@@ -2222,8 +2222,15 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = '#141B2C';
       ctx.fillRect(0, 0, pcW, pcH);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      pageBegin(pcW, pcH);
       var place = placeDef(scene);
       if (place) place.draw(pcW, pcH);
+      // The tab, in the same corner on every page. A place also says where it is
+      // in its header; the tab is the way OUT, which the header no longer is.
+      bookTab(390, 844, placeTitle || 'the island');
+      pageEnd();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // The look page has the word on it already; anything else needs the card.
       if (scene !== 'look') drawWordCard();
       // The sheet covers a place as well as the island: the menu is the game's
@@ -2615,34 +2622,6 @@
     var w = Math.min(cssW - 28 * s, Math.max(tw + (right ? 62 : 34) * s, dw + 30 * s));
     var h = (detail ? 46 : 30) * s;
     var x = cssW / 2 - w / 2, y = 12 * s;
-    // The island's menu: a card at the top-left of the page, above the errand
-    // strip's shoulder. It is the way to the errands, the word book, the notebook,
-    // the bag, the map, the sky and the language - everything the island holds.
-    var mw = 74 * s, mh = 26 * s, mx = 8 * s, my = 12 * s + h + 6 * s;
-    ctx.fillStyle = 'rgba(247,244,238,0.92)';
-    roundRect(mx, my, mw, mh, 8 * s);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(216,204,184,0.95)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.save();
-    ctx.strokeStyle = C.inkSoft;
-    ctx.lineWidth = 1.5 * s;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    for (var mr = 0; mr < 3; mr++) {
-      var mry = my + mh * (0.30 + mr * 0.20);
-      ctx.moveTo(mx + 8 * s, mry);
-      ctx.lineTo(mx + 17 * s, mry);
-    }
-    ctx.stroke();
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = '600 ' + Math.round(10 * s) + 'px ' + FONT_UI;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('menu', mx + 21 * s, my + mh / 2);
-    ctx.restore();
-    addHit(mx, my, mw, mh, 'back');
     ctx.fillStyle = 'rgba(247,244,238,0.90)';
     roundRect(x, y, w, h, h / 2);
     ctx.fill();
@@ -4222,7 +4201,11 @@
   /* Screen overlays: title, pause, win, lose - all on paper. */
   function drawOverlay() {
     var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
-    if (phase === 'title') { drawTitle(cssW, cssH); return; }
+    if (phase === 'title') {
+      drawTitle(cssW, cssH);
+      if (menu.open) drawMenu(cssW, cssH);
+      return;
+    }
     if (paused) {
       ctx.fillStyle = 'rgba(30,26,22,0.45)';
       ctx.fillRect(0, 0, cssW, cssH);
@@ -4344,20 +4327,6 @@
     for (var mk = 0; mk < mark.length; mk++) markW += ctx.measureText(mark[mk]).width + 1.5;
     spacedText(mark, 26 + markW / 2, 46, 1.5);
 
-    // The language, on the title as well: the pill every place's header carries.
-    ctx.fillStyle = 'rgba(247,244,238,0.94)';
-    roundRect(276, 28, 88, 30, 15);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = '600 10.5px ' + FONT_UI;
-    ctx.textAlign = 'center';
-    ctx.fillText(LANG === 'fa' ? 'Farsi / English' : 'English / Farsi', 320, 43);
-    ctx.textAlign = 'left';
-    addHit(276, 28, 88, 30, 'titlelang');
-
     // The notebook is one of the tiles below, so it is not also a chip here:
     // a thing the page offers appears once.
 
@@ -4427,6 +4396,10 @@
       ctx.fillText('best: ' + best + ' nectar', cssW / 2, cssH - 22);
     }
     ctx.textAlign = 'left';
+
+    // The tab on the title too: the page names herself, and the book opens from
+    // here without starting a game first.
+    bookTab(390, 844, 'the island');
     pageEnd();
   }
 
@@ -6684,35 +6657,17 @@ props: islandProps.map(function (p) {
   }
 
   /* The chrome every place shares: a way home, and the place's name. */
+  /* The place's own name, for the tab at the foot of the page. */
+  var placeTitle = '';
+
+  /* A place's header is its NAME and nothing else: the way out is the tab at the
+     foot, which every page carries in the same corner. Two pills side by side -
+     "island" and "menu" - both left the place, so they were one decision with two
+     buttons. */
   function placeHeader(title) {
+    placeTitle = title;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(247,244,238,0.94)';
-    roundRect(12, 14, 88, 36, 18);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = '600 12px ' + FONT_UI;
-    ctx.fillText('\u2039 island', 26, 32);
-    addHit(12, 14, 88, 36, 'home');
-
-    // The menu, in the same pill row: this is what a place was missing. The
-    // language switch lives inside it, so it is reachable from every screen.
-    ctx.fillStyle = 'rgba(247,244,238,0.94)';
-    roundRect(106, 14, 74, 36, 18);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = '600 12px ' + FONT_UI;
-    ctx.textAlign = 'center';
-    ctx.fillText('menu', 143, 32);
-    ctx.textAlign = 'left';
-    addHit(106, 14, 74, 36, 'back');
-
     ctx.fillStyle = 'rgba(247,244,238,0.94)';
     var tw = ctx.measureText(title).width;
     ctx.font = 'italic 600 20px ' + FONT_SERIF;
@@ -6720,6 +6675,7 @@ props: islandProps.map(function (p) {
     roundRect(390 - 12 - tw, 14, tw, 36, 18);
     ctx.fill();
     ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = C.ink;
     ctx.textAlign = 'center';
@@ -6794,6 +6750,7 @@ props: islandProps.map(function (p) {
       var id = h.arg;
       closeMenu();
       if (id === 'resume') { return; }
+      if (id === 'island') { backToIsland(); return; }
       enterPlace(id);
       return;
     }
@@ -6813,14 +6770,20 @@ props: islandProps.map(function (p) {
     ctx.fillRect(0, 0, cssW, cssH);
 
     var w = Math.min(cssW - 40 * k, 330 * k);
-    var rows = [
-      { id: 'resume', label: 'back to the island', sub: '' },
+    var pages = [
       { id: 'words', label: 'the word book', sub: learned.length + ' / ' + words.length },
       { id: 'notebook', label: 'the notebook', sub: storyPages() + ' / ' + STORY.length },
       { id: 'bag', label: 'the bag', sub: String(bagCount()) },
       { id: 'map', label: 'the map', sub: mapSubFor() },
       { id: 'sky', label: 'the sky', sub: dayName() }
     ];
+    // An index lists the other pages: never the one you are reading, or two rows
+    // say the same thing.
+    var rows = [{ id: 'resume', label: 'close the book', sub: '' }];
+    if (scene !== 'island') rows.push({ id: 'island', label: 'the island', sub: '' });
+    for (var pi = 0; pi < pages.length; pi++) {
+      if (pages[pi].id !== scene) rows.push(pages[pi]);
+    }
     var rowH = 46 * k, headH = 62 * k, footH = 52 * k;
     var h = headH + rows.length * rowH + footH + 24 * k;
     var x = cssW / 2 - w / 2, y = cssH / 2 - h / 2;
@@ -6837,16 +6800,31 @@ props: islandProps.map(function (p) {
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+    // The sheet says where it was opened from, and then the one thing the player
+    // actually wants to know when they open it.
     ctx.fillStyle = C.ink;
     ctx.font = 'italic 600 ' + Math.round(23 * k) + 'px ' + FONT_SERIF;
-    ctx.fillText('the island', x + 22 * k, y + 34 * k);
+    var hereName = scene === 'island' ? 'the island' : (placeTitle || 'the island');
+    ctx.fillText(hereName.charAt(0).toUpperCase() + hereName.slice(1), x + 22 * k, y + 34 * k);
 
-    // The errand she is on, so the menu answers "what am I doing".
-    var er = errandDone() ? null : errand();
     ctx.fillStyle = C.inkFaint;
     ctx.font = '400 ' + Math.round(11 * k) + 'px ' + FONT_UI;
-    var erLine = er ? er.line : 'every errand is done';
-    ctx.fillText(erLine, x + 22 * k, y + 52 * k);
+    var subLine;
+    if (scene === 'island') {
+      var er = errandDone() ? null : errand();
+      subLine = er ? er.line : 'every errand is done';
+    } else if (scene === 'words') {
+      subLine = learned.length + ' of ' + words.length + ' words, learned on the island';
+    } else if (scene === 'notebook') {
+      subLine = storyPages() + ' of ' + STORY.length + ' pages written';
+    } else if (scene === 'bag') {
+      subLine = bagCount() + ' things carried';
+    } else if (scene === 'map') {
+      subLine = mapSubFor() + ' places walked';
+    } else {
+      subLine = 'the island, at ' + dayName();
+    }
+    ctx.fillText(subLine, x + 22 * k, y + 52 * k);
 
     for (var i = 0; i < rows.length; i++) {
       var ry = y + headH + i * rowH;
@@ -17824,12 +17802,68 @@ var ANIMAL_SIZES = {
   }
 
   /* The verb of the thing she stands at, at the foot of the page. */
+  var tabHit = null;
+  /* Where the tab is, in whatever space the caller draws in: css pixels on the
+     island, the 390x844 page inside a place or on the title. */
+  function bookTabAt(cssW, cssH, name) {
+    var s = clamp(Math.min(cssW, cssH) / 520, 0.84, 1.32);
+    ctx.font = 'italic 500 ' + Math.round(12.5 * s) + 'px ' + FONT_SERIF;
+    var label = name || 'the island';
+    // A page's title is set for a header ("The notebook"); the tab is a foot note.
+    label = label.charAt(0).toLowerCase() + label.slice(1);
+    var tw = ctx.measureText(label).width;
+    var h = 34 * s;
+    var w = tw + 44 * s;
+    return { x: 10 * s, y: cssH - h - 10 * s, w: w, h: h, s: s, label: label };
+  }
+
+  /* Drawn by every page: the title, the island, and each place. */
+  function bookTab(cssW, cssH, name) {
+    var t = bookTabAt(cssW, cssH, name);
+    var s = t.s;
+    ctx.save();
+    ctx.textBaseline = 'middle';
+
+    // Paper, with the page's one rule along its top edge - the same hairline the
+    // errand card wears, so the tab reads as part of the page and not a widget.
+    ctx.fillStyle = 'rgba(247,244,238,0.94)';
+    roundRect(t.x, t.y, t.w, t.h, t.h / 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(216,204,184,0.95)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // The mark: three short rules, in the ink of the paper. A book's index.
+    ctx.strokeStyle = C.terracotta;
+    ctx.lineWidth = 1.6 * s;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (var r = 0; r < 3; r++) {
+      var ry = t.y + t.h * (0.30 + r * 0.20);
+      ctx.moveTo(t.x + 12 * s, ry);
+      ctx.lineTo(t.x + 20 * s, ry);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = 'italic 500 ' + Math.round(12.5 * s) + 'px ' + FONT_SERIF;
+    ctx.textAlign = 'left';
+    ctx.fillText(t.label, t.x + 26 * s, t.y + t.h / 2);
+
+    tabHit = { x: t.x, y: t.y, w: t.w, h: t.h, act: 'book' };
+    addHit(t.x, t.y, t.w, t.h, 'book');
+    ctx.restore();
+  }
+
   function drawIslandVerb() {
     var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     chipHit = null;
+    // Every page carries the tab, including the island. It names where she is and
+    // opens the book, which is the one way to everything else.
+    bookTab(cssW, cssH, sectionDef().name);
     if (islandVerb) {
       ctx.font = '600 14px ' + FONT_UI;
       var label = islandVerb.verb;
@@ -17871,13 +17905,6 @@ var ANIMAL_SIZES = {
       ctx.fillStyle = C.paper;
       ctx.fillText(label, bx + tw / 2, by + th / 2 + 0.5);
       chipHit = { x: bx, y: by, w: tw, h: th };
-    } else {
-      ctx.font = 'italic 400 12px ' + FONT_SERIF;
-      ctx.fillStyle = 'rgba(42,35,32,0.45)';
-      // The place's name sits at the foot's left, because the foot's middle
-      // belongs to the south edge and what lies beyond it.
-      ctx.textAlign = 'left';
-      ctx.fillText(sectionDef().name, 22, cssH - 26);
     }
     ctx.textAlign = 'left';
     ctx.restore();
@@ -18590,7 +18617,8 @@ var ANIMAL_SIZES = {
       // dead "‹ island" and no way back to the menu at all.
       var hp = pagePoint(e);
       var hh = hitAt(hp);
-      if (hh && hh.act === 'back') { openMenu(); e.preventDefault(); return; }
+      // The tab at the foot is the way out of every page and into the book.
+      if (hh && hh.act === 'book') { openMenu(); e.preventDefault(); return; }
       if (chromeTap(hp)) { e.preventDefault(); return; }
       var pl = placeDef(scene);
       if (pl && pl.down) { pl.down(hp); e.preventDefault(); }
@@ -18598,12 +18626,9 @@ var ANIMAL_SIZES = {
     }
 
     if (phase === 'title') {
+      if (menu.open) { menuDown(cssPoint(e)); e.preventDefault(); return; }
       var th = hitAt(pagePoint(e));
-      if (th && th.act === 'titlelang') {
-        LANG = LANG === 'en' ? 'fa' : 'en';
-        try { localStorage.setItem('darya.lang', LANG); } catch (err) { /* private */ }
-        return;
-      }
+      if (th && th.act === 'book') { openMenu(); return; }
       if (th && th.act === 'notebook') { enterPlace('notebook'); return; }
       if (th && th.act === 'menu') {
         enterPlace(th.arg);
@@ -18634,7 +18659,7 @@ var ANIMAL_SIZES = {
     if (stage === 'island') {
       var pp0 = cssPoint(e);
       var bh0 = hitAt(pp0);
-      if (bh0 && bh0.act === 'back') { openMenu(); e.preventDefault(); return; }
+      if (bh0 && bh0.act === 'book') { openMenu(); e.preventDefault(); return; }
       var pp = cssPoint(e);
       if (chipTapped(pp)) {
         useProp(islandVerb);
