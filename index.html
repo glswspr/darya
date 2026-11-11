@@ -1919,11 +1919,12 @@
     if (Math.abs(mx) + Math.abs(my) > 0.05) {
       // Eight facings: the three drawings, and a quarter-turn either side of
       // each of the two that has a front and a back.
+      // Four facings: front, back, and the profile, mirrored for left and right.
+      // Pressing two directions at once still walks her diagonally, but she turns
+      // to whichever axis she leans into - there is no fifth drawing to turn to.
       var amx = Math.abs(mx), amy = Math.abs(my);
-      if (amy > amx * 1.15) {
+      if (amy >= amx) {
         hero.facing = my < 0 ? 'back' : 'front';
-      } else if (amy > amx * 0.45) {
-        hero.facing = (my < 0 ? 'back' : 'front') + (mx < 0 ? 'left' : 'right');
       } else {
         hero.facing = 'side';
       }
@@ -5477,144 +5478,22 @@
      side she is turning toward, and narrowed because a turned body shows less of
      itself. The head narrows less than the body, because the face is only
      halfway round. */
+  /* The view a figure is drawn from. There are three drawings - front, back and
+     the profile - and every other facing is one of them mirrored. */
   function keeperView(view) {
-    if (view === 'frontleft' || view === 'frontright') return 'front';
-    if (view === 'backleft' || view === 'backright') return 'back';
-    return view;
+    if (view === 'front' || view === 'back') return view;
+    return view === 'side' ? 'side' : 'front';
   }
-  function keeperIsDiagonal(view) {
-    return view === 'frontleft' || view === 'frontright' ||
-      view === 'backleft' || view === 'backright';
-  }
-  /* A piece's width at forty-five degrees, as a share of its frontal width. These
-     differ by part because the parts differ in DEPTH: a head is nearly round, a
-     torso is flat. Nothing is narrowed to the same number, or the whole figure
-     reads as one squeezed shape. */
-  function keeperBreadth(view, bone) {
-    // One thickness at every angle. Her body is not squeezed for a diagonal: the
-    // turn lives in the head, and in which parts are in front of which.
-    return 1;
-  }
-  /* The head of a turned figure sits off the centre line, on the side she is
-     looking toward. That displacement is the cue the eye reads first. */
-  function keeperHeadTurn(view) {
-    var side = keeperTurnSide(view);
-    return side ? side * 11 : 0;
-  }
+  
 
-  /* Which parts of her are near the viewer in a quarter turn, and which are hidden
-     behind: the side she turns toward is the near side. */
-  function keeperDiagonal(view) {
-    var side = keeperTurnSide(view);
-    if (!side) return null;
-    var near = side > 0 ? 'Right' : 'Left';
-    var far = side > 0 ? 'Left' : 'Right';
-    return {
-      side: side, near: near, far: far,
-      nearArm: 'Arm' + near, farArm: 'Arm' + far,
-      nearLeg: 'Leg' + near, farLeg: 'Leg' + far
-    };
-  }
 
-  /* A turned piece slides by its own depth. The near arm comes forward of the
-     body, the far one goes behind it, and the head leans toward the way she looks. */
-  function keeperDepthShift(view, bone) {
-    var d = keeperDiagonal(view);
-    if (!d) return 0;
-    // Both arms come in over the chest: the near one is drawn in front of the
-    // torso and the far one behind it, so a quarter turn shows one arm across the
-    // body instead of two sticks at its edges. Her body keeps its width, so the
-    // shift is about the arms and the legs only.
-    if (bone === d.nearArm) return -d.side * 3.0;
-    if (bone === d.farArm) return -d.side * 0.6;
-    if (bone === d.nearLeg) return d.side * 1.6;
-    if (bone === d.farLeg) return -d.side * 1.0;
-    // The head is a profile drawing: it is already turned, so it is not pushed.
-    if (bone === 'Head') return 0;
-    return d.side * 1.2;
-  }
 
-  /* The face's own features - eyes, brows, mouth - by their own colours, so they
-     can be turned inside the head without touching the skin or the hair. */
-  function keeperFaceFeature(sh) {
-    if (sh.fill === '#23262e') return 'eye';
-    if (sh.stroke === '#9a6650') return 'mouth';
-    if (sh.stroke === '#2e3344' && sh.fill === null) return 'brow';
-    return null;
-  }
 
-  /* The order a turned figure must be drawn in: the far arm is behind the torso
-     and the near arm in front of it. The first Head piece is the hair silhouette
-     that sits behind everything; the last is the face. */
-  function keeperTurnOrder(pieces, view) {
-    var d = keeperDiagonal(view);
-    if (!d) return null;
-    var rank = [], seenHead = false;
-    for (var i = 0; i < pieces.length; i++) {
-      var bone = pieces[i].bone;
-      if (bone === 'Head') {
-        rank.push({ i: i, r: seenHead ? 90 : 0 });
-        seenHead = true;
-        continue;
-      }
-      var r = 50;
-      if (bone === d.farArm) r = 20;
-      else if (bone === d.farLeg) r = 25;
-      else if (bone === d.nearLeg) r = 30;
-      else if (bone === 'Skirt') r = 40;
-      else if (bone === 'Torso') r = 50;
-      else if (bone === d.nearArm) r = 60;
-      rank.push({ i: i, r: r + i * 0.001 });
-    }
-    rank.sort(function (a, b) { return a.r - b.r; });
-    return rank.map(function (x) { return x.i; });
-  }
-  /* Which side a diagonal is turned toward: +1 right, -1 left. */
-  function keeperTurnSide(view) {
-    if (view === 'frontleft' || view === 'backleft') return -1;
-    if (view === 'frontright' || view === 'backright') return 1;
-    return 0;
-  }
 
-  /* The pieces a view is drawn from. A diagonal is the front (or back) body with
-     the SIDE view's head, because a head turned forty-five degrees is a profile -
-     one eye, the ridge of the nose, the hair falling behind the ear - and a shifted
-     or narrowed front head is not. This is also why the diagonals used to look
-     mangled: they were a front head pushed sideways, which is a squash, not a turn. */
-  function keeperPiecesFor(view) {
-    var all = keeperShapes();
-    if (view === 'frontleft' || view === 'frontright') {
-      // The front body, and the side view's head in place of the front's.
-      var front = all.front || [];
-      var sideHead = null, i;
-      for (i = 0; i < (all.side || []).length; i++) {
-        if (all.side[i].bone === 'Head') sideHead = all.side[i];
-      }
-      if (!sideHead) return front;
-      var out = [], headSlot = -1;
-      for (i = 0; i < front.length; i++) {
-        if (front[i].bone === 'Head') { headSlot = i; break; }
-      }
-      for (i = 0; i < front.length; i++) out.push(front[i]);
-      // The last Head piece is the face; on a diagonal there is only one head, so
-      // the two head slots collapse into the profile.
-      out = out.filter(function (p) { return p.bone !== 'Head'; });
-      out.splice(Math.max(0, headSlot), 0, sideHead);
-      return out;
-    }
-    var base = all[keeperView(view)] || all.front;
-    return base;
-  }
-
-  /* Which way the profile head is turned on a diagonal: the side drawing is
-     authored facing right, so it is mirrored only when she turns left. */
-  function keeperHeadMirror(view) {
-    if (view === 'frontleft') return true;
-    return false;
-  }
 
   function paintKeeper(g, size, view, pose, walking, o, flip) {
-    var pieces = keeperPiecesFor(view) || keeperShapes().front;
+    // Three drawings and their mirrors: front, back, and the profile.
+    var pieces = keeperShapes()[keeperView(view)] || keeperShapes().front;
     var tint = keeperTint(o);
     var k = size / 158;
     var step = pose === 'sit'
@@ -5628,34 +5507,15 @@
     // is where the island already lays her shadow.
     g.translate(-KEEP_W / 2, -112.8);
 
-    // A turned figure must be drawn back-to-front by depth: the far arm behind
-    // the torso, the near arm in front of it.
-    var order = keeperTurnOrder(pieces, view);
-    var bios = window.__diagOff === 1 ? new Array(pieces.length) : order;
-    // The last Head piece in the list is the face; the first is the hair behind.
-    var lastHead = -1;
-    for (var li = 0; li < pieces.length; li++) if (pieces[li].bone === 'Head') lastHead = li;
-    var seenFaceThen = false;
-    for (var oi = 0; oi < pieces.length; oi++) {
-      var i = bios ? bios[oi] : oi;
+    for (var i = 0; i < pieces.length; i++) {
       var piece = pieces[i];
-      seenFaceThen = (i === lastHead);
       var t = step[piece.bone] || { d: 0, dy: 0 };
       var pivot = keeperPivot(piece.bone, view);
-      var breadth = view === 'side'
-        ? (SIDE_BREADTH[piece.bone] || 1)
-        : keeperBreadth(view, piece.bone);
+      // Front and back are drawn at full width; the profile is narrowed per part.
+      var breadth = view === 'side' ? (SIDE_BREADTH[piece.bone] || 1) : 1;
 
 
       g.save();
-      // The profile head is authored facing right, and the whole figure may have
-      // been mirrored already. It needs one more mirror exactly when the two
-      // disagree, so it ends up facing the side she is turning toward.
-      if (keeperIsDiagonal(view) && piece.bone === 'Head') {
-        // The skull stays on the neck: a head that slides sideways off its own
-        // shoulders reads as broken, not turned. What turns is the face, below.
-        g.translate(keeperTurnSide(view) * 1.4, 0);
-      }
       g.translate(0, t.dy);
       if (t.d || t.knee) {
         g.translate(pivot[0], pivot[1]);
@@ -5666,35 +5526,17 @@
         g.translate(-pivot[0], -pivot[1]);
       }
       if (breadth !== 1) {
-        // Narrowed about the body's centre line by its own amount, then slid
-        // sideways by its own depth: near parts come forward of the body, far
-        // parts go behind it.
+        // A profile is narrower than a front: the side drawing is narrowed about
+        // her own centre line by each part's own amount.
         var centre = KEEP_W * 0.5;
-        var shift = keeperDepthShift(view, piece.bone);
-        g.translate(centre + shift, 0);
+        g.translate(centre, 0);
         g.scale(breadth, 1);
         g.translate(-centre, 0);
       }
 
-      // The face piece of a FRONT head is turned inside the head on a diagonal.
-      // A back turn has no face, so nothing is turned there.
-      var isFace = (i === lastHead) &&
-        !(view === 'backleft' || view === 'backright');
-      var sideF = keeperTurnSide(view);
-      // The side view's head is authored facing right. Turned left, it is mirrored
-      // about her own centre line - which is the whole reason a diagonal now reads
-      // as a turn rather than as a squash.
-      if (keeperHeadMirror(view) && piece.bone === 'Head') {
-        g.translate(2 * KEEP_W * 0.5, 0);
-        g.scale(-1, 1);
-      }
       for (var s = 0; s < piece.shapes.length; s++) {
         var sh = piece.shapes[s];
-        var feat = isFace ? keeperFaceFeature(sh) : null;
-        // The near arm of a turned figure overlaps the torso in the same colour,
-        // so it takes a tone of its own or the two read as one shape.
-        var dg = keeperDiagonal(view);
-        var armShade = (dg && piece.bone === dg.nearArm) ? 0.90 : piece.shade;
+        var armShade = piece.shade;
         if (sh.fill) {
           g.fillStyle = shadeColour(tint[sh.fill] || sh.fill, armShade);
           g.fill(sh.p, 'nonzero');
@@ -5705,67 +5547,6 @@
           g.lineCap = sh.cap;
           g.stroke(sh.p);
         }
-      }
-
-      // A front turn is the face moving across the hair, done above: the face piece
-      // slid as one and the far eye narrowed. Nothing more is laid on top, or the
-      // face would be covered twice.
-
-      // A back turn has no face, so the only evidence of it is the near cheek and
-      // the ear showing past the hair. The cheek is a rounded form at the hair's
-      // edge, not a patch laid on top: it narrows as it goes up to the temple, and
-      // the hairline in front of it is a curve.
-      if ((view === 'backleft' || view === 'backright') && piece.bone === 'Head') {
-        var bS = keeperTurnSide(view);
-        g.save();
-        // Tight to the bob, so the cheek cannot spill past the hair.
-        g.beginPath();
-        g.ellipse(50, 64.0, 35.0, 31.0, 0, 0, TAU);
-        g.clip();
-
-        // The cheek and jaw, at the hair's near edge: a crescent, not a patch.
-        var cheekCx = 50 + bS * 22.0;
-        g.fillStyle = shadeColour(tint['#f5c9a0'], 0.97);
-        g.beginPath();
-        g.moveTo(cheekCx + bS * 5.0, 43.0);
-        g.quadraticCurveTo(cheekCx + bS * 8.6, 54.0, cheekCx + bS * 8.0, 66.0);
-        g.quadraticCurveTo(cheekCx + bS * 7.0, 78.0, cheekCx + bS * 1.6, 87.0);
-        g.quadraticCurveTo(cheekCx - bS * 5.4, 90.0, cheekCx - bS * 6.6, 80.0);
-        g.quadraticCurveTo(cheekCx - bS * 4.0, 60.0, cheekCx - bS * 0.6, 43.0);
-        g.closePath();
-        g.fill();
-
-        // Its own shade along the jaw, so it is a form and not a decal.
-        g.fillStyle = shadeColour(tint['#f5c9a0'], 0.86);
-        g.beginPath();
-        g.ellipse(cheekCx - bS * 2.4, 78.0, 3.4, 8.0, 0, 0, TAU);
-        g.fill();
-
-        // The ear, at the height an ear is, with its fold.
-        g.fillStyle = shadeColour(tint['#f5c9a0'], 0.88);
-        g.beginPath();
-        g.ellipse(cheekCx + bS * 2.6, 61.0, 3.4, 6.0, bS * 0.12, 0, TAU);
-        g.fill();
-        g.strokeStyle = shadeColour(tint['#f5c9a0'], 0.68);
-        g.lineWidth = 0.9;
-        g.beginPath();
-        g.moveTo(cheekCx + bS * 2.2, 57.4);
-        g.quadraticCurveTo(cheekCx + bS * 4.4, 61.0, cheekCx + bS * 2.0, 64.6);
-        g.stroke();
-
-        // The hairline in front of it: a narrow lock, so the cheek is set into the
-        // hair rather than sitting on top of it.
-        g.fillStyle = shadeColour(tint['#2e3344'], 1);
-        g.beginPath();
-        var bl = 50 + bS * 31.0;
-        g.moveTo(bl, 34.0);
-        g.quadraticCurveTo(bl - bS * 4.0, 52.0, bl - bS * 3.2, 70.0);
-        g.quadraticCurveTo(bl - bS * 2.4, 86.0, bl - bS * 6.0, 97.0);
-        g.lineTo(bS > 0 ? 96 : 4, 97.0);
-        g.lineTo(bS > 0 ? 96 : 4, 34.0);
-        g.closePath();
-        g.fill();
-        g.restore();
       }
 
       g.restore();
@@ -5918,10 +5699,9 @@
         g.rotate(ht.d * Math.PI / 180);
         g.translate(-hp[0], -hp[1]);
       }
-      if (view === 'side' || keeperIsDiagonal(view)) {
-        var hb = view === 'side' ? SIDE_BREADTH.Head : keeperBreadth(view, 'Head');
+      if (view === 'side') {
         g.translate(hp[0], 0);
-        g.scale(hb, 1);
+        g.scale(SIDE_BREADTH.Head, 1);
         g.translate(-hp[0], 0);
       }
       // The net: a curtain from the brim to the shoulders, with an opening for
@@ -6056,11 +5836,10 @@
   var outfit = 0;
 
   function drawDarya(g, size, walking) {
-    // The side drawing faces right, so it is mirrored when she walks left.
     var facing = hero.facing || 'front';
-    // The side drawing faces right; a diagonal faces front or back, so which way
-    // it is turned is the whole of its mirroring.
-    var mirror = facing === 'side' ? hero.dir === -1 : facing === 'frontright' || facing === 'backright';
+    // The profile drawing faces right, so it is mirrored when she walks left.
+    // Front and back are symmetric and never mirror.
+    var mirror = facing === 'side' && hero.dir === -1;
     paintKeeper(g, size, facing, null, walking !== false && hero.moving > 0.15,
       OUTFITS[outfit] || OUTFITS[0], mirror);
   }
@@ -14118,7 +13897,7 @@ var ANIMAL_SIZES = {
      grass, so the turn can be judged where it is actually seen. */
   window.__turnStrip = function (size) {
     var S = size || 260;
-    var views = ['front', 'frontleft', 'frontright', 'back', 'backleft', 'backright'];
+    var views = ['front', 'side', 'back'];
     var c = document.createElement('canvas');
     c.width = S * views.length;
     c.height = S + 30;
@@ -14152,7 +13931,7 @@ var ANIMAL_SIZES = {
   };;
 
   window.__bigFacing = function () {
-    var views = ['front', 'frontleft', 'frontright', 'backleft', 'backright'];
+    var views = ['front', 'side', 'back'];
     var boxW = 300, boxH = 420;
     var c = document.createElement('canvas');
     c.width = boxW * views.length; c.height = boxH;
@@ -14198,7 +13977,7 @@ var ANIMAL_SIZES = {
   };
 
   window.__faceBig = function (which) {
-    var views = which ? [which] : ['front', 'frontleft', 'frontright', 'side'];
+    var views = which ? [which] : ['front', 'side', 'back'];
     var box = 260;
     var c = document.createElement('canvas');
     c.width = box * views.length;
@@ -14223,7 +14002,7 @@ var ANIMAL_SIZES = {
   };
 
   window.__facingSheet = function () {
-    var views = ['front', 'frontleft', 'frontright', 'side', 'back', 'backleft', 'backright'];
+    var views = ['front', 'side', 'back', 'front', 'side', 'back'];
     var box = 120, cols = 4, rows = Math.ceil(views.length / cols);
     var c = document.createElement('canvas');
     c.width = box * cols;
