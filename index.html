@@ -412,7 +412,12 @@
     var lower = (e.key || '').toLowerCase();
     if (lower === 'arrowup' || lower === 'arrowdown' || lower === 'arrowleft' || lower === 'arrowright' || lower === ' ' || lower === 'spacebar' || lower === 'tab') e.preventDefault();
     if (lower === 'm') { muted = !muted; return; }
-    if (lower === 'escape' && scene !== 'island') { backToTitle(); return; }
+    if (lower === 'escape' && scene !== 'island') {
+      // Esc closes the sheet if it is open, then leaves the place for the
+      // island - the same step the header's arrow takes.
+      if (menu.open) { closeMenu(); return; }
+      backToIsland(); return;
+    }
     if ((lower === 'p' || lower === 'escape') && phase === 'playing') { paused = !paused; return; }
     if (phase === 'title') { startJourney(); return; }
     if (phase === 'won' || phase === 'lost') { if (restartGuard <= 0) backToTitle(); return; }
@@ -2221,6 +2226,9 @@
       if (place) place.draw(pcW, pcH);
       // The look page has the word on it already; anything else needs the card.
       if (scene !== 'look') drawWordCard();
+      // The sheet covers a place as well as the island: the menu is the game's
+      // one way in, so it cannot be reachable from only one screen.
+      if (menu.open) drawMenu(pcW, pcH);
       return;
     }
 
@@ -3929,17 +3937,26 @@
 
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
+    // Finglish is how she hears it; the chosen language is what it means.
     ctx.fillStyle = C.ink;
     ctx.font = 'italic 600 ' + Math.round(30 * s) + 'px ' + FONT_SERIF;
     ctx.fillText(wordCard.word.f, x + 24 * s, y + h * 0.4);
     ctx.fillStyle = C.inkSoft;
-    ctx.font = '500 ' + Math.round(14 * s) + 'px ' + FONT_UI;
-    ctx.fillText(wordCard.word.e, x + 25 * s, y + h * 0.7);
-
-    ctx.textAlign = 'right';
-    ctx.fillStyle = C.inkFaint;
-    ctx.font = Math.round(22 * s) + 'px ' + FONT_SERIF;
-    ctx.fillText(wordCard.word.p, x + w - 24 * s, y + h * 0.47);
+    if (LANG === 'fa') {
+      ctx.font = '500 ' + Math.round(15 * s) + 'px ' + FONT_SERIF;
+      ctx.fillText(wordCard.word.p || '', x + 25 * s, y + h * 0.7);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = C.inkFaint;
+      ctx.font = '500 ' + Math.round(13 * s) + 'px ' + FONT_UI;
+      ctx.fillText(wordCard.word.e || '', x + w - 24 * s, y + h * 0.47);
+    } else {
+      ctx.font = '500 ' + Math.round(14 * s) + 'px ' + FONT_UI;
+      ctx.fillText(wordCard.word.e, x + 25 * s, y + h * 0.7);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = C.inkFaint;
+      ctx.font = Math.round(22 * s) + 'px ' + FONT_SERIF;
+      ctx.fillText(wordCard.word.p, x + w - 24 * s, y + h * 0.47);
+    }
 
     ctx.textAlign = 'left';
     ctx.fillStyle = C.inkFaint;
@@ -4326,6 +4343,20 @@
     var markW = 0;
     for (var mk = 0; mk < mark.length; mk++) markW += ctx.measureText(mark[mk]).width + 1.5;
     spacedText(mark, 26 + markW / 2, 46, 1.5);
+
+    // The language, on the title as well: the pill every place's header carries.
+    ctx.fillStyle = 'rgba(247,244,238,0.94)';
+    roundRect(276, 28, 88, 30, 15);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = '600 10.5px ' + FONT_UI;
+    ctx.textAlign = 'center';
+    ctx.fillText(LANG === 'fa' ? 'Farsi / English' : 'English / Farsi', 320, 43);
+    ctx.textAlign = 'left';
+    addHit(276, 28, 88, 30, 'titlelang');
 
     // The notebook is one of the tiles below, so it is not also a chip here:
     // a thing the page offers appears once.
@@ -6666,6 +6697,21 @@ props: islandProps.map(function (p) {
     ctx.font = '600 12px ' + FONT_UI;
     ctx.fillText('\u2039 island', 26, 32);
     addHit(12, 14, 88, 36, 'home');
+
+    // The menu, in the same pill row: this is what a place was missing. The
+    // language switch lives inside it, so it is reachable from every screen.
+    ctx.fillStyle = 'rgba(247,244,238,0.94)';
+    roundRect(106, 14, 74, 36, 18);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = '600 12px ' + FONT_UI;
+    ctx.textAlign = 'center';
+    ctx.fillText('menu', 143, 32);
+    ctx.textAlign = 'left';
+    addHit(106, 14, 74, 36, 'back');
 
     ctx.fillStyle = 'rgba(247,244,238,0.94)';
     var tw = ctx.measureText(title).width;
@@ -18335,25 +18381,36 @@ var ANIMAL_SIZES = {
         ctx.fillStyle = 'rgba(216,204,184,0.16)';
         ctx.fillRect(30, y - 15, 330, 52);
       }
+      // The row says the word three ways: the Finglish she reads, the Persian she
+      // writes, and the meaning. "The words in" decides which of the two answers
+      // LEADS - the other is the gloss beneath - so the switch changes what is on
+      // the page instead of only changing a saved preference.
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
-      ctx.fillStyle = C.ink;
-      ctx.font = 'italic 600 17px ' + FONT_SERIF;
-      ctx.fillText(w.f, 38, y + 2);
-      ctx.fillStyle = C.inkSoft;
-      ctx.font = '400 11.5px ' + FONT_UI;
-      ctx.fillText(LANG === 'fa' ? '' : (w.e || ''), 38, y + 19);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = C.turquoiseDeep;
-      ctx.font = '400 15px ' + FONT_SERIF;
-      ctx.fillText(w.p || '', 352, y + 8);
-      // The other language under the Finglish, so both are on the page and the
-      // menu's choice says which one is the word and which one the gloss.
       if (LANG === 'fa') {
-        ctx.textAlign = 'left';
+        // Persian leads, at full size; the Finglish sits under it as the reading.
+        ctx.fillStyle = C.ink;
+        ctx.font = '400 20px ' + FONT_SERIF;
+        ctx.fillText(w.p || '', 38, y + 4);
+        ctx.fillStyle = C.inkSoft;
+        ctx.font = 'italic 600 13px ' + FONT_SERIF;
+        ctx.fillText(w.f, 38, y + 21);
+        ctx.textAlign = 'right';
         ctx.fillStyle = C.inkFaint;
-        ctx.font = '400 10.5px ' + FONT_UI;
+        ctx.font = '400 12px ' + FONT_UI;
+        ctx.fillText(w.e || '', 352, y + 12);
+      } else {
+        // Finglish leads; the meaning under it, the Persian at the right.
+        ctx.fillStyle = C.ink;
+        ctx.font = 'italic 600 17px ' + FONT_SERIF;
+        ctx.fillText(w.f, 38, y + 2);
+        ctx.fillStyle = C.inkSoft;
+        ctx.font = '400 11.5px ' + FONT_UI;
         ctx.fillText(w.e || '', 38, y + 19);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = C.turquoiseDeep;
+        ctx.font = '400 15px ' + FONT_SERIF;
+        ctx.fillText(w.p || '', 352, y + 8);
       }
       ctx.textAlign = 'left';
       y += 52;
@@ -18525,17 +18582,28 @@ var ANIMAL_SIZES = {
     if (canvas.focus) canvas.focus();
 
     if (scene !== 'island') {
-      // The header's arrow is drawn by every place, so it must answer in every
-      // place. A place that supplies its own `down` used to swallow it: the word
-      // book, the notebook, the bag and the map all had a dead "‹ island".
-      if (chromeTap(pagePoint(e))) { e.preventDefault(); return; }
+      // The sheet first: while it is open it owns every tap, here as on the island.
+      if (menu.open) { menuDown(cssPoint(e)); e.preventDefault(); return; }
+      // The header's arrow and its menu chip are drawn by every place, so they
+      // must answer in every place. A place that supplies its own `down` used to
+      // swallow them: the word book, the notebook, the bag and the map all had a
+      // dead "‹ island" and no way back to the menu at all.
+      var hp = pagePoint(e);
+      var hh = hitAt(hp);
+      if (hh && hh.act === 'back') { openMenu(); e.preventDefault(); return; }
+      if (chromeTap(hp)) { e.preventDefault(); return; }
       var pl = placeDef(scene);
-      if (pl && pl.down) { pl.down(pagePoint(e)); e.preventDefault(); }
+      if (pl && pl.down) { pl.down(hp); e.preventDefault(); }
       return;
     }
 
     if (phase === 'title') {
       var th = hitAt(pagePoint(e));
+      if (th && th.act === 'titlelang') {
+        LANG = LANG === 'en' ? 'fa' : 'en';
+        try { localStorage.setItem('darya.lang', LANG); } catch (err) { /* private */ }
+        return;
+      }
       if (th && th.act === 'notebook') { enterPlace('notebook'); return; }
       if (th && th.act === 'menu') {
         enterPlace(th.arg);
