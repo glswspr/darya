@@ -13507,6 +13507,17 @@ var ANIMAL_SIZES = {
     var profile = [];
     for (var pi = 0; pi <= 24; pi++) profile.push(onEdge(f.edges.belly, pi / 24));
     f.bellyYAt = function (x) {
+      // CLAMPED outside the body, not extrapolated. A leg socket can sit beyond the
+      // belly's own x range (the belly runs brisket to flank), and extrapolating a
+      // straight line past the end sent the value off to nonsense - at a bear's rear
+      // socket it answered 0.665 where the belly is 0.316, which put the limb clip
+      // line above the animal's back.
+      // The belly edge runs FRONT TO BACK, so its x DECREASES along the profile: a
+      // clamp that assumed increasing order answered the first point everywhere.
+      var x0 = profile[0].x, xN = profile[profile.length - 1].x;
+      var lo = Math.min(x0, xN), hi = Math.max(x0, xN);
+      if (x <= lo) return x0 <= xN ? profile[0].y : profile[profile.length - 1].y;
+      if (x >= hi) return x0 <= xN ? profile[profile.length - 1].y : profile[0].y;
       for (var i = 1; i < profile.length; i++) {
         if (profile[i].x >= x) {
           var a = profile[i - 1], b = profile[i];
@@ -14160,7 +14171,15 @@ var ANIMAL_SIZES = {
     var plan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
     // The top of the limb is inside the mass it hangs under - the haunch at the
     // back, the brisket at the front - so the barrel covers where it leaves.
-    var topY = (hind ? f.legTop.hind : f.legTop.fore) - dip * 0.6;
+    //
+    // RAISED to the belly line at the limb's own x. On a deep-bodied animal the hip
+    // socket sits BELOW the belly (a bear: socket 0.430, belly 0.561), and a limb
+    // that started at the socket left a visible gap between itself and the body. The
+    // limb is clipped at the belly line anyway, so reaching above it costs nothing
+    // and guarantees the two touch at every species.
+    var socketY = (hind ? f.legTop.hind : f.legTop.fore) - dip * 0.6;
+    var bellyHere = f.bellyYAt(leg.x * (stretch === undefined ? 1 : stretch)) - dip * 0.6;
+    var topY = Math.max(socketY, bellyHere + f.row.depth * 0.02);
     // The limb stands under the body it belongs to: when the barrel stretches, the
     // socket moves with it and the limb goes with the socket.
     var hipX0 = leg.x * (stretch === undefined ? 1 : stretch);
@@ -14205,15 +14224,22 @@ var ANIMAL_SIZES = {
     var profile = hind ? ANIMAL_LIMB_PROFILE.hind : ANIMAL_LIMB_PROFILE.fore;
     var limb = animalLimbOutline([a, b, c, d, e], profile, limbWidth);
 
-    if (!leg.far) {
+    // EVERY limb is clipped at the belly line, near or far: above that line the body
+    // is, so a limb drawn there pokes out behind the croup as a slab. Clipping both
+    // also makes the far limb's join identical to the near one's.
+    {
       g.save();
       g.beginPath();
+      // The clip spans the WHOLE body plus a margin, and its top edge is the belly's
+      // own curve outside the belly too - bellyYAt() returns the end of the profile
+      // past either end, so a limb standing outside the barrel is still cut at the
+      // height the body would be there.
       var cspan = f.edges.top.b[0] - f.edges.top.a[0];
-      var cx0 = f.edges.top.a[0] - cspan * 0.40;
-      var cx1 = f.edges.top.b[0] + cspan * 0.40;
+      var cx0 = f.edges.top.a[0] - cspan * 1.20;
+      var cx1 = f.edges.top.b[0] + cspan * 1.20;
       g.moveTo(cx0, f.bellyYAt(cx0) - dip * 0.6);
-      for (var ci = 1; ci <= 16; ci++) {
-        var cxp = cx0 + (cx1 - cx0) * (ci / 16);
+      for (var ci = 1; ci <= 24; ci++) {
+        var cxp = cx0 + (cx1 - cx0) * (ci / 24);
         g.lineTo(cxp, f.bellyYAt(cxp) - dip * 0.6);
       }
       g.lineTo(cx1, -cspan);
@@ -14221,12 +14247,23 @@ var ANIMAL_SIZES = {
       g.closePath();
       g.clip();
     }
-    // A shade off the body: a limb the same colour as the barrel behind it has no
-    // edge, and an edge is the whole of what reads as "leg".
-    g.fillStyle = leg.far ? ink : (hind ? shadeHex(pal.fur, 0.95) : pal.fur);
+    // The limb is the COAT's own colour, so it belongs to the body it hangs from. A
+    // darker fill made it a shadow on the flank, and no single tone can match a body
+    // that is fur above and pale below. What separates it is a contour line, which is
+    // how an ink drawing puts one part in front of another.
+    g.fillStyle = leg.far ? ink : pal.fur;
     traceRound(g, limb);
     g.fill();
-    if (!leg.far) g.restore();
+    if (!leg.far) {
+      // The contour, on the near limb only: a far limb is already a darker tone and
+      // is separated by that.
+      g.strokeStyle = shadeHex(pal.fur, 0.78);
+      g.lineWidth = Math.max(0.006, wide * 0.20);
+      g.lineJoin = 'round';
+      traceRound(g, limb);
+      g.stroke();
+    }
+    g.restore();
 
     // The hoof: a dark mark at the foot, so the limb ends in a hoof and not a
     // rounded stroke.
