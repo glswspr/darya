@@ -14030,6 +14030,131 @@ var ANIMAL_SIZES = {
      The mass is a filled shape UNDER the body, and the body is drawn after it, so
      where the limb leaves the barrel is buried by the barrel - the same trick
      that keeps every other join in this rig invisible. */
+  /* THE THIGH'S OUTLINE. One function, called by the painter and by the probe, so
+     the shape a measurement reports is the shape that is drawn.
+
+     A TEARDROP: full width where it leaves the belly, a point where it becomes the
+     cannon. Its width is a row measure (`thigh`, 0.30 of the body length on a
+     gazelle), and the profile is sampled rather than drawn by hand, so it cannot
+     self-intersect and cannot step.
+
+         crown   a semicircle above t = 0, so the top edge is round
+         swell   full width just under the crown, where the hip's muscle is
+         taper   (1 - t) ^ 2.2, so the mass holds through the upper half and comes
+                 away to the tendon at the bottom
+
+     Returns a closed point list in the frame's units, y up, ground at 0. */
+  function animalThighOutline(f, hip, topY, b, c, wide, dip) {
+    var halfW = f.thighW * 0.5;
+    // At the hock only the tendon is left: the mass ends at the cannon's own width.
+    var wTop = f.thighW;
+    var wEnd = Math.max(wide * 1.05, wTop * 0.16);
+    // The axis starts AT the belly line, not inside it: anything above that line is
+    // clipped away by the body, so a crown buried in the body is a crown nobody sees.
+    var bellyAtHip = f.bellyYAt(hip.x) - dip * 0.6;
+    var t0x = hip.x + wide * 0.16;
+    var t0y = bellyAtHip + f.row.depth * 0.012;
+    var t1x = b[0] + (c[0] - b[0]) * 0.62;
+    var t1y = b[1] + (c[1] - b[1]) * 0.62;
+    var adx = t1x - t0x, ady = t1y - t0y;
+    var alen = Math.sqrt(adx * adx + ady * ady) || 1;
+    var nx = -ady / alen, ny = adx / alen;
+
+    var CROWN = 0.05, SIDES = 16, SWELL = 0.06;
+    var back = [], front = [];
+    for (var si = 0; si <= SIDES; si++) {
+      var st = -CROWN + (1 + CROWN) * (si / SIDES);
+      var cx2 = t0x + adx * st, cy2 = t0y + ady * st, wid;
+      if (st < 0) {
+        // The crown: half a circle, so the top edge is a dome and not a cut.
+        wid = wTop * Math.sqrt(Math.max(0, 1 - (st / CROWN) * (st / CROWN)));
+      } else {
+        var u = st <= SWELL ? st / SWELL : (st - SWELL) / (1 - SWELL);
+        wid = wTop * (1 - (1 - wEnd / wTop) * Math.pow(u, 2.2));
+      }
+      var half = wid * 0.5;
+      back.push([cx2 - nx * half, cy2 - ny * half]);
+      front.push([cx2 + nx * half, cy2 + ny * half]);
+    }
+    var outline = [];
+    for (var bi = 0; bi < back.length; bi++) outline.push(back[bi]);
+    for (var fi = front.length - 1; fi >= 0; fi--) outline.push(front[fi]);
+    return outline;
+  }
+
+  /* The width at each joint, as a share of the limb's top width. The haunch holds its
+     mass down to the stifle and is tendon from the hock; the shoulder is slimmer and
+     turns to a leg sooner. Both keep a little flare at the hoof. */
+  var ANIMAL_LIMB_PROFILE = {
+    hind: [1.00, 0.62, 0.30, 0.26, 0.30],
+    fore: [0.86, 0.50, 0.28, 0.24, 0.28]
+  };
+
+  /* ONE LIMB, ONE OUTLINE. Generated from the joint chain and a width profile, so a
+     leg is a single tapered silhouette from the body to the hoof - not a mass with
+     strokes drawn under it, which always shows a step or a notch where they meet.
+
+     `widths` is a share of the limb's top width at each joint, so the profile is read
+     against the animal's own scale and cannot be a different shape at a different
+     size. Returns a closed point list in the frame's units, y up, ground at 0. */
+  function animalLimbOutline(nodes, widths, width) {
+    var left = [], right = [];
+    var per = 5;                      // samples between each pair of joints
+
+    // Each joint's half-width. `width` IS a width (the row's `thigh`, or the leg's
+    // own), so the half is half of it - not half of twice it.
+    var halfAt = [];
+    for (var wi = 0; wi < widths.length; wi++) halfAt.push(width * widths[wi] * 0.5);
+
+    for (var i = 0; i < nodes.length - 1; i++) {
+      var p = nodes[i], q = nodes[i + 1];
+      var dx = q[0] - p[0], dy = q[1] - p[1];
+      var len = Math.sqrt(dx * dx + dy * dy) || 1;
+      // The perpendicular of THIS segment, so the offset follows the limb as it bends.
+      var nx = -dy / len, ny = dx / len;
+      for (var k = 0; k < per; k++) {
+        var t = k / per;
+        var px = p[0] + dx * t, py = p[1] + dy * t;
+        // Eased between the two joints' own widths, so the profile has no corner at a
+        // joint. Smoothstep, not a straight line: a linear blend makes a crease.
+        var ease = t * t * (3 - 2 * t);
+        var w = halfAt[i] + (halfAt[i + 1] - halfAt[i]) * ease;
+        left.push([px + nx * w, py + ny * w]);
+        right.push([px - nx * w, py - ny * w]);
+      }
+    }
+
+    // The hoof end, and its round cap: a leg ends in a toe, not a cut edge.
+    var last = nodes[nodes.length - 1], prev = nodes[nodes.length - 2];
+    var ldx = last[0] - prev[0], ldy = last[1] - prev[1];
+    var llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+    var lnx = -ldy / llen, lny = ldx / llen;
+    var wLast = halfAt[halfAt.length - 1];
+    left.push([last[0] + lnx * wLast, last[1] + lny * wLast]);
+    right.push([last[0] - lnx * wLast, last[1] - lny * wLast]);
+
+    var outline = [];
+    for (var a = 0; a < left.length; a++) outline.push(left[a]);
+    for (var c1 = 1; c1 < 6; c1++) {
+      var ang = Math.PI * (c1 / 6);
+      outline.push([last[0] + (lnx * Math.cos(ang) + ldx / llen * Math.sin(ang)) * wLast,
+        last[1] + (lny * Math.cos(ang) + ldy / llen * Math.sin(ang)) * wLast]);
+    }
+    for (var b = right.length - 1; b >= 0; b--) outline.push(right[b]);
+    // And a round cap over the hip, so the haunch is round on top.
+    var first = nodes[0], second = nodes[1];
+    var fdx = first[0] - second[0], fdy = first[1] - second[1];
+    var flen = Math.sqrt(fdx * fdx + fdy * fdy) || 1;
+    var fnx = -fdy / flen, fny = fdx / flen;
+    var wFirst = halfAt[0];
+    for (var c2 = 1; c2 < 6; c2++) {
+      var ang2 = Math.PI * (c2 / 6);
+      outline.push([first[0] + (fnx * Math.cos(ang2) + fdx / flen * Math.sin(ang2)) * wFirst,
+        first[1] + (fny * Math.cos(ang2) + fdy / flen * Math.sin(ang2)) * wFirst]);
+    }
+    return outline;
+  }
+
   function paintLeg(g, f, leg, still, walk, reach, pal, dip, stretch) {
     var hind = leg.hind;
     var plan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
@@ -14067,63 +14192,41 @@ var ANIMAL_SIZES = {
     var ink = leg.far ? pal.far : (hind ? pal.nearLeg : pal.fur);
     var taper = ANIMAL_LEG_TAPER;
 
-    // ---- THE THIGH. A hind leg above the hock is mostly thigh, and on a gazelle
-    // the haunch is the biggest mass on the animal. It is FILLED, not a thin stroke:
-    // its width is a row measure (`thigh`, 0.215 of the body length on a gazelle,
-    // four times its own cannon).
+    // ---- ONE LIMB, ONE OUTLINE (see animalLimbOutline). The haunch is the top of
+    // this same silhouette, not a mass drawn beside it: a mass and a stroke are two
+    // shapes that meet, and where they meet there is always a step or a notch.
     //
-    // Drawn as a chain of two round-capped capsules on the hip-to-stifle-to-hock
-    // axis. A hand-placed bezier outline crossed itself at the bottom and the fill
-    // showed a notch; an ellipse big enough to be a haunch sat more than half inside
-    // the barrel and read as a bag. Capsules cannot cross, and their round caps make
-    // the joins smooth.
-    //
-    // Its top is drawn ABOVE the hip socket on purpose: the barrel is painted after
-    // the legs, so the croup covers the top and the thigh leaves the body with no
-    // seam to show.
-    if (hind && f.thighW > 0.001) {
-      var thighLen = topY - b[1];                 // hip socket to stifle
-      if (thighLen > 0.02) {
-        var thighW = f.thighW * (leg.far ? 0.84 : 1);
-        // The axis: from inside the croup, through the stifle, on toward the hock.
-        // It leans forward going down, which is the direction a thigh runs.
-        var p0 = [hipX0 + wide * 0.26, topY + f.row.depth * 0.14];
-        var p1 = [b[0], b[1]];
-        var p2 = [b[0] + (c[0] - b[0]) * 0.70, b[1] + (c[1] - b[1]) * 0.70];
-        // A shade off the body: a limb the same colour as the barrel behind it has
-        // no edge, and an edge is the whole of what reads as "leg".
-        g.strokeStyle = leg.far ? ink : shadeHex(pal.fur, 0.94);
-        g.lineCap = 'round';
-        g.lineJoin = 'round';
-        // The haunch, from the croup to the stifle: the full width.
-        g.lineWidth = thighW;
-        g.beginPath();
-        g.moveTo(p0[0], p0[1]);
-        g.lineTo(p1[0], p1[1]);
-        g.stroke();
-        // The gaskin, from the stifle toward the hock: 60% of it, so the limb
-        // narrows where a hind leg really does.
-        g.lineWidth = thighW * 0.60;
-        g.beginPath();
-        g.moveTo(p1[0], p1[1]);
-        g.lineTo(p2[0], p2[1]);
-        g.stroke();
-      }
-    }
+    // A near limb is clipped at the belly's own curve, so its crown merges with the
+    // body instead of sitting on the flank as a dome. A far limb needs no clip: the
+    // barrel paints over its top, which is the same result another way.
+    // A WIDTH, not a half-width: `thigh` already measures the haunch across, so the
+    // doubling that used to be here made the limb twice the size of its own measure.
+    var limbWidth = hind ? f.thighW : Math.max(f.legW * 2.6, wide * 1.5);
+    var profile = hind ? ANIMAL_LIMB_PROFILE.hind : ANIMAL_LIMB_PROFILE.fore;
+    var limb = animalLimbOutline([a, b, c, d, e], profile, limbWidth);
 
-    // The segments. Each is drawn at the width of its TOP joint, so the limb
-    // narrows continuously and no segment shows a step where it meets the next.
-    g.strokeStyle = ink;
-    g.lineCap = 'round';
-    g.lineJoin = 'round';
-    var nodes = [a, b, c, d, e];
-    for (var i = 0; i < 4; i++) {
-      g.lineWidth = Math.max(0.010, wide * taper[i]);
+    if (!leg.far) {
+      g.save();
       g.beginPath();
-      g.moveTo(nodes[i][0], nodes[i][1]);
-      g.lineTo(nodes[i + 1][0], nodes[i + 1][1]);
-      g.stroke();
+      var cspan = f.edges.top.b[0] - f.edges.top.a[0];
+      var cx0 = f.edges.top.a[0] - cspan * 0.40;
+      var cx1 = f.edges.top.b[0] + cspan * 0.40;
+      g.moveTo(cx0, f.bellyYAt(cx0) - dip * 0.6);
+      for (var ci = 1; ci <= 16; ci++) {
+        var cxp = cx0 + (cx1 - cx0) * (ci / 16);
+        g.lineTo(cxp, f.bellyYAt(cxp) - dip * 0.6);
+      }
+      g.lineTo(cx1, -cspan);
+      g.lineTo(cx0, -cspan);
+      g.closePath();
+      g.clip();
     }
+    // A shade off the body: a limb the same colour as the barrel behind it has no
+    // edge, and an edge is the whole of what reads as "leg".
+    g.fillStyle = leg.far ? ink : (hind ? shadeHex(pal.fur, 0.95) : pal.fur);
+    traceRound(g, limb);
+    g.fill();
+    if (!leg.far) g.restore();
 
     // The hoof: a dark mark at the foot, so the limb ends in a hoof and not a
     // rounded stroke.
@@ -14239,19 +14342,24 @@ var ANIMAL_SIZES = {
     // ---- THE LEGS, behind the body so their tops are covered by it. A leg that
     // starts on the belly's own surface and is drawn behind that belly has no cap
     // to show, at any species.
-    // ---- THE LEGS. Four of them, each a chain of joints that folds the way its
-    // kind folds: a hind limb forward at the stifle and back at the hock, a fore
-    // limb back at the elbow and forward at the knee. Drawn before the trunk, so
-    // the barrel covers where each limb leaves the body.
-    if (m.leg > 0.02) {
-      // A stride is a share of the LEG: a walking quadruped's foot travels about
-      // 0.44 of its own limb length forward and back from standing.
-      var reach = Math.max(0.055, m.leg * 0.44);
+    // ---- THE FAR LEGS. They are on the other side of the body, so the barrel
+    // covers where they leave it. The two NEAR legs are drawn after the trunk, at
+    // the end of paintAnimal: a near limb is in front of the body and must be seen
+    // against it, not buried in it.
+    //
+    // A stride is a share of the LEG: a walking quadruped's foot travels about 0.44
+    // of its own limb length forward and back from standing.
+    var reachNow = Math.max(0.055, m.leg * 0.44);
+
+    function paintLegsBySide(far) {
       for (var li = 0; li < f.legs.length; li++) {
-        paintLeg(g, f, f.legs[li], still, walk, reach, pal,
+        if (f.legs[li].far !== far) continue;
+        paintLeg(g, f, f.legs[li], still, walk, reachNow, pal,
           dip + (pose.crouch || 0), pose.stretch === undefined ? 1 : pose.stretch);
       }
     }
+
+    if (m.leg > 0.02) paintLegsBySide(true);
 
     // ---- THE TRUNK: head, neck and body as ONE closed path.
     var trunk = animalTrunk(f, pose);
@@ -14550,6 +14658,11 @@ var ANIMAL_SIZES = {
       // Keep the root reference so a future edit cannot drift the two apart.
       if (tuskRoot && tuskSide) { /* the pair straddles the muzzle */ }
     }
+
+    // ---- THE NEAR LEGS, last before the overlay: they are on THIS side of the
+    // animal, so they stand in front of the barrel. Their tops are still above the
+    // hip socket, which is what keeps them from showing a cap where they meet it.
+    if (m.leg > 0.02) paintLegsBySide(false);
 
     // ---- THE SKELETON OVERLAY, on with ?skeleton=on or window.ANIMAL_SKELETON.
     if (animalSkeletonOn()) {
@@ -15180,6 +15293,93 @@ var ANIMAL_SIZES = {
      line. A gait is a loop: it can only be judged as a sequence. */
   /* One species in its four states, at one scale, on one ground line. If these
      read as four different animals, the gait is borrowing the wrong shape. */
+  /* The thigh's own silhouette, alone, with the belly line across it. Every other
+     part is left out, so the shape it makes can be judged and measured. */
+  window.__thighProbe = function (shape, size) {
+    shape = shape || 'gazelle';
+    size = size || 640;
+    var f = animalFrame(shape);
+    var m = f.row;
+    var c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + size + 'px;height:' + size + 'px;max-width:none';
+    document.body.appendChild(c);
+    var g = c.getContext('2d');
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, size, size);
+
+    var hip = null;
+    for (var i = 0; i < f.legs.length; i++) {
+      if (f.legs[i].hind && !f.legs[i].far) hip = f.legs[i];
+    }
+    var plan = ANIMAL_LEG.hind;
+    var topY = f.legTop.hind, legLen = topY;
+    var joint = function (j) {
+      return [hip.x + (0 - hip.x) * j.t + j.x * legLen, topY + (0 - topY) * j.t];
+    };
+    var B = joint(plan.stifle), C = joint(plan.hock);
+    var belly = f.bellyYAt(hip.x);
+    var wide = f.legW * plan.width;
+    var wTop = f.thighW;
+
+    var S = size * 0.80;
+    var sc = S / 1.20;
+    g.save();
+    g.translate(size * 0.52, size - size * 0.10);
+    g.scale(sc, -sc);
+
+    // The belly line, so the part that the body would hide is obvious.
+    g.strokeStyle = 'rgba(30,140,90,0.85)';
+    g.lineWidth = 0.005;
+    g.beginPath();
+    g.moveTo(-0.6, belly);
+    g.lineTo(0.32, belly);
+    g.stroke();
+
+    // The thigh's own polygon, built exactly as paintLeg builds it.
+    // The painter's OWN outline, not a copy of its formula: two copies of one shape
+    // drift, and then a measurement disagrees with the drawing and neither can be
+    // trusted. Everything below is measured from the points this returns.
+    // The painter's OWN limb outline: same nodes, same profile, same width. Two
+    // copies of one shape drift, and then a measurement disagrees with the drawing.
+    var nodes = [joint(plan.elbow || plan.stifle), joint(plan.knee || plan.hock),
+      joint(plan.fetlock), [hip.x, 0]];
+    var rest = [[hip.x, topY]].concat(nodes);
+    var limbWidth = f.thighW;
+    var sil = animalLimbOutline(rest, ANIMAL_LIMB_PROFILE.hind, limbWidth);
+    g.fillStyle = 'rgba(198,104,48,0.92)';
+    traceRound(g, sil);
+    g.fill();
+
+    // Measure the outline itself: its widest point, its width at the hoof, the taper.
+    var top = -Infinity, bottom = Infinity;
+    for (var mi = 0; mi < sil.length; mi++) {
+      if (sil[mi][1] > top) top = sil[mi][1];
+      if (sil[mi][1] < bottom) bottom = sil[mi][1];
+    }
+    var span = Math.max(1e-6, top - bottom);
+    var widthAt = function (share) {
+      var want = top - span * share, best = 0;
+      for (var k = 0; k < sil.length; k++) {
+        if (Math.abs(sil[k][1] - want) > span * 0.06) continue;
+        best = Math.max(best, Math.abs(sil[k][0] - sil[(k + 1) % sil.length][0]));
+      }
+      return best;
+    };
+    var wHip = widthAt(0.10), wMid = widthAt(0.40), wLow = widthAt(0.70), wFoot = widthAt(0.95);
+    g.restore();
+
+    g.fillStyle = '#2a2320';
+    g.font = '13px ui-monospace, Consolas, monospace';
+    g.fillText(shape + '   hip ' + wHip.toFixed(3) + '   40% ' + wMid.toFixed(3) +
+      '   70% ' + wLow.toFixed(3) + '   hoof ' + wFoot.toFixed(3), 12, 22);
+    g.fillText('taper hip->hoof ' + (wHip / Math.max(1e-6, wFoot)).toFixed(2) + ':1' +
+      '   (a teardrop is 3:1 or more)', 12, 40);
+    return c.width + 'x' + c.height;
+  };
+
   window.__animalGaits = function (id, size) {
     id = id || 'creature-persiangazelle';
     size = size || 260;
