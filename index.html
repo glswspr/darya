@@ -13070,119 +13070,137 @@ props: islandProps.map(function (p) {
   var ANIMAL_LOOKS = {
     // A wolf: high on its legs, a shallow barrel, a deep narrow chest, a head
     // carried well forward on a thick neck, level with the back.
-    wolf: { depth: 0.50, leg: 0.62, neckRun: 0.220, neckRise: 0.170,
-      headR: 0.158, muzzle: 1.32, headPitch: -8,
+    wolf: { depth: 0.369, leg: 0.451, neckRun: 0.200, neckRise: 0.134,
+      headR: 0.208, muzzle: 1.200, headPitch: -8,
       horn: 0, ear: 0.105, earKind: 'up', tail: 0.44, tailKind: 'bush',
-      hump: -0.02, tuck: 0.30, skullH: 1.85,
-      muzzleTop: 0.52, muzzleBot: 0.38 },
+      hump: -0.02, tuck: 0.30, skullH: 1.11,
+      muzzleTop: 0.29, muzzleBot: 0.27,
+      cheek: 0.40, deep: 0.20 },
     // A yard dog: the same plan, a heavier barrel, a shorter muzzle.
-    dog: { depth: 0.50, leg: 0.52, neckRun: 0.198, neckRise: 0.136,
-      headR: 0.168, muzzle: 1.19, headPitch: -6,
+    dog: { depth: 0.374, leg: 0.406, neckRun: 0.180, neckRise: 0.092,
+      headR: 0.238, muzzle: 1.080, headPitch: -6,
       horn: 0, ear: 0.115, earKind: 'up', tail: 0.36, tailKind: 'bush',
-      hump: 0.02, tuck: 0.28, skullH: 1.85,
-      muzzleTop: 0.55, muzzleBot: 0.40 },
+      hump: 0.02, tuck: 0.28, skullH: 0.89,
+      muzzleTop: 0.23, muzzleBot: 0.21,
+      cheek: 0.44, deep: 0.20 },
     // A fox: low and long, a narrow chest, a sharp wedge of a head carried out on
     // a neck so short the head seems to lead, and a brush as long as its body.
-    fox: { depth: 0.44, leg: 0.48, neckRun: 0.209, neckRise: 0.111,
-      headR: 0.152, muzzle: 1.50, headPitch: -10,
+    fox: { depth: 0.330, leg: 0.330, neckRun: 0.190, neckRise: 0.088,
+      headR: 0.163, muzzle: 1.280, headPitch: -10,
       horn: 0, ear: 0.150, earKind: 'fox', tail: 0.62, tailKind: 'brush',
-      hump: 0.00, tuck: 0.30, skullH: 1.80,
-      muzzleTop: 0.42, muzzleBot: 0.30 },
+      hump: 0.00, tuck: 0.30, skullH: 1.19,
+      muzzleTop: 0.31, muzzleBot: 0.28,
+      cheek: 0.34, deep: 0.16 },
     // A hyena: high at the shoulder and low at the hip, a crest down the neck.
-    hyena: { depth: 0.50, leg: 0.62, neckRun: 0.209, neckRise: 0.162,
-      headR: 0.168, muzzle: 1.23, headPitch: -8,
+    hyena: { depth: 0.360, leg: 0.440, neckRun: 0.190, neckRise: 0.103,
+      headR: 0.240, muzzle: 1.100, headPitch: -8,
       horn: 0, ear: 0.130, earKind: 'up', tail: 0.24, tailKind: 'bush',
-      hump: 0.14, tuck: 0.38, skullH: 1.85,
-      muzzleTop: 0.52, muzzleBot: 0.38 },
+      hump: 0.14, tuck: 0.38, skullH: 0.85,
+      muzzleTop: 0.22, muzzleBot: 0.20,
+      cheek: 0.46, deep: 0.22 },
     // A big cat: a deep chest, a level back, a broad short skull carried low and
     // forward on a short thick neck, a long round tail.
-    bigcat: { depth: 0.52, leg: 0.52, neckRun: 0.165, neckRise: 0.085,
-      headR: 0.189, muzzle: 1.06, headPitch: -5,
+    bigcat: { depth: 0.350, leg: 0.350, neckRun: 0.130, neckRise: 0.052,
+      headR: 0.296, muzzle: 0.940, headPitch: -5,
       horn: 0, ear: 0.080, earKind: 'round', tail: 0.60, tailKind: 'streamer',
-      hump: 0.02, tuck: 0.26, skullH: 1.92,
-      muzzleTop: 0.65, muzzleBot: 0.50 },
+      hump: 0.02, tuck: 0.26, skullH: 0.69,
+      muzzleTop: 0.18, muzzleBot: 0.17,
+      cheek: 0.52, deep: 0.26 },
     // A house cat: the same plan softer, a rounder barrel, a short tail held up.
-    smallcat: { depth: 0.50, leg: 0.45, neckRun: 0.143, neckRise: 0.068,
-      headR: 0.183, muzzle: 1.01, headPitch: -4,
+    smallcat: { depth: 0.346, leg: 0.294, neckRun: 0.110, neckRise: 0.040,
+      headR: 0.282, muzzle: 0.900, headPitch: -4,
       horn: 0, ear: 0.090, earKind: 'round', tail: 0.50, tailKind: 'up',
-      hump: 0.00, tuck: 0.22, skullH: 1.92,
-      muzzleTop: 0.68, muzzleBot: 0.53 },
+      hump: 0.00, tuck: 0.22, skullH: 0.67,
+      muzzleTop: 0.17, muzzleBot: 0.16,
+      cheek: 0.50, deep: 0.22 },
     // A gazelle: the leggiest animal here, a shallow barrel, a long neck held
     // nearly upright, a small head kept level above it, a lyre of horns.
-    gazelle: { depth: 0.44, leg: 0.72, neckRun: 0.165, neckRise: 0.306,
-      headR: 0.136, muzzle: 1.19, headPitch: -16,
+    gazelle: { depth: 0.386, leg: 0.534, neckRun: 0.100, neckRise: 0.174,
+      headR: 0.326, muzzle: 1.000, headPitch: -16,
       horn: 0.30, ear: 0.105, earKind: 'up', tail: 0.12, tailKind: 'stub',
-      hump: 0.06, tuck: 0.36, skullH: 1.80,
-      muzzleTop: 0.44, muzzleBot: 0.33 },
+      hump: 0.06, tuck: 0.36, skullH: 0.73,
+      muzzleTop: 0.19, muzzleBot: 0.17,
+      cheek: 0.36, deep: 0.14 },
     // A red deer or a maral: the longest legs and neck here, an antler.
-    longneck: { depth: 0.52, leg: 0.78, neckRun: 0.154, neckRise: 0.357,
-      headR: 0.152, muzzle: 1.41, headPitch: -14,
+    longneck: { depth: 0.440, leg: 0.560, neckRun: 0.150, neckRise: 0.222,
+      headR: 0.287, muzzle: 1.120, headPitch: -14,
       horn: 0.34, ear: 0.115, earKind: 'up', tail: 0.16, tailKind: 'stub',
-      hump: 0.02, tuck: 0.32, skullH: 1.75,
-      muzzleTop: 0.39, muzzleBot: 0.30 },
+      hump: 0.02, tuck: 0.32, skullH: 0.85,
+      muzzleTop: 0.22, muzzleBot: 0.20,
+      cheek: 0.40, deep: 0.20 },
     // An onager: the same neck a little more forward, no antlers, a streamer tail.
-    equid: { depth: 0.50, leg: 0.75, neckRun: 0.176, neckRise: 0.323,
-      headR: 0.158, muzzle: 1.50, headPitch: -12,
+    equid: { depth: 0.440, leg: 0.560, neckRun: 0.160, neckRise: 0.204,
+      headR: 0.262, muzzle: 1.160, headPitch: -12,
       horn: 0, ear: 0.125, earKind: 'up', tail: 0.24, tailKind: 'streamer',
-      hump: 0.02, tuck: 0.30, skullH: 1.80,
-      muzzleTop: 0.44, muzzleBot: 0.35 },
+      hump: 0.02, tuck: 0.30, skullH: 0.94,
+      muzzleTop: 0.24, muzzleBot: 0.23,
+      cheek: 0.40, deep: 0.18 },
     // A bezoar ibex: a deep barrel on sturdy legs, a short head carriage, scimitars.
-    ibex: { depth: 0.56, leg: 0.60, neckRun: 0.132, neckRise: 0.170,
-      headR: 0.152, muzzle: 1.28, headPitch: -10,
+    ibex: { depth: 0.440, leg: 0.440, neckRun: 0.120, neckRise: 0.119,
+      headR: 0.283, muzzle: 1.020, headPitch: -10,
       horn: 0.36, ear: 0.105, earKind: 'up', tail: 0.10, tailKind: 'stub',
-      hump: 0.10, tuck: 0.26, skullH: 1.85,
-      muzzleTop: 0.44, muzzleBot: 0.33 },
+      hump: 0.10, tuck: 0.26, skullH: 0.74,
+      muzzleTop: 0.19, muzzleBot: 0.18,
+      cheek: 0.42, deep: 0.22 },
     // A urial: a heavy woolly barrel on short legs, curled horns, a head carried low.
-    sheep: { depth: 0.58, leg: 0.52, neckRun: 0.099, neckRise: 0.119,
-      headR: 0.152, muzzle: 1.23, headPitch: -6,
+    sheep: { depth: 0.451, leg: 0.369, neckRun: 0.100, neckRise: 0.084,
+      headR: 0.251, muzzle: 0.980, headPitch: -6,
       horn: 0.20, ear: 0.105, earKind: 'up', tail: 0.08, tailKind: 'stub',
-      hump: 0.06, tuck: 0.22, skullH: 1.90,
-      muzzleTop: 0.55, muzzleBot: 0.40 },
+      hump: 0.06, tuck: 0.22, skullH: 0.66,
+      muzzleTop: 0.17, muzzleBot: 0.16,
+      cheek: 0.46, deep: 0.26 },
     // A brown bear: the deepest barrel here on the shortest legs, a shoulder mound,
     // a head carried almost on the shoulder, a small round ear.
-    bear: { depth: 0.66, leg: 0.38, neckRun: 0.088, neckRise: 0.085,
-      headR: 0.194, muzzle: 1.19, headPitch: -4,
+    bear: { depth: 0.475, leg: 0.245, neckRun: 0.070, neckRise: 0.052,
+      headR: 0.212, muzzle: 1.020, headPitch: -4,
       horn: 0, ear: 0.070, earKind: 'round', tail: 0.06, tailKind: 'stub',
-      hump: 0.16, tuck: 0.18, skullH: 1.85,
-      muzzleTop: 0.55, muzzleBot: 0.40 },
+      hump: 0.16, tuck: 0.18, skullH: 1.18,
+      muzzleTop: 0.31, muzzleBot: 0.28,
+      cheek: 0.50, deep: 0.30 },
     // A wild boar: a barrel that is most of the animal, tiny legs, a huge head
     // carried LEVEL on a neck too short to lift it, a mane, tusks.
-    boar: { depth: 0.60, leg: 0.30, neckRun: 0.13, neckRise: 0.03,
-      headR: 0.174, muzzle: 1.32, headPitch: -2,
+    boar: { depth: 0.449, leg: 0.211, neckRun: 0.050, neckRise: 0.014,
+      headR: 0.220, muzzle: 1.160, headPitch: -2,
       horn: 0, ear: 0.090, earKind: 'up', tail: 0.09, tailKind: 'stub',
-      hump: 0.18, tuck: 0.16, mane: 1, skullH: 1.80,
-      muzzleTop: 0.73, muzzleBot: 0.55 },
+      hump: 0.18, tuck: 0.16, mane: 1, skullH: 0.93,
+      muzzleTop: 0.24, muzzleBot: 0.22,
+      cheek: 0.56, deep: 0.24 },
     // A hare: long ears laid back, a rump higher than the shoulder, long hinds.
-    hare: { depth: 0.52, leg: 0.46, neckRun: 0.121, neckRise: 0.136,
-      headR: 0.147, muzzle: 1.14, headPitch: -6,
+    hare: { depth: 0.335, leg: 0.205, neckRun: 0.090, neckRise: 0.091,
+      headR: 0.200, muzzle: 0.980, headPitch: -6,
       horn: 0, ear: 0.340, earKind: 'hare', tail: 0.09, tailKind: 'puff',
-      hump: -0.06, tuck: 0.24, skullH: 1.85,
-      muzzleTop: 0.57, muzzleBot: 0.43 },
+      hump: -0.06, tuck: 0.24, skullH: 0.75,
+      muzzleTop: 0.20, muzzleBot: 0.18,
+      cheek: 0.44, deep: 0.18 },
     // A rabbit: the same plan rounder and lower.
-    rabbit: { depth: 0.50, leg: 0.34, neckRun: 0.088, neckRise: 0.085,
-      headR: 0.152, muzzle: 1.10, headPitch: -4,
+    rabbit: { depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.057,
+      headR: 0.186, muzzle: 0.940, headPitch: -4,
       horn: 0, ear: 0.250, earKind: 'hare', tail: 0.08, tailKind: 'puff',
-      hump: -0.04, tuck: 0.22, skullH: 1.85,
-      muzzleTop: 0.57, muzzleBot: 0.43 },
+      hump: -0.04, tuck: 0.22, skullH: 0.72,
+      muzzleTop: 0.19, muzzleBot: 0.17,
+      cheek: 0.46, deep: 0.20 },
     // A dormouse: a round body on short legs, round ears, a tail as long as itself.
-    rodent: { depth: 0.46, leg: 0.32, neckRun: 0.077, neckRise: 0.051,
-      headR: 0.158, muzzle: 1.36, headPitch: -4,
+    rodent: { depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.032,
+      headR: 0.167, muzzle: 1.060, headPitch: -4,
       horn: 0, ear: 0.100, earKind: 'round', tail: 0.78, tailKind: 'thin',
-      hump: 0.00, tuck: 0.18, skullH: 1.85,
-      muzzleTop: 0.44, muzzleBot: 0.35 },
+      hump: 0.00, tuck: 0.18, skullH: 0.86,
+      muzzleTop: 0.22, muzzleBot: 0.21,
+      cheek: 0.46, deep: 0.18 },
     // A hedgehog: a low dome of spines on almost no leg at all, a snout that
     // reaches, round ears.
-    hedgehog: { depth: 0.52, leg: 0.16, neckRun: 0.110, neckRise: 0.017,
-      headR: 0.147, muzzle: 1.41, headPitch: -4,
+    hedgehog: { depth: 0.370, leg: 0.070, neckRun: 0.080, neckRise: 0.015,
+      headR: 0.147, muzzle: 1.100, headPitch: -4,
       horn: 0, ear: 0.050, earKind: 'round', tail: 0.05, tailKind: 'stub',
-      hump: 0.10, tuck: 0.12, spines: 1, skullH: 1.90,
-      muzzleTop: 0.42, muzzleBot: 0.33 },
+      hump: 0.10, tuck: 0.12, spines: 1, skullH: 1.13,
+      muzzleTop: 0.29, muzzleBot: 0.27,
+      cheek: 0.40, deep: 0.16 },
     // A Caspian seal: no legs, a torpedo lying on the ground, no ears.
-    seal: { depth: 0.40, leg: 0.02, neckRun: 0.132, neckRise: 0.119,
-      headR: 0.158, muzzle: 1.14, headPitch: -6,
+    seal: { depth: 0.288, leg: 0.012, neckRun: 0.100, neckRise: 0.051,
+      headR: 0.093, muzzle: 1.000, headPitch: -6,
       horn: 0, ear: 0.000, earKind: 'none', tail: 0.20, tailKind: 'flipper',
-      hump: 0.00, tuck: 0.10, skullH: 1.90,
-      muzzleTop: 0.57, muzzleBot: 0.45 }
+      hump: 0.00, tuck: 0.10, skullH: 0.76,
+      muzzleTop: 0.20, muzzleBot: 0.18,
+      cheek: 0.44, deep: 0.16 }
   };
 
 var ANIMAL_SIZES = {
@@ -13343,9 +13361,11 @@ var ANIMAL_SIZES = {
        head / height  0.16 gazelle, 0.20 wolf, 0.26 bear, 0.30 boar
      --------------------------------------------------------------------------- */
   var ANIMAL_RULES = {
-    muzzle: [0.95, 2.10],      // nose past the skull's centre, in skull radii
-    headHeight: [0.12, 0.86],  // skull diameter against the standing height
-    headLength: [0.12, 0.48],  // nape to nose, against the body's length
+    muzzle: [0.85, 1.80],      // nose past the skull's centre, in skull radii
+    headHeight: [0.12, 0.98],  // skull diameter against the standing height
+    // Nose to occiput, against the body's length. This is the number the reference
+    // plates give, and it is what a person judges when they say a head is too small.
+    headLength: [0.08, 0.55],
     legHeight: [0.02, 0.68],   // the belly line against the standing height
     neckRun: [0.04, 0.46],     // the head's socket forward of the CHEST FRONT
     neckRise: [-0.06, 0.46],   // the same socket above the withers
@@ -13371,12 +13391,16 @@ var ANIMAL_SIZES = {
     foreLeg: { shareX: 0.82, depthDown: 0.40 },
     earRoot: { rx: -0.10, ry: 0.30 },     // in skull radii, up from the centre
     hornRoot: { rx: -0.12, ry: 0.36 },
-    // The neck's two ends ON THE HEAD. The crest meets the skull behind and
-    // ABOVE its centre; the throat meets the jaw below and before it. Both were
-    // under the jaw, so the neck could only leave as a thin tube from beneath the
-    // head - a stalk, not a neck. The gap between them IS the neck's depth.
-    nape: { rx: -0.72, ry: 0.12 },
-    throat: { rx: 0.10, ry: -0.58 }
+    // The neck's two ends ON THE HEAD. The crest meets the skull behind and above
+    // its centre; the throat meets the jaw below and before it. Their separation
+    // IS the neck's depth at the head, and the jaw's own depth sets it, so a
+    // heavy-jawed animal gets a thick neck and a gazelle a slim one.
+    // The neck's width AT THE HEAD is the distance between these two points, so
+    // they are set about three quarters of a head-depth apart: narrower than the
+    // skull they carry, which is what makes the skull read as a mass with a notch
+    // under the jaw instead of as the neck's own tip.
+    nape: { rx: -0.60, ry: 0.16 },
+    throat: { rx: -0.24, ry: -0.28 }
   };
 
   function animalClamp(value, rule, name, frame) {
@@ -13423,26 +13447,54 @@ var ANIMAL_SIZES = {
     var hump = m.hump || 0;
     var tuck = m.tuck === undefined ? 0.28 : m.tuck;
 
-    // ---- the barrel, as four quadratic edges. A positive `hump` lifts the back
-    // into a shoulder mound (a bear, a boar); a negative one puts the peak behind
-    // the withers.
+    // ---- THE BARREL, as four quadratic edges with real masses on them.
+    //
+    //   top    the back, with a shoulder mound where `hump` asks for one
+    //   front  the chest: it hangs LOWER than the belly, and it is the deepest
+    //          part of the animal. A chest level with the belly is a box.
+    //   belly  the underside, tucking UP behind the ribs toward the flank
+    //   rear   the HAUNCH: the thigh's mass, bulging down and back off the croup
+    //
+    // `deep` is how far below the belly line the chest reaches; `tuck` how far the
+    // belly rises. Between them they are the whole difference between a gazelle's
+    // tucked flank and a bear's sagging one.
     var withersY = backY - hump * depth * 0.22;
     var peakT = 0.50 + (hump >= 0 ? 0.08 : -0.10);
     var peakX = xRear + (xFront - xRear) * peakT;
     var backLift = depth * (0.035 + Math.abs(hump) * 0.55);
-    var frontBellyY = bellyY + depth * 0.30;
-    var rearBellyY = bellyY + depth * (0.10 + tuck * 0.30);
+
+    var deep = m.deep === undefined ? 0.16 : m.deep;
+    var brisketY = bellyY - depth * deep;                 // the chest's lowest point
+    var brisketX = xFront - 0.10;
+    var flankX = xRear + 0.34;                            // where the belly tucks up
+    var flankY = bellyY + depth * (0.06 + tuck * 0.5);
+    var haunchY = bellyY + depth * (0.16 + tuck * 0.10);  // the haunch's lowest point
 
     f.edges = {
       top: { a: [xRear, backY], b: [xFront, withersY],
         c: [peakX, (backY + withersY) * 0.5 + backLift], out: 1 },
-      belly: { a: [xRear, rearBellyY], b: [xFront, frontBellyY],
-        c: [xRear + 0.58, bellyY - depth * 0.030], out: -1 },
-      rear: { a: [xRear, backY], b: [xRear, rearBellyY],
-        c: [xRear - 0.030 - depth * 0.02, (backY + rearBellyY) * 0.5], out: -1 },
-      front: { a: [xFront, withersY], b: [xFront, frontBellyY],
-        c: [xFront + 0.050 + depth * 0.03, (withersY + frontBellyY) * 0.5], out: 1 }
+      // The chest: from the withers down the front, bulging FORWARD at the bottom
+      // so the brisket is the leading edge of the animal below the neck.
+      front: { a: [xFront, withersY], b: [brisketX, brisketY],
+        c: [xFront + 0.055 + depth * 0.05, (withersY + brisketY) * 0.46], out: 1 },
+      // The belly: brisket at the front, flank tucked high at the back.
+      belly: { a: [brisketX, brisketY], b: [flankX, flankY],
+        c: [xRear + 0.72, bellyY - depth * 0.02], out: -1 },
+      // The haunch: from the flank down and BACK into the thigh, then up to the
+      // croup. This bulge is the hind quarter, and the leg emerges from under it.
+      rear: { a: [flankX, flankY], b: [xRear, backY],
+        c: [xRear - 0.055 - depth * 0.06, haunchY], out: -1 }
     };
+
+    // Where each limb leaves its mass, so the leg's top is always INSIDE the body
+    // rather than sticking out of the belly as a stub.
+    f.legTop = {
+      hind: bellyY + depth * (0.34 + tuck * 0.28),
+      fore: brisketY + depth * 0.52
+    };
+    f.brisketY = brisketY;
+    f.flankY = flankY;
+    f.haunchY = haunchY;
 
     // The belly's own line, sampled once: a leg starts ON this surface, so its top
     // cannot show as a stub inside the torso, and it cannot float.
@@ -13497,7 +13549,8 @@ var ANIMAL_SIZES = {
     f.head = {
       x: headCentre[0], y: headCentre[1], angle: headAngle, dir: headDir,
       mlen: mlen, skullH: m.skullH || 1.9,
-      muzzleTop: m.muzzleTop || 0.32, muzzleBot: m.muzzleBot || 0.22
+      muzzleTop: m.muzzleTop || 0.32, muzzleBot: m.muzzleBot || 0.22,
+      cheek: m.cheek === undefined ? 0.44 : m.cheek
     };
 
     f.ears = { len: m.ear || 0, kind: m.earKind || 'up' };
@@ -13548,13 +13601,18 @@ var ANIMAL_SIZES = {
     var h = f.head;
     var hh = h.skullH;
     var mlen = h.mlen;
+    // The cheek's depth: how far the jaw hangs below the head's axis, at the
+    // molar. A gazelle's is a thin board; a boar's is most of the head.
+    var cheek = h.cheek === undefined ? 0.44 : h.cheek;
     return [
-      [-0.10, hh * 0.46],            // crown
-      [mlen * 0.46, hh * 0.40],      // brow
-      [mlen * 0.78, h.muzzleTop],    // the bridge, where the muzzle begins
-      [mlen, 0.10],                  // the nose
-      [mlen * 0.94, -0.16],          // the chin
-      [mlen * 0.58, -h.muzzleBot],   // the jaw
+      [-0.10, hh * 0.44],                    // crown, over the ear
+      [mlen * 0.26, hh * 0.40],              // the brow, above the eye
+      [mlen * 0.50, h.muzzleTop * 0.96],     // where the muzzle leaves the cheek
+      [mlen, h.muzzleTop * 0.16],            // the bridge, at the nose
+      [mlen * 0.97, -h.muzzleBot * 0.58],    // the nose's underside
+      [mlen * 0.92, -h.muzzleBot],           // the chin
+      [mlen * 0.30, -cheek],                 // the jaw's lowest point, at the molar
+      [mlen * 0.02, -cheek * 0.90],          // the jaw hinge, under the ear
       [ANIMAL_SOCKETS.throat.rx, ANIMAL_SOCKETS.throat.ry], // the throat
       [ANIMAL_SOCKETS.nape.rx, ANIMAL_SOCKETS.nape.ry]      // the nape
     ];
@@ -13580,11 +13638,30 @@ var ANIMAL_SIZES = {
   function animalPose(f, a) {
     var pose = {
       x: f.head.x, y: f.head.y, angle: f.head.angle, tilt: 0,
-      dip: 0, sway: 0, grazing: 0
+      dip: 0, sway: 0, grazing: 0,
+      // The gait's three body measures start at rest, so a caller with no
+      // animation gets a still animal rather than an undefined stretch.
+      arch: 0, stretch: 1, crouch: 0
     };
     if (!a) return pose;
 
     var moving = !!a.moving;
+    var gait = a.gait || (moving ? 'walk' : 'still');
+    // A gait that only moves the feet reads as one animal sliding. These three are
+    // what make a run look like a run.
+    if (gait === 'walk') {
+      pose.arch = f.row.depth * 0.012;
+      pose.stretch = 1.012;
+      pose.crouch = f.row.depth * 0.006;
+    } else if (gait === 'run') {
+      // A gallop: the back curves up over the loin, the barrel reaches forward,
+      // and the animal drops as it drives off. The head goes lower and further out.
+      pose.arch = f.row.depth * 0.055;
+      pose.stretch = 1.055;
+      pose.crouch = f.row.depth * 0.020;
+      pose.angle -= 0.10;
+    }
+
     var grazeK = a.grazing ? (a.grazeK === undefined ? 1 : Math.max(0, Math.min(1, a.grazeK))) : 0;
     var drinkK = a.drinking > 0 ? Math.min(1, a.drinking) : 0;
     var walk = a.walk % 8;
@@ -13646,26 +13723,37 @@ var ANIMAL_SIZES = {
     // 1. THE HEAD, from the nose back along its underside. The throat is where
     //    the neck's front line leaves, so the muzzle runs into the neck.
     add(H(marks[3][0], marks[3][1]));   // the nose
-    add(H(marks[4][0], marks[4][1]));   // the chin
-    add(H(marks[5][0], marks[5][1]));   // the jaw
-    var throat = H(marks[6][0], marks[6][1]);
+    add(H(marks[4][0], marks[4][1]));   // under the nose
+    add(H(marks[5][0], marks[5][1]));   // the chin
+    add(H(marks[6][0], marks[6][1]));   // the jaw at the molar
+    add(H(marks[7][0], marks[7][1]));   // the jaw hinge
+    var throat = H(marks[8][0], marks[8][1]);
 
     // 2. THE NECK'S FRONT, throat to brisket. A quadratic that bulges forward,
     //    because a neck has depth and a straight line reads as a stick.
-    var brisket = [f.chest.x - depth * 0.02, f.chest.y];
-    var tMid = [(throat[0] + brisket[0]) * 0.5 + depth * 0.30,
-      (throat[1] + brisket[1]) * 0.5 + depth * 0.06];
+    // The neck's front line ends at the BRISKET, which is the belly edge's own
+    // start - so the outline joins the masses without a step.
+    var brisket = [f.edges.belly.a[0], f.edges.belly.a[1]];
+    // The front of the neck is a CONE: narrow at the jaw, wide at the shoulder.
+    // A quadratic has one control point, so the bow is placed a third of the way
+    // along - near the throat - which is what makes the neck narrow there instead
+    // of fat. Bowing at the midpoint made the neck wider than the skull, and the
+    // head read as the neck's tip.
+    var tMid = [(throat[0] + brisket[0]) * 0.34 + brisket[0] * 0.66 + depth * 0.10,
+      (throat[1] + brisket[1]) * 0.5 + depth * 0.02];
     quad(throat, tMid, brisket, 4);
 
-    // 3. THE CHEST and the BELLY, forward to back, taking the belly's own tuck.
+    // 3. THE BELLY, brisket to flank, tucking up behind the ribs.
     for (var b1 = 1; b1 <= 5; b1++) {
-      var bp = onEdge(f.edges.belly, 1 - b1 / 6);
+      var bp = onEdge(f.edges.belly, b1 / 6);
       add([bp.x, bp.y]);
     }
 
-    // 4. THE RUMP, up the rear edge.
-    for (var r1 = 3; r1 >= 0; r1--) {
-      var rp = onEdge(f.edges.rear, r1 / 4);
+    // 4. THE HAUNCH, flank to croup, bulging down and back. This is the thigh's
+    //    mass, and walking it in this direction is what makes the hind quarter
+    //    round instead of square.
+    for (var r1 = 1; r1 <= 5; r1++) {
+      var rp = onEdge(f.edges.rear, r1 / 6);
       add([rp.x, rp.y]);
     }
 
@@ -13678,13 +13766,18 @@ var ANIMAL_SIZES = {
     // 6. THE NECK'S CREST, withers to nape, bulging up and back. The two ends are
     //    sockets; only the bulge is invented, and it is a share of the gap, so a
     //    short neck gets a short crest and a long neck a long one.
-    var nape = H(marks[7][0], marks[7][1]);
+    var nape = H(marks[9][0], marks[9][1]);
     var cx2 = nape[0] - f.withers.x, cy2 = nape[1] - f.withers.y;
     var span = Math.sqrt(cx2 * cx2 + cy2 * cy2) || 1;
     var nX = cy2 / span, nY = -cx2 / span;
     if (nY < 0) { nX = -nX; nY = -nY; }
-    var crest = [(f.withers.x + nape[0]) * 0.5 + nX * span * 0.26,
-      (f.withers.y + nape[1]) * 0.5 + nY * span * 0.26];
+    // The crest's bulge is a share of the CHEST's depth, not of the gap between
+    // two landmarks: the neck's thickness belongs to the animal, not to the joint.
+    // The crest bows by a share of the gap, placed near the WITHERS, so the neck
+    // is wide where it leaves the body and narrow where it meets the skull.
+    var crestBulge = Math.max(span * 0.26, depth * 0.30);
+    var crest = [(f.withers.x + nape[0]) * 0.30 + f.withers.x * 0.70 + nX * crestBulge,
+      (f.withers.y + nape[1]) * 0.30 + f.withers.y * 0.70 + nY * crestBulge];
     quad(f.withers, crest, nape, 4);
 
     // 7. THE HEAD, up over the crown and forward to the nose: crown, brow, bridge.
@@ -13692,9 +13785,24 @@ var ANIMAL_SIZES = {
     add(H(marks[1][0], marks[1][1]));
     add(H(marks[2][0], marks[2][1]));
 
+    // The gait's own three moves, applied to the ONE path so the head, the neck and
+    // the barrel cannot separate - which is the whole reason they are one path.
+    var arch = pose.arch || 0;
+    var stretch = pose.stretch === undefined ? 1 : pose.stretch;
+    var crouch = pose.crouch || 0;
+    var xRear = f.edges.top.a[0], xFront = f.edges.top.b[0];
+    var spanX = Math.max(1e-6, xFront - xRear);
+    for (var i = 0; i < pts.length; i++) {
+      var u = Math.max(0, Math.min(1, (pts[i][0] - xRear) / spanX));
+      pts[i][0] *= stretch;
+      // The arch peaks over the LOIN, behind the withers - where a galloping
+      // animal's back actually curves.
+      pts[i][1] += arch * Math.sin(Math.PI * Math.max(0, Math.min(1, u * 0.84)));
+      pts[i][1] -= crouch;
+    }
     // The whole animal falls and rises as one: a body that dips and a head that
     // stays put is a head on a rubber neck.
-    for (var i = 0; i < pts.length; i++) pts[i][1] -= pose.dip * 0.6;
+    for (var i2 = 0; i2 < pts.length; i2++) pts[i2][1] -= pose.dip * 0.6;
     f.sag = pose.dip;
     return pts;
   }
@@ -13743,6 +13851,27 @@ var ANIMAL_SIZES = {
   /* The proportion audit: every rule, every species, as numbers. One owner,
      called by the console as __animalAudit() and by Tools/animal-proportions.cjs,
      so a report and the picture can never disagree about what a row says. */
+  /* The target table's own arithmetic. head/body = head/height * height/body:
+     if those three numbers do not agree, the table is describing an animal that
+     cannot exist, and any drawing that fails against it is being judged by a
+     broken ruler. */
+  function animalTargetsConsistent() {
+    var bad = [];
+    for (var k in ANIMAL_TARGET) {
+      if (!Object.prototype.hasOwnProperty.call(ANIMAL_TARGET, k)) continue;
+      var t = ANIMAL_TARGET[k];
+      var implied = t.head * t.height;
+      if (Math.abs(implied - t.headBody) > 0.02) {
+        bad.push(k + ': head ' + t.head + ' x height ' + t.height + ' = ' +
+          Math.round(implied * 100) / 100 + ', but headBody says ' + t.headBody);
+      }
+    }
+    return bad;
+  }
+  if (typeof window !== 'undefined') {
+    window.__animalTargets = animalTargetsConsistent;
+  }
+
   function animalAudit() {
     var rows = [], fails = [];
     var rule = function (shape, name, value, range, why) {
@@ -13760,7 +13889,7 @@ var ANIMAL_SIZES = {
       var verdict = [];
       var push = function (v) { if (v) verdict.push(v); };
       var stand = m.leg + m.depth;                        // the withers above ground
-      var headLen = f.headR * (f.head.mlen + 0.62);       // nape to nose
+      var headLen = f.headR * (f.head.mlen + 0.10);       // nose to occiput
       var nosePastJaw = f.head.mlen - f.head.mlen * 0.58; // nose minus jaw, in radii
       var crownOverBack = headPoint(f, -0.10, f.head.skullH * 0.46)[1] - stand;
       var stance = ANIMAL_SOCKETS.foreLeg.shareX - ANIMAL_SOCKETS.hindLeg.shareX;
@@ -13772,6 +13901,16 @@ var ANIMAL_SIZES = {
 
       push(rule(shape, 'head/height', f.headR * 2 / stand, ANIMAL_RULES.headHeight, 'head size'));
       push(rule(shape, 'head/length', headLen, ANIMAL_RULES.headLength, 'head size'));
+      // The one check that ties the row to the target table: a head that is the
+      // right share of the animal's HEIGHT is the thing a photograph measures.
+      var tgt = ANIMAL_TARGET[shape] || ANIMAL_TARGET[ANIMAL_ROW_OF[shape]];
+      if (tgt) {
+        var gotHead = headLen / stand;
+        if (Math.abs(gotHead - tgt.head) > 0.05) {
+          verdict.push('head/height ' + gotHead.toFixed(2) +
+            ' vs the reference ' + tgt.head.toFixed(2));
+        }
+      }
       push(rule(shape, 'nose-jaw', nosePastJaw, [0.20, 0.90], 'muzzle folds back'));
       push(rule(shape, 'leg/height', m.leg / stand, ANIMAL_RULES.legHeight, 'legs'));
       push(rule(shape, 'neck run', f.neck.run, ANIMAL_RULES.neckRun, 'neck'));
@@ -13796,6 +13935,33 @@ var ANIMAL_SIZES = {
     }
     return { rows: rows, fails: fails };
   }
+  /* What a photograph says, per species: the numbers the picture is judged by.
+       height   shoulder height / chest-to-rump length
+       leg      leg share of that height
+       head     nose-to-occiput / shoulder height
+       headBody nose-to-occiput / chest-to-rump length
+       neck     the head's socket above the withers, degrees */
+  var ANIMAL_TARGET = {
+    gazelle: { height: 0.92, leg: 0.58, head: 0.39, headBody: 0.36, neck: 55 },
+    longneck: { height: 1.00, leg: 0.56, head: 0.35, headBody: 0.35, neck: 52 },
+    equid: { height: 1.00, leg: 0.56, head: 0.33, headBody: 0.33, neck: 48 },
+    ibex: { height: 0.88, leg: 0.50, head: 0.36, headBody: 0.32, neck: 40 },
+    sheep: { height: 0.82, leg: 0.45, head: 0.33, headBody: 0.27, neck: 34 },
+    wolf: { height: 0.82, leg: 0.55, head: 0.33, headBody: 0.27, neck: 26 },
+    dog: { height: 0.78, leg: 0.52, head: 0.36, headBody: 0.28, neck: 24 },
+    fox: { height: 0.66, leg: 0.50, head: 0.34, headBody: 0.22, neck: 22 },
+    hyena: { height: 0.80, leg: 0.55, head: 0.36, headBody: 0.29, neck: 26 },
+    bigcat: { height: 0.70, leg: 0.50, head: 0.44, headBody: 0.31, neck: 18 },
+    smallcat: { height: 0.64, leg: 0.46, head: 0.44, headBody: 0.28, neck: 16 },
+    bear: { height: 0.72, leg: 0.34, head: 0.33, headBody: 0.24, neck: 30 },
+    boar: { height: 0.66, leg: 0.32, head: 0.42, headBody: 0.28, neck: 12 },
+    hare: { height: 0.54, leg: 0.38, head: 0.40, headBody: 0.22, neck: 28 },
+    rabbit: { height: 0.46, leg: 0.30, head: 0.42, headBody: 0.19, neck: 22 },
+    rodent: { height: 0.46, leg: 0.30, head: 0.42, headBody: 0.19, neck: 20 },
+    hedgehog: { height: 0.44, leg: 0.16, head: 0.40, headBody: 0.18, neck: 8 },
+    seal: { height: 0.30, leg: 0.04, head: 0.34, headBody: 0.10, neck: 22 }
+  };
+
   /* @anatomy-end */
 
   /* How wide an animal is drawn, as a share of the height it stands at. A caller
@@ -13803,6 +13969,119 @@ var ANIMAL_SIZES = {
   function animalWidthShare(e) {
     var f = animalFrame(animalShapeOf(e.id));
     return f.bounds.w / Math.max(1e-6, f.bounds.h);
+  }
+
+  /* ---------------------------------------------------------------------------
+     A LEG IS A CHAIN, NOT THREE STROKES OF DECREASING WIDTH.
+
+     Every leg here was drawing the same shape: a knee at 44% and a hock at 78% of
+     the way down, with the bend differing by 0.015 of the body's depth. That is
+     why a gazelle's hind leg read as a copy of its fore leg - because it was one.
+
+     A four-legged animal's limbs fold in OPPOSITE directions, and the alternation
+     is what makes a silhouette read as a living animal:
+
+       fore:  shoulder -> elbow BACK -> knee FORWARD -> fetlock -> hoof
+       hind:  hip -> stifle FORWARD -> hock BACK -> fetlock -> hoof
+
+     Each joint is a share of the leg's own visible length (`t`) and a sideways
+     offset as a share of it too (`x`, positive = forward). Shares, not distances:
+     a bear's stumps and a gazelle's stilts fold by the same rule and only the
+     drawing changes. `mass` is the thigh or the shoulder: the heavy end of the
+     limb, drawn as a filled shape under the body so the quarter reads strong.
+     --------------------------------------------------------------------------- */
+  var ANIMAL_LEG = {
+    fore: {
+      // A shoulder and an elbow that points back, a knee that points forward.
+      elbow: { t: 0.42, x: -0.040 },
+      knee: { t: 0.66, x: 0.022 },
+      fetlock: { t: 0.90, x: 0.006 },
+      width: 1.00
+    },
+    hind: {
+      // A thigh, a stifle that points forward, and a hock that points BACK -
+      // the joint that makes a hind leg a hind leg. Measured against a gazelle's
+      // silhouette, the hock sits about 7% of the limb's length behind the thigh,
+      // not 15%: past that the limb reads as a bent stick rather than a leg.
+      stifle: { t: 0.36, x: 0.052 },
+      hock: { t: 0.64, x: -0.072 },
+      fetlock: { t: 0.90, x: -0.012 },
+      width: 1.20
+    }
+  };
+
+  /* How thick a leg is at each joint, as a share of its width at the top. A limb
+     is thick where it leaves the body and thin at the cannon, which is the whole
+     reason a drawn leg reads as a leg rather than a post. */
+  var ANIMAL_LEG_TAPER = [1.00, 0.78, 0.50, 0.38];
+
+  /* One leg, drawn as a chain of three tapered segments plus the thigh/shoulder
+     mass above it. `reach` is how far a stride may travel, as a share of the
+     leg's length, so a stride scales with the animal and never over-extends a
+     short limb.
+
+     The mass is a filled shape UNDER the body, and the body is drawn after it, so
+     where the limb leaves the barrel is buried by the barrel - the same trick
+     that keeps every other join in this rig invisible. */
+  function paintLeg(g, f, leg, still, walk, reach, pal, dip, stretch) {
+    var hind = leg.hind;
+    var plan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
+    // The top of the limb is inside the mass it hangs under - the haunch at the
+    // back, the brisket at the front - so the barrel covers where it leaves.
+    var topY = (hind ? f.legTop.hind : f.legTop.fore) - dip * 0.6;
+    // The limb stands under the body it belongs to: when the barrel stretches, the
+    // socket moves with it and the limb goes with the socket.
+    var hipX0 = leg.x * (stretch === undefined ? 1 : stretch);
+    var legLen = topY;
+    if (legLen < 0.02) return;
+
+    var posed = still ? { foot: 0, lift: 0 } : walkLegPose(walk, leg.index, 1);
+    var footX = hipX0 + posed.foot * reach;
+    // The foot lifts off the ground, and the whole limb follows it: a lifted leg
+    // that does not shorten its stride is a leg sliding along the floor.
+    // The hoof rises this share of the LIMB's own length at mid-swing. Applied
+    // once: walkLegPose already returns a 0..1 lift.
+    var footY = posed.lift * legLen * (hind ? 0.14 : 0.12);
+
+    // A joint's place: a share of the way down, and an offset as a share of the
+    // leg's own length. The offsets alternate, so the limb zig-zags the way a
+    // limb does rather than bowing one way like a bent stick.
+    var joint = function (j) {
+      return [hipX0 + (footX - hipX0) * j.t + j.x * legLen,
+        topY + (footY - topY) * j.t];
+    };
+    var a = [hipX0, topY];
+    var b = joint(plan.elbow || plan.stifle);
+    var c = joint(plan.knee || plan.hock);
+    var d = joint(plan.fetlock);
+    var e = [footX, footY];
+
+    var wide = f.legW * plan.width;
+    var ink = leg.far ? pal.far : (hind ? pal.nearLeg : pal.fur);
+    var taper = ANIMAL_LEG_TAPER;
+
+    // The segments. Each is drawn at the width of its TOP joint, so the limb
+    // narrows continuously and no segment shows a step where it meets the next.
+    g.strokeStyle = ink;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    var nodes = [a, b, c, d, e];
+    for (var i = 0; i < 4; i++) {
+      g.lineWidth = Math.max(0.010, wide * taper[i]);
+      g.beginPath();
+      g.moveTo(nodes[i][0], nodes[i][1]);
+      g.lineTo(nodes[i + 1][0], nodes[i + 1][1]);
+      g.stroke();
+    }
+
+    // The hoof: a dark mark at the foot, so the limb ends in a hoof and not a
+    // rounded stroke.
+    g.fillStyle = pal.hoof || shadeHex(pal.fur, 0.40);
+    g.beginPath();
+    g.ellipse(e[0] + wide * 0.22, e[1] + wide * 0.16,
+      Math.max(0.008, wide * 0.52), Math.max(0.005, wide * 0.26),
+      0, 0, TAU);
+    g.fill();
   }
 
   /* ---------------------------------------------------------------------------
@@ -13823,6 +14102,9 @@ var ANIMAL_SIZES = {
     var fur = pal.fur, belly = pal.belly, ink = pal.ink;
     var far = pal.far, nearLeg = pal.nearLeg;
     var hornC = pal.horn, tuskC = pal.tusk;
+    // A hoof is darker than the coat on every species, and is the mark that says
+    // the limb has ended rather than been cut off.
+    pal.hoof = pal.hoof || shadeHex(pal.fur, 0.42);
     var still = !a || !a.moving || pose.grazing > 0.02 || (a && a.drinking > 0);
     var walk = a ? (a.walk % 8) : 0;
 
@@ -13906,36 +14188,18 @@ var ANIMAL_SIZES = {
     // ---- THE LEGS, behind the body so their tops are covered by it. A leg that
     // starts on the belly's own surface and is drawn behind that belly has no cap
     // to show, at any species.
-    var reach = Math.max(0.025, m.leg * 0.24);
-    var oneLeg = function (leg) {
-      var posed = still ? { foot: 0, lift: 0 } : walkLegPose(walk, leg.index, 0.10);
-      var hipX = leg.x;
-      var footX = hipX + posed.foot * reach;
-      var footY = posed.lift * 0.10 * (leg.hind ? 1.05 : 1);
-      var topY = f.bellyYAt(hipX) + m.depth * 0.34 - dip * 0.6;
-      var bend = (leg.hind ? 0.060 : -0.045) * Math.max(0.18, m.leg);
-      var kneeAt = leg.hind ? 0.48 : 0.44;
-      var hockAt = leg.hind ? 0.78 : 0.82;
-      var kneeY = topY + (footY - topY) * kneeAt;
-      var kneeX = hipX + (footX - hipX) * kneeAt + bend;
-      var hockY = topY + (footY - topY) * hockAt;
-      var hockX = kneeX + (footX - kneeX) * 0.62 - bend * 0.80;
-      g.strokeStyle = leg.far ? far : (leg.hind ? nearLeg : fur);
-      g.lineCap = 'round';
-      g.lineJoin = 'round';
-      g.lineWidth = legW;
-      g.beginPath(); g.moveTo(hipX, topY); g.lineTo(kneeX, kneeY); g.stroke();
-      g.lineWidth = legW * 0.74;
-      g.beginPath(); g.moveTo(kneeX, kneeY); g.lineTo(hockX, hockY); g.stroke();
-      g.beginPath(); g.moveTo(hockX, hockY); g.lineTo(footX, footY); g.stroke();
-      // The hoof: a dark mark on the ground, so the leg ends in a foot.
-      g.fillStyle = shadeHex(pal.fur, 0.40);
-      g.beginPath();
-      g.ellipse(footX + legW * 0.30, footY + legW * 0.18, legW * 0.62, legW * 0.30, 0, 0, TAU);
-      g.fill();
-    };
+    // ---- THE LEGS. Four of them, each a chain of joints that folds the way its
+    // kind folds: a hind limb forward at the stifle and back at the hock, a fore
+    // limb back at the elbow and forward at the knee. Drawn before the trunk, so
+    // the barrel covers where each limb leaves the body.
     if (m.leg > 0.02) {
-      for (var li = 0; li < f.legs.length; li++) oneLeg(f.legs[li]);
+      // A stride is a share of the LEG: a walking quadruped's foot travels about
+      // 0.44 of its own limb length forward and back from standing.
+      var reach = Math.max(0.055, m.leg * 0.44);
+      for (var li = 0; li < f.legs.length; li++) {
+        paintLeg(g, f, f.legs[li], still, walk, reach, pal,
+          dip + (pose.crouch || 0), pose.stretch === undefined ? 1 : pose.stretch);
+      }
     }
 
     // ---- THE TRUNK: head, neck and body as ONE closed path.
@@ -14058,8 +14322,8 @@ var ANIMAL_SIZES = {
     g.fillStyle = belly;
     var lipA = f.head.mlen * 0.62;
     var lipB = f.head.mlen * 0.98;
-    var mp = [P(lipA, f.head.muzzleTop * 0.55), P(lipB, 0.05),
-      P(lipB, -0.10), P(lipA, -f.head.muzzleBot * 0.62)];
+    var mp = [P(lipA, f.head.muzzleTop * 0.50), P(lipB, f.head.muzzleTop * 0.18),
+      P(lipB, -f.head.muzzleBot * 0.55), P(lipA, -f.head.muzzleBot * 0.80)];
     g.beginPath();
     g.moveTo(mp[0][0], mp[0][1]);
     for (var mi = 1; mi < 4; mi++) g.lineTo(mp[mi][0], mp[mi][1]);
@@ -14067,15 +14331,15 @@ var ANIMAL_SIZES = {
     g.fill();
 
     // The nose at the muzzle's end, and the eye high on the skull.
-    var nz = P(f.head.mlen * 0.94, 0.10);
+    var nz = P(f.head.mlen * 0.96, f.head.muzzleTop * 0.24);
     g.fillStyle = ink;
     g.beginPath();
     g.ellipse(nz[0], nz[1], Math.max(0.010, f.headR * 0.16), Math.max(0.008, f.headR * 0.12),
       f.ears.kind === 'hare' ? 0.4 : 0, 0, TAU);
     g.fill();
-    var ey2 = P(f.head.mlen * 0.30, 0.40);
+    var ey2 = P(f.head.mlen * 0.30, f.head.skullH * 0.24);
     g.beginPath();
-    g.arc(ey2[0], ey2[1], Math.max(0.010, f.headR * 0.16), 0, TAU);
+    g.arc(ey2[0], ey2[1], Math.max(0.007, f.headR * 0.115), 0, TAU);
     g.fill();
     if (shape === 'fox') {
       g.fillStyle = belly;
@@ -14305,7 +14569,7 @@ var ANIMAL_SIZES = {
     line(f.withers.x, f.withers.y, f.neck.socket[0], f.neck.socket[1], jointInk, px * 1.6);
     dot(f.neck.socket[0], f.neck.socket[1], px * 2.6);
     // The scruff, from the withers to the nape: the neck's crest.
-    var nape = headPointAbout(f, pose.x, pose.y, marks[7][0], marks[7][1], pose.tilt);
+    var nape = headPointAbout(f, pose.x, pose.y, marks[9][0], marks[9][1], pose.tilt);
     line(f.withers.x, f.withers.y, nape[0], nape[1], 'rgba(28,112,184,0.45)', px);
     dot(nape[0], nape[1], px * 1.8, headInk);
     dot(f.tailRoot.x, f.tailRoot.y, px * 2.0);
@@ -14705,10 +14969,7 @@ var ANIMAL_SIZES = {
       var e = findSpecies(ids[i]) || { id: ids[i], sh: 'beast', f: ids[i], e: ids[i] };
       var ox = (i % cols) * size, oy = Math.floor(i / cols) * size;
       animalCellGrid(g, ox, oy, size);
-      g.save();
-      g.translate(ox + size / 2, oy + size - size * 0.13);
-      paintAnimal(g, e, null, size * 0.74);
-      g.restore();
+      animalPlateAt(g, e, ox, oy, size, null, size * 0.74);
       animalCellLabel(g, (e.e || ids[i]) + '  ·  ' + animalShapeOf(ids[i]), ox, oy, size);
     }
     ctx = prev;
@@ -14738,10 +14999,7 @@ var ANIMAL_SIZES = {
     for (var i = 0; i < states.length; i++) {
       var ox = i * size;
       animalCellGrid(g, ox, 0, size);
-      g.save();
-      g.translate(ox + size / 2, size - size * 0.16);
-      paintAnimal(g, e, states[i].a, size * 0.66);
-      g.restore();
+      animalPlateAt(g, e, ox, 0, size, states[i].a, size * 0.66);
       animalCellLabel(g, states[i].n, ox, 0, size);
     }
     ctx = prev;
@@ -14768,14 +15026,188 @@ var ANIMAL_SIZES = {
       var e = findSpecies(ids[i]) || { id: ids[i], sh: 'beast', f: ids[i], e: ids[i] };
       var ox = (i % cols) * box, oy = Math.floor(i / cols) * box;
       animalCellGrid(g, ox, oy, box);
-      g.save();
-      g.translate(ox + box / 2, oy + box - box * 0.18);
       // The size the world draws it at, so a shape that reads at 300 px and is
       // mush at 40 px shows as mush.
-      paintAnimal(g, e, { moving: false, walk: 0, facing: 1, seed: 3 }, beastHeight(e));
-      g.restore();
+      animalPlateAt(g, e, ox, oy, box,
+        { moving: false, walk: 0, facing: 1, seed: 3 }, beastHeight(e));
       animalCellLabel(g, ids[i].replace(/^(creature|pet)-/, '') + '  ' +
         Math.round(beastHeight(e)) + 'px', ox, oy, box);
+    }
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
+  };
+
+  /* Write one row's measures at runtime, and forget every frame built from it.
+     A frame is cached by shape name, so an edit is invisible until the cache is
+     dropped - which is the whole reason this hook exists. */
+  /* A COPY of one row, for a page that wants to show the numbers. A copy, so a
+     slider page cannot corrupt the shipping table by holding a reference to it. */
+  window.__animalRow = function (shape) {
+    var row = ANIMAL_LOOKS[shape];
+    if (!row) return null;
+    var out = {};
+    for (var k in row) {
+      if (Object.prototype.hasOwnProperty.call(row, k)) out[k] = row[k];
+    }
+    return out;
+  };
+
+  /* The names of every row, in table order. */
+  window.__animalShapes = function () {
+    var out = [];
+    for (var k in ANIMAL_LOOKS) {
+      if (Object.prototype.hasOwnProperty.call(ANIMAL_LOOKS, k)) out.push(k);
+    }
+    return out;
+  };
+
+  window.__animalTune = function (shape, patch) {
+    var row = ANIMAL_LOOKS[shape];
+    if (!row) return 'no row ' + shape;
+    for (var k in patch) {
+      if (Object.prototype.hasOwnProperty.call(patch, k)) row[k] = patch[k];
+    }
+    animalForget();
+    return row;
+  };
+
+  /* Draw one animal into a fresh canvas at `size` pixels tall, and hand the canvas
+     back so a caller can copy it or read it. */
+  window.__animalPlate = function (id, size, a) {
+    size = size || 300;
+    var c = document.createElement('canvas');
+    c.width = size;
+    c.height = size;
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, size, size);
+    var prev = ctx;
+    ctx = g;
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    try {
+      g.save();
+      g.translate(size / 2, size * 0.86);
+      paintAnimal(g, e, a === undefined ? { moving: false, walk: 0, facing: 1, seed: 3 } : a,
+        size * 0.72);
+      g.restore();
+    } catch (err) {
+      g.save();
+      g.fillStyle = '#a03020';
+      g.font = '12px monospace';
+      g.fillText(String(err.message).slice(0, 46), 8, 16);
+      g.restore();
+    }
+    ctx = prev;
+    return c;
+  };
+
+  /* The ratios a person judges an animal by, against the numbers a photograph
+     gives. `target` is null when this species has no measured row. */
+  window.__animalRatio = function (shape) {
+    var m = animalRow(shape);
+    var f = animalFrame(shape);
+    var stand = m.leg + m.depth;
+    var headLen = f.headR * (f.head.mlen + 0.10);
+    // The body's length is 1 by definition; `bounds.w` is the ink, which also
+    // includes the nose in front and the tail behind.
+    var bodyLen = 1.0;
+    var t = ANIMAL_TARGET[shape] || ANIMAL_TARGET[ANIMAL_ROW_OF[shape]];
+    return {
+      heightOverBody: stand / 1.0,
+      legShare: m.leg / stand,
+      headLenOverHeight: headLen / stand,
+      headLenOverBody: headLen / 1.0,   // the body IS one unit long
+      neckDeg: f.neck.angle * 180 / Math.PI,
+      boundsW: Math.round(f.bounds.w * 1000) / 1000,
+      boundsH: Math.round(f.bounds.h * 1000) / 1000,
+      target: t || null
+    };
+  };
+
+  /* Eight frames of one species' walk cycle, left to right, over one ground
+     line. A gait is a loop: it can only be judged as a sequence. */
+  /* One species in its four states, at one scale, on one ground line. If these
+     read as four different animals, the gait is borrowing the wrong shape. */
+  window.__animalGaits = function (id, size) {
+    id = id || 'creature-persiangazelle';
+    size = size || 260;
+    var states = [
+      { n: 'stand', a: { moving: false, walk: 0, facing: 1, seed: 3, gait: 'still' } },
+      { n: 'walk', a: { moving: true, walk: 3, facing: 1, seed: 3, gait: 'walk' } },
+      { n: 'run', a: { moving: true, walk: 5, facing: 1, seed: 3, gait: 'run' } },
+      { n: 'graze', a: { moving: false, walk: 0, facing: 1, seed: 3, grazing: true, grazeK: 1 } }
+    ];
+    var c = document.createElement('canvas');
+    c.width = size * states.length;
+    c.height = size;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    var shape = animalShapeOf(e.id);
+    var b = animalFrame(shape).bounds;
+    var h = Math.min(size * 0.64, size * 0.88 * (b.h / Math.max(1e-6, b.w)));
+    var ground = size - size * 0.15;
+    g.strokeStyle = 'rgba(150,138,112,0.55)';
+    g.beginPath();
+    g.moveTo(4, ground);
+    g.lineTo(c.width - 4, ground);
+    g.stroke();
+    for (var i = 0; i < states.length; i++) {
+      var cx = i * size + size / 2 - ((b.x0 + b.x1) * 0.5) * (h / b.h);
+      g.save();
+      g.translate(cx, ground);
+      paintAnimal(g, e, states[i].a, h);
+      g.restore();
+      g.fillStyle = '#4A4038';
+      g.font = '12px Georgia, serif';
+      g.textAlign = 'left';
+      g.fillText(states[i].n, i * size + size * 0.06, size - size * 0.035);
+    }
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
+  };
+
+  window.__animalWalk = function (id, size) {
+    id = id || 'creature-graywolf';
+    size = size || 150;
+    var frames = 8;
+    var c = document.createElement('canvas');
+    c.width = size * frames;
+    c.height = size;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    var shape = animalShapeOf(e.id);
+    var b = animalFrame(shape).bounds;
+    var h = Math.min(size * 0.66, size * 0.86 * (b.h / Math.max(1e-6, b.w)));
+    var ground = size - size * 0.16;
+    g.strokeStyle = 'rgba(150,138,112,0.55)';
+    g.beginPath();
+    g.moveTo(6, ground);
+    g.lineTo(c.width - 6, ground);
+    g.stroke();
+    for (var i = 0; i < frames; i++) {
+      var ox = i * size + size / 2 - ((b.x0 + b.x1) * 0.5) * (h / b.h);
+      g.save();
+      g.translate(ox, ground);
+      paintAnimal(g, e, { moving: true, walk: i, facing: 1, seed: 3 }, h);
+      g.restore();
+      g.fillStyle = '#8a7f72';
+      g.font = '10px Georgia, serif';
+      g.textAlign = 'center';
+      g.fillText(String(i), i * size + size / 2, size - 4);
     }
     ctx = prev;
     document.body.appendChild(c);
@@ -14809,7 +15241,27 @@ var ANIMAL_SIZES = {
     return out;
   };
 
-  /* A ten-per-cent grid and a ground line behind one cell. */
+  /* Put one animal in one cell, centred on its INK and standing on the cell's
+     ground line. The origin is the barrel's centre by design; the plate aims at
+     the ink, so a long head is not clipped off the right edge. */
+  function animalPlateAt(g, e, ox, oy, cell, a, wantHeight) {
+    var shape = animalShapeOf(e.id);
+    var b = animalFrame(shape).bounds;
+    // Fit BOTH dimensions: a bear's ink is nearly twice as wide as it is tall, so
+    // scaling to the cell's height alone made it wider than the cell.
+    var room = cell * 0.86;
+    var height = Math.min(wantHeight, room);
+    var width = height * (b.w / Math.max(1e-6, b.h));
+    if (width > room) height *= room / width;
+    var ground = oy + cell - cell * 0.13;
+    var cx = ox + cell / 2 - ((b.x0 + b.x1) * 0.5) * (height / b.h);
+    g.save();
+    g.translate(cx, ground);
+    paintAnimal(g, e, a, height);
+    g.restore();
+  }
+
+  /* A ground line and a ten-per-cent grid behind one cell of the sheet. */
   function animalCellGrid(g, ox, oy, size) {
     g.strokeStyle = 'rgba(120,110,90,0.13)';
     g.lineWidth = 1;
