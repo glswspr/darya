@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Darya · animal anatomy</title>
+<style>
+  :root{ --ink:#2a2320; --bg:#f7f4ee; --rule:#ddd3c2; --soft:#8a7f72; --accent:#b4552f; --ok:#4a7a48; --bad:#a8452c; }
+  *{box-sizing:border-box}
+  body{margin:0;font:13px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);
+       display:grid;grid-template-columns:320px 1fr;height:100vh;overflow:hidden}
+  aside{border-right:1px solid var(--rule);overflow-y:auto;padding:14px;background:#fbf8f2}
+  main{overflow:auto;padding:16px 20px}
+  h1{font-size:14px;margin:0 0 10px}
+  h2{font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--soft);
+     margin:16px 0 7px;border-bottom:1px solid var(--rule);padding-bottom:4px}
+  .row{display:grid;grid-template-columns:92px 1fr 46px;gap:7px;align-items:center;margin:2px 0}
+  .row label{font-size:11px}
+  .row output{font-size:10px;color:var(--soft);text-align:right;font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent);height:16px}
+  select{width:100%;font:inherit;font-size:12px;padding:4px;border:1px solid var(--rule);border-radius:4px}
+  button{font:inherit;font-size:11px;padding:5px 9px;border:1px solid var(--rule);border-radius:5px;
+         background:#fff;color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .presets{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .stages{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;padding:4px 0 20px}
+  .stage{background:#fff;border:1px solid var(--rule);border-radius:8px;padding:4px}
+  .stage span{display:block;font-size:9px;color:var(--soft);text-align:center;padding-top:3px}
+  .bar{display:flex;gap:8px;align-items:center;margin:6px 0 10px}
+  #saved{font-size:11px;color:var(--soft)}
+  #out{width:100%;height:150px;font:11px/1.45 ui-monospace,Consolas,monospace;border:1px solid var(--rule);
+       border-radius:6px;padding:8px;background:#fff;resize:vertical;white-space:pre;overflow:auto}
+  table.ratios{border-collapse:collapse;width:100%;font-size:11px;margin-top:4px}
+  table.ratios th{text-align:left;font-weight:600;color:var(--soft);font-size:10px;
+                  border-bottom:1px solid var(--rule);padding:2px 4px}
+  table.ratios td{padding:2px 4px;font-variant-numeric:tabular-nums}
+  table.ratios td.good{color:var(--ok)}
+  table.ratios td.bad{color:var(--bad);font-weight:600}
+  .note{font-size:11px;color:var(--soft);margin:4px 0 0}
+</style>
+</head>
+<body>
+
+<aside>
+  <h1>Animal anatomy</h1>
+
+  <h2>Species</h2>
+  <select id="shape"></select>
+  <div class="presets" id="presets" style="margin-top:8px"></div>
+
+  <h2>Body</h2>
+  <div class="row"><label>leg</label><input type="range" id="r_leg" min="0.02" max="0.80" step="0.005"><output id="o_leg"></output></div>
+  <div class="row"><label>depth</label><input type="range" id="r_depth" min="0.20" max="0.70" step="0.005"><output id="o_depth"></output></div>
+  <div class="row"><label>tuck</label><input type="range" id="r_tuck" min="0" max="0.80" step="0.01"><output id="o_tuck"></output></div>
+  <div class="row"><label>chest deep</label><input type="range" id="r_deep" min="0" max="0.45" step="0.01"><output id="o_deep"></output></div>
+  <div class="row"><label>hump</label><input type="range" id="r_hump" min="-0.2" max="0.4" step="0.01"><output id="o_hump"></output></div>
+
+  <h2>Head</h2>
+  <div class="row"><label>headR</label><input type="range" id="r_headR" min="0.06" max="0.34" step="0.002"><output id="o_headR"></output></div>
+  <div class="row"><label>muzzle</label><input type="range" id="r_muzzle" min="0.60" max="1.80" step="0.01"><output id="o_muzzle"></output></div>
+  <div class="row"><label>skullH</label><input type="range" id="r_skullH" min="0.4" max="2.2" step="0.02"><output id="o_skullH"></output></div>
+  <div class="row"><label>cheek</label><input type="range" id="r_cheek" min="0.10" max="0.80" step="0.01"><output id="o_cheek"></output></div>
+  <div class="row"><label>pitch°</label><input type="range" id="r_headPitch" min="-30" max="20" step="1"><output id="o_headPitch"></output></div>
+
+  <h2>Neck</h2>
+  <div class="row"><label>run</label><input type="range" id="r_neckRun" min="-0.05" max="0.50" step="0.005"><output id="o_neckRun"></output></div>
+  <div class="row"><label>rise</label><input type="range" id="r_neckRise" min="-0.05" max="0.60" step="0.005"><output id="o_neckRise"></output></div>
+
+  <h2>Ratios against the reference</h2>
+  <table class="ratios" id="ratios"></table>
+  <p class="note" id="hint"></p>
+</aside>
+
+<main>
+  <div class="stages" id="stages"></div>
+  <div class="bar">
+    <button class="primary" id="save">Save</button>
+    <button id="reset">Reset this species</button>
+    <span id="saved"></span>
+  </div>
+  <textarea id="out" readonly spellcheck="false"></textarea>
+</main>
+
+<script>
+/* The page drives the game's OWN painter: it loads the shipping game.js into a
+   canvas and calls paintAnimal on it. A copy of the drawing here would drift, and
+   then this page would tune something nobody ships. */
+/* see CANDIDATES below */
+
+const SHAPES = ['gazelle','longneck','equid','ibex','sheep','wolf','dog','fox',
+  'hyena','bigcat','smallcat','bear','boar','hare','rabbit','rodent','hedgehog','seal'];
+
+/* Which species id shows which shape, so a plate is a real animal. */
+const SAMPLE = {
+  gazelle:'creature-persiangazelle', longneck:'creature-maral', equid:'creature-onager',
+  ibex:'creature-bezoaribex', sheep:'creature-urial', wolf:'creature-graywolf',
+  dog:'pet-shepherd', fox:'creature-redfox', hyena:'creature-stripedhyena',
+  bigcat:'creature-caspiantiger', smallcat:'creature-junglecat', bear:'creature-brownbear',
+  boar:'creature-wildboar', hare:'creature-hare', rabbit:'creature-rabbit',
+  rodent:'creature-dormouse', hedgehog:'creature-hedgehog', seal:'creature-caspianseal'
+};
+
+const SLIDERS = [
+  ['leg','Body',0.02,0.80,0.005],['depth','Body',0.20,0.70,0.005],
+  ['tuck','Body',0,0.80,0.01],['deep','Body',0,0.45,0.01],['hump','Body',-0.2,0.4,0.01],
+  ['headR','Head',0.06,0.34,0.002],['muzzle','Head',0.60,1.80,0.01],
+  ['skullH','Head',0.4,2.2,0.02],['cheek','Head',0.10,0.80,0.01],
+  ['headPitch','Head',-30,20,1],
+  ['neckRun','Neck',-0.05,0.50,0.005],['neckRise','Neck',-0.05,0.60,0.005]
+];
+
+const STAGES = [
+  { id:'big', w:420, scale:1.00, label:'large' },
+  { id:'mid', w:200, scale:0.55, label:'half' },
+  { id:'real', w:80, scale:0.22, label:'world size' }
+];
+
+let cfg = {};
+let base = null;          // the species row as shipped, for Reset
+let frame = 0;
+
+/* ---------------------------------------------------------------- the game */
+/* The game page is one directory up from the tuner, whichever directory the
+   tuner is served from: dist/tools/ sees dist/index.html, and tools/ sees
+   ../dist/index.html. Try both, in order. */
+const CANDIDATES = ['index.html'];    // published beside it
+
+const gameFrame = document.createElement('iframe');
+gameFrame.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:900px;border:0';
+document.body.appendChild(gameFrame);
+
+let gameWin = null;
+let tried = 0;
+
+function looksLikeGame(w){
+  try {
+    return !!w && typeof w.__animalPlate === 'function' &&
+      typeof w.__animalTune === 'function' && typeof w.__animalRow === 'function';
+  } catch (e) { return false; }
+}
+
+function whenReady(fn){
+  let waited = 0;
+  const t = setInterval(()=>{
+    waited += 120;
+    if (looksLikeGame(gameFrame.contentWindow)){
+      clearInterval(t);
+      gameWin = gameFrame.contentWindow;
+      fn();
+      return;
+    }
+    /* A page that 404s or is not the game: move to the next candidate after a
+       grace period, and give up loudly rather than showing a blank plate. */
+    if (waited > 2500 && tried < CANDIDATES.length){
+      tried += 1;
+      waited = 0;
+      gameFrame.src = CANDIDATES[tried % CANDIDATES.length];
+      return;
+    }
+    if (waited > 20000){
+      clearInterval(t);
+      document.getElementById('hint').textContent =
+        'Could not reach the game page. Serve games/darya-keeper and open /dist/tools/animal-tuner.html.';
+    }
+  }, 120);
+}
+
+/* ---------------------------------------------------------------- rendering */
+function drawInto(canvas, w, scale){
+  const size = Math.round(300 * scale);
+  const plate = gameWin.__animalPlate(SAMPLE[cfg.__shape] || 'creature-graywolf', size,
+    { moving:false, walk:0, facing:1, seed:3 });
+  canvas.width = plate.width;
+  canvas.height = plate.height;
+  const g = canvas.getContext('2d');
+  g.clearRect(0,0,canvas.width,canvas.height);
+  g.drawImage(plate, 0, 0);
+}
+
+function render(){
+  cancelAnimationFrame(frame);
+  frame = requestAnimationFrame(()=>{
+    /* Write the row into the game, then redraw the plates from it. */
+    const patch = {};
+    for (const [k] of SLIDERS) patch[k] = Number(cfg[k]);
+    gameWin.__animalTune(cfg.__shape, patch);
+
+    STAGES.forEach(s=>{
+      drawInto(document.getElementById('c_' + s.id), s.w, s.scale);
+    });
+    readRatios();
+    document.getElementById('out').value = JSON.stringify(patch, null, 2);
+    writeHash();
+  });
+}
+
+function readRatios(){
+  const r = gameWin.__animalRatio(cfg.__shape);
+  const t = r.target || {};
+  const rows = [
+    ['height / body', r.heightOverBody, t.height, 0.06],
+    ['leg / height', r.legShare, t.leg, 0.05],
+    ['head / height', r.headLenOverHeight, t.head, 0.04],
+    ['head / body', r.headLenOverBody, t.headBody, 0.04],
+    ['neck angle°', r.neckDeg, t.neck, 8]
+  ];
+  let html = '<tr><th>measure</th><th>drawn</th><th>real</th></tr>';
+  rows.forEach(([name, got, want, tol])=>{
+    const ok = want === undefined ? null : Math.abs(got - want) <= tol;
+    html += `<tr><td>${name}</td><td>${got.toFixed(2)}</td>` +
+      `<td>${want === undefined ? '—' : want.toFixed(2)}</td>` +
+      `<td class="${ok === null ? '' : ok ? 'good' : 'bad'}">` +
+      `${ok === null ? '' : ok ? 'ok' : (got > want ? 'high' : 'low')}</td></tr>`;
+  });
+  document.getElementById('ratios').innerHTML = html;
+  document.getElementById('hint').textContent = t.height
+    ? 'Green means inside the tolerance. Red means the picture disagrees with the reference.'
+    : 'No measured reference for this shape yet.';
+}
+
+/* ---------------------------------------------------------------- wiring */
+function readHash(){
+  try {
+    if (location.hash) Object.assign(cfg, JSON.parse(decodeURIComponent(location.hash.slice(1))));
+  } catch (e) {}
+}
+function writeHash(){
+  try { history.replaceState(null,'','#'+encodeURIComponent(JSON.stringify(cfg))); } catch (e) {}
+}
+
+function loadShape(name){
+  cfg.__shape = name;
+  base = gameWin.__animalRow(name);
+  for (const [k] of SLIDERS) cfg[k] = base[k];
+  cfg.__shape = name;
+  syncUI();
+  render();
+}
+
+function syncUI(){
+  for (const [k,,min,max] of SLIDERS){
+    const r = document.getElementById('r_'+k);
+    if (!r) continue;
+    r.min = min; r.max = max;
+    r.value = cfg[k];
+    document.getElementById('o_'+k).textContent =
+      (max <= 1.2 || Math.abs(cfg[k]) < 1.2) ? Number(cfg[k]).toFixed(3) : Math.round(cfg[k]);
+  }
+}
+
+function buildUI(){
+  const sel = document.getElementById('shape');
+  SHAPES.forEach(s=>{
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    sel.appendChild(o);
+  });
+  sel.onchange = ()=> loadShape(sel.value);
+
+  SLIDERS.forEach(([k])=>{
+    const r = document.getElementById('r_'+k);
+    r.addEventListener('input', ()=>{ cfg[k] = parseFloat(r.value); syncUI(); render(); });
+  });
+
+  const presets = document.getElementById('presets');
+  [['gazelle','gazelle'],['bear','bear'],['wolf','wolf'],['boar','boar']].forEach(([label, s])=>{
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.onclick = ()=>{ document.getElementById('shape').value = s; loadShape(s); };
+    presets.appendChild(b);
+  });
+
+  document.getElementById('reset').onclick = ()=>{
+    for (const [k] of SLIDERS) cfg[k] = base[k];
+    syncUI(); render();
+  };
+
+  let fileHandle = null;
+  document.getElementById('save').onclick = async ()=>{
+    const text = JSON.stringify({ shape: cfg.__shape, patch: JSON.parse(document.getElementById('out').value) }, null, 2);
+    try {
+      if (!window.showSaveFilePicker){
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], {type:'application/json'}));
+        a.download = 'darya-animals.json'; a.click();
+        document.getElementById('saved').textContent = 'Downloads/darya-animals.json';
+        return;
+      }
+      fileHandle = await window.showSaveFilePicker({
+        suggestedName: 'darya-animals.json', startIn: 'downloads',
+        types: [{description:'JSON', accept:{'application/json':['.json']}}]
+      });
+      const w = await fileHandle.createWritable();
+      await w.write(text); await w.close();
+      document.getElementById('saved').textContent = 'Saved · ' + fileHandle.name;
+    } catch (e) {
+      if (e.name !== 'AbortError') document.getElementById('saved').textContent = 'Not saved: ' + e.message;
+    }
+  };
+
+  STAGES.forEach(s=>{
+    const d = document.createElement('div');
+    d.className = 'stage';
+    d.innerHTML = `<canvas id="c_${s.id}" width="${s.w}" height="${s.w}"></canvas><span>${s.label}</span>`;
+    document.getElementById('stages').appendChild(d);
+  });
+}
+
+readHash();
+buildUI();
+whenReady(()=>{
+  const want = cfg.__shape || 'gazelle';
+  document.getElementById('shape').value = want;
+  loadShape(want);
+});
+</script>
+</body>
+</html>
