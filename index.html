@@ -16997,6 +16997,16 @@ var ANIMAL_SIZES = {
     daisy: 20, blade: 12, clover: 10, thatch: 40, antler: 24
   };
 
+  /* Props that LIE on the ground rather than stand on it. They are drawn before
+     her, always, because a flat thing cannot be in front of a person. */
+  var PROP_LIES = {
+    bed: 1, pondwater: 1, water: 1, tidelinet: 1
+  };
+
+  function propLies(p) {
+    return !!(p && PROP_LIES[p.k]);
+  }
+
   /* How far a prop reaches BELOW the point it stands on. A house's wall comes
      down past its door; a stone barely at all. Only the exterior props need it,
      because only they can be labelled from underneath. */
@@ -17705,14 +17715,19 @@ var ANIMAL_SIZES = {
     islandProps = buildProps();
     if (!interior && d.kind !== 'sea') drawGroundShade();
 
-    // Painter's order: what stands behind her, her, then what stands before.
+    // Painter's order, in two passes. First what LIES on the ground - beds, water,
+    // the tide line: a flat thing has no near side, so it is always under
+    // everything. Then what STANDS on it, sorted among her by its own feet.
     var i;
     for (i = 0; i < islandProps.length; i++) {
-      if (islandProps[i].y <= hero.y) drawProp(islandProps[i]);
+      if (propLies(islandProps[i])) drawProp(islandProps[i]);
+    }
+    for (i = 0; i < islandProps.length; i++) {
+      if (!propLies(islandProps[i]) && islandProps[i].y <= hero.y) drawProp(islandProps[i]);
     }
     drawHero();
     for (i = 0; i < islandProps.length; i++) {
-      if (islandProps[i].y > hero.y) drawProp(islandProps[i]);
+      if (!propLies(islandProps[i]) && islandProps[i].y > hero.y) drawProp(islandProps[i]);
     }
     if (!interior) drawMotes();
     drawParticles();
