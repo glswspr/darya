@@ -1323,6 +1323,14 @@
      every piece she cannot touch, so the frame only pays for the few she can. */
   var quietGround = { canvas: null, dirty: true };
 
+  /* How many pieces the last frame drew into the bake and how many live above it.
+     The pair must always add up to every piece: a piece in neither is one that
+     vanished, and a piece in both is one drawn twice. */
+  window.__sceneryCount = function () {
+    var n = (scenery.pieces || []).length;
+    return JSON.stringify({ pieces: n, baked: quietGround.baked, live: quietGround.live, bakes: quietGround.bakes, nearSig: quietGround.nearSig });
+  };
+
   function quietGroundCanvas() {
     if (!quietGround.canvas) {
       quietGround.canvas = document.createElement('canvas');
@@ -1340,13 +1348,32 @@
     }
     var hx = hero.x, hy = hero.y;
     var near = [];
+    var nearKey = [];
     for (i = 0; i < pieces.length; i++) {
       var pc = pieces[i];
-      if (Math.abs(pc.x - hx) + Math.abs(pc.y - hy) < PUSH_REACH * 2) near.push(pc);
+      if (Math.abs(pc.x - hx) + Math.abs(pc.y - hy) < PUSH_REACH * 2) {
+        near.push(pc);
+        nearKey.push(i);
+      }
     }
+
+    // The bake leaves out the pieces near enough to lean, and the set of those is a
+    // function of where SHE is. Repainting it only when the sort changes meant the
+    // set could be frozen while she walked: a piece that was near when it was painted
+    // was left out of the bake, and once she walked away nothing drew it at all, so
+    // the ground lost its plants as she passed. Its opposite happened too - a piece
+    // she walked up to was in the bake and drawn live as well, so it doubled.
+    // The near set is the second reason to repaint, and it changes only when she
+    // crosses a piece's boundary, not every frame.
+    var nearSig = nearKey.join(',');
+    if (quietGround.nearSig !== undefined && quietGround.nearSig !== nearSig) {
+      quietGround.dirty = true;
+    }
+    quietGround.nearSig = nearSig;
 
     // The quiet ground: painted once, blitted every frame.
     if (quietGround.dirty) {
+      quietGround.bakes = (quietGround.bakes || 0) + 1;
       var qc = quietGroundCanvas();
       if (qc.width !== world.w || qc.height !== world.h) {
         qc.width = world.w;
@@ -1362,14 +1389,15 @@
         drawVerge(world.w, world.h, DRESSING_VERGE[secD.kind].inset, DRESSING_VERGE[secD.kind].tone);
       }
       for (i = 0; i < pieces.length; i++) {
-        var qp = pieces[i];
         // Only the quiet ones: the near ones are drawn live, above this image.
-        if (Math.abs(qp.x - hero.x) + Math.abs(qp.y - hero.y) < PUSH_REACH * 2) continue;
-        drawGroundPiece(qp);
+        if (nearKey.indexOf(i) >= 0) continue;
+        drawGroundPiece(pieces[i]);
       }
+      quietGround.baked = pieces.length - nearKey.length;
       ctx = prev;
       quietGround.dirty = false;
     }
+    quietGround.live = near.length;
     ctx.drawImage(quietGround.canvas, 0, 0);
 
     // And the few she can touch, live.
@@ -2223,11 +2251,16 @@
       ctx.fillStyle = '#141B2C';
       ctx.fillRect(0, 0, pcW, pcH);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      pageBegin(pcW, pcH);
+      // A place draws itself on its OWN page frame: it opens one with pageBegin and
+      // closes it with pageEnd. Do not open one here - doing both nested the frames and
+      // scaled every place page by pageK squared, which is invisible on a window that is
+      // exactly 390 wide and clips every page on any other (the yard's grid ran off the
+      // right edge, the walk screen was drawn at 1.8x).
       var place = placeDef(scene);
       if (place) place.draw(pcW, pcH);
-      // The tab, in the same corner on every page. A place also says where it is
-      // in its header; the tab is the way OUT, which the header no longer is.
+      // The tab, in the same corner on every page, drawn on a page of its own because
+      // a place has already closed its frame by the time it returns.
+      pageBegin(pcW, pcH);
       bookTab(390, 844, placeTitle || 'the island');
       pageEnd();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -4086,14 +4119,32 @@
     var y = 118;
     var i, page;
     var lastChapter = '';
+    // The list is measured before a line is drawn, so it always fits the page: this
+    // ledger grew to 23 entries and its last rows were drawn under the footer and off
+    // the sheet (it needed 934 px of an 806 px page). The row height is the only free
+    // number - the text is the notebook's - so the list tightens to fit instead of
+    // running over. When it is already short enough, nothing changes.
+    var rowGap = 28, doneGap = 40, chapterGap = 32;
+    var availTop = 118, availBottom = 762;
+    var need = 0;
+    for (i = 0; i < STORY.length; i++) {
+      if (STORY[i].c) need += chapterGap;
+      need += storyDone[STORY[i].id] ? doneGap : rowGap;
+    }
+    if (need > availBottom - availTop) {
+      var squeeze = (availBottom - availTop) / need;
+      rowGap = Math.floor(rowGap * squeeze);
+      doneGap = Math.floor(doneGap * squeeze);
+      chapterGap = Math.floor(chapterGap * squeeze);
+    }
     for (i = 0; i < STORY.length; i++) {
       page = STORY[i];
       if (page.c) {
-        y += 14;
+        y += Math.round(chapterGap * 0.44);
         ctx.fillStyle = C.inkFaint;
         ctx.font = '600 9px ' + FONT_UI;
         ctx.fillText(page.c.toUpperCase(), 34, y);
-        y += 18;
+        y += Math.round(chapterGap * 0.56);
       }
       var done = storyDone[page.id];
       if (done) {
@@ -4109,7 +4160,7 @@
         ctx.font = 'italic 600 13px ' + FONT_SERIF;
         ctx.fillText(w.f, 356, y);
         ctx.textAlign = 'left';
-        y += Math.min(2, linesN.length) * 14 + 12;
+        y += Math.min(2, linesN.length) * 14 + Math.max(6, doneGap - 28);
       } else {
         ctx.fillStyle = 'rgba(42,35,32,0.26)';
         ctx.font = 'italic 400 11.5px ' + FONT_UI;
@@ -4119,7 +4170,7 @@
         ctx.moveTo(34, y + 12);
         ctx.lineTo(356, y + 12);
         ctx.stroke();
-        y += 28;
+        y += rowGap;
       }
     }
 
@@ -4539,14 +4590,15 @@
     section.cx = Number(sp[0]);
     section.cy = Number(sp[1]);
     interior = null;
-    boatRide.riding = false;
-    boatRide.wake.length = 0;
+    // The boat is the section's decision, not the traveller's: settleBoatFor owns it, and the
+    // open water boards her on its own (via the island update) once she is standing on it.
     hero.x = world.w * 0.5;
     hero.y = world.h * 0.56;
     hero.vx = 0; hero.vy = 0;
     walkTarget = null;
     islandVerb = null;
     propCache = {};
+    settleBoatFor(def);
     scene = 'island';
     buildScenery();
     visitSection(section.cx, section.cy);
@@ -5275,7 +5327,7 @@
      at the same joints. What is ported by hand is only the arithmetic that
      moves those joints: KeeperStride and WalkCycle, in design units. */
   var KEEPER_PARTS = {
-    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <\!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <\!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <\!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <\!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<\!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <\!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <\!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <\!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<\!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<\!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <\!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
+    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
   };
 
   /* The design box every view is authored in. */
@@ -6058,6 +6110,7 @@
     hero.vx = 0; hero.vy = 0;
     walkTarget = null; islandVerb = null;
     propCache = {};
+    settleBoatFor(sectionDef());
     visitSection(cx, cy);
     return sectionDef().name;
   };
@@ -7004,6 +7057,14 @@ props: islandProps.map(function (p) {
   }
 
   function drawLook(cssW, cssH) {
+    // A place draws on the 390x844 page and opens that frame itself (see render()).
+    // This page alone used the window's css size as its layout space as well, so its
+    // plate, title and lines were laid out in one space and drawn in another and ran
+    // off the right edge (the gazelle's card sat centred at x=260 on a 390 page).
+    pageBegin(cssW, cssH);
+    cssW = 390;
+    cssH = 844;
+    hits = [];
     // The page's paper, in the same stock as the notebook.
     ctx.fillStyle = C.plaster;
     ctx.fillRect(0, 0, cssW, cssH);
@@ -7038,21 +7099,14 @@ props: islandProps.map(function (p) {
       roundRect(plateX, plateY, plateW, plateH, 14 * s);
       ctx.clip();
       var cx = cssW / 2, cy = plateY + plateH * 0.84;
-      // Each kind is drawn at the size it needs to fill the plate: a tree is
-      // already 120 px tall at 1x, a beetle is 10 px.
-      // How tall and how wide each kind is at 1x, so the plate can choose a
-      // scale that fits the drawing inside it both ways.
-      var natural = {
-        plant: [70, 46], fungus: [40, 34], bird: [26, 30], fish: [22, 34],
-        insect: [18, 26], beast: [86, 96], being: [150, 46], frog: [22, 30],
-        seal: [60, 90], hen: [34, 30], find: [26, 26], cat: [50, 62], dog: [66, 76]
-      };
-      var nat = natural[sp.sh] || [60, 60];
-      if (sp.ps === 'tree' || sp.ps === 'round' || sp.ps === 'tall' || sp.ps === 'droop') nat = [126, 84];
-      else if (sp.ps === 'tuft') nat = [22, 30];
+      // Each kind is drawn at the size it needs to fill the plate. The size comes from
+      // the drawing's OWN ink, measured, never from a guess - the guess is what cropped
+      // the plant cards. One rule for every kind: the card draws them all through
+      // drawSpecies, so the ink measured the same way is exactly what it will scale.
+      var ink = speciesInkBox(sp);
       var room = plateH * 0.86;
       var wide = plateW * 0.88;
-      var sc = Math.min(room / nat[0], wide / nat[1]);
+      var sc = Math.min(room / Math.max(1, ink.h), wide / Math.max(1, ink.w));
       if (sp.sh === 'insect') {
         // A leaf, so the insect has something to stand on.
         ctx.fillStyle = '#8FA96A';
@@ -7111,6 +7165,7 @@ props: islandProps.map(function (p) {
     addHit(0, 0, cssW, cssH, 'card');
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
+    pageEnd();
   }
 
   addPlace('look', { from: 'internal',
@@ -10033,11 +10088,17 @@ props: islandProps.map(function (p) {
     ctx.save();
     ctx.translate(x, y);
     if (name === 'rice') {
-      ctx.fillStyle = '#F3EEDF';
+      // Grain has to be seen against cream paper: at #F3EEDF on #FBF6EC the tile read
+      // as empty, with a few white flecks where the ellipses were. A warm bran tone
+      // with a darker outline keeps it a grain of rice and not a smudge.
+      ctx.fillStyle = '#E8DCC0';
       for (var i = 0; i < 7; i++) {
         ctx.beginPath();
-        ctx.ellipse(-9 + (i % 4) * 6, -4 + Math.floor(i / 4) * 7, 3.2, 1.9, 0.4, 0, TAU);
+        ctx.ellipse(-9 + (i % 4) * 6, -4 + Math.floor(i / 4) * 7, 3.4, 2.1, 0.4, 0, TAU);
         ctx.fill();
+        ctx.strokeStyle = 'rgba(150,132,96,0.75)';
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
       }
     } else if (name === 'beans') {
       for (var j = 0; j < 3; j++) {
@@ -11300,20 +11361,25 @@ props: islandProps.map(function (p) {
     roundRect(318, 648, 10, 78, 2);
     ctx.fill();
 
-    // The verbs, in order, with the next one lit.
+    // The verbs, in order, with the next one lit. The row is laid out from its own
+    // count and centred, so it cannot hang off either edge (six pills at a fixed
+    // 60 px pitch began at x=-2) and it stops clear of the foot tab at y=807.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    var pillW = 52, gap = 8, vy = 774;
+    var rowW = REMOVAL_STEPS.length * pillW + (REMOVAL_STEPS.length - 1) * gap;
+    var rowX = 195 - rowW / 2;
     for (var v = 0; v < REMOVAL_STEPS.length; v++) {
-      var vx = 24 + v * 60, vy = 792;
+      var vx = rowX + v * (pillW + gap) + pillW / 2;
       var now = v === removal.step;
       var past = v < removal.step;
       ctx.fillStyle = now ? C.terracotta : past ? 'rgba(47,167,155,0.35)' : 'rgba(247,244,238,0.12)';
-      roundRect(vx - 26, vy - 14, 52, 28, 14);
+      roundRect(vx - pillW / 2, vy - 14, pillW, 28, 14);
       ctx.fill();
       ctx.fillStyle = now ? '#F7F4EE' : past ? 'rgba(247,244,238,0.7)' : 'rgba(247,244,238,0.45)';
       ctx.font = '500 9.5px ' + FONT_UI;
       ctx.fillText(REMOVAL_STEPS[v], vx, vy + 0.5);
-      addHit(vx - 26, vy - 14, 52, 28, 'verb', v);
+      addHit(vx - pillW / 2, vy - 14, pillW, 28, 'verb', v);
     }
 
     if (removal.msgAge < 3.4 && removal.msg) {
@@ -12812,6 +12878,47 @@ props: islandProps.map(function (p) {
      ink. Cached, because it costs a scratch canvas per kind and never changes. */
   function drawHeights() { return SPECIES_NATURAL; }
 
+  /* How much ink one drawing puts on the page, at 1x: {w, h}. Anything that has to
+     FIT a drawing inside a frame asks this, because a table of guesses is what
+     cropped the zoomed preview: the look page guessed a tuft at 22 px tall while the
+     drawing is 41, so the scale that "fitted" it came out twice too large and the
+     plate's clip cut the plant into stripes. Measured once per species, then cached. */
+  var inkBoxCache = {};
+  function speciesInkBox(sp) {
+    if (!sp) return { w: 60, h: 60 };
+    var key = sp.id || (sp.sh + ':' + (sp.e || ''));
+    if (inkBoxCache[key]) return inkBoxCache[key];
+    var box = 700;
+    var probe = document.createElement('canvas');
+    probe.width = box; probe.height = box;
+    var g = probe.getContext('2d');
+    var prev = ctx;
+    var out = { w: 60, h: 60 };
+    try {
+      ctx = g;
+      g.save();
+      g.translate(box / 2, box - 100);
+      drawSpeciesRaw(sp, 0, 0, 0, 1);
+      g.restore();
+      var d = g.getImageData(0, 0, box, box).data;
+      var top = -1, bot = -1, left = -1, right = -1;
+      for (var y = 0; y < box; y++) {
+        for (var x = 0; x < box; x++) {
+          if (d[(y * box + x) * 4 + 3] > 24) {
+            if (top < 0) top = y;
+            bot = y;
+            if (left < 0 || x < left) left = x;
+            if (x > right) right = x;
+          }
+        }
+      }
+      if (bot > top && right > left) out = { w: right - left, h: bot - top };
+    } catch (err) { /* the fallback box still fits something sane */ }
+    ctx = prev;
+    inkBoxCache[key] = out;
+    return out;
+  }
+
   /* Re-take the table: draw one of each kind raw, at scale 1, on a scratch canvas
      and report the ink's height. Console: __probeNaturals(). */
   window.__probeNaturals = function () {
@@ -12902,133 +13009,180 @@ props: islandProps.map(function (p) {
     return KEEPER_PX * 0.5 / INK_FILL;
   }
 
-  /* ---------------------------------------------------------------------------
-     AN ANIMAL IS A ROW OF MEASURES, NOT A TRACED OUTLINE.
+  /* @rows-begin
+     ---------------------------------------------------------------------------
+     AN ANIMAL IS A ROW OF MEASURES, AND EVERY MEASURE IS A SHARE OF ONE BODY
+     LENGTH: the barrel, chest to rump, fixed at 1. That unit does not change with
+     the species, so a row is something a person can check against a description
+     and the picture is the arithmetic.
 
-     The numbers are the original Darya's own (Assets/!Project/Code/View/Art/
-     CreatureLook.cs), copied species by species:
+       depth     belly line to withers        leg       ground to the belly line
+       neckRun   how far forward the head's socket sits, FROM THE CHEST FRONT
+       neckRise  how far above the withers it sits
+       headR     the skull's radius
+       muzzle    the nose's reach past the skull's centre, in skull radii
+       headPitch the head's own axis, in degrees (negative = nose down)
+       ear       an ear's length;  horn  a horn's height;  tail  a tail's length
+       hump      the shoulder mound;  tuck  how high the belly rises behind
+       skullH    the skull's height, in skull radii
+       earKind   'up' pointed, 'round', 'fox' huge, 'hare' long, 'none'
+       tailKind  'bush', 'brush', 'streamer', 'stub', 'flipper', 'thin', 'up'
 
-       rx, ry    the barrel: half its length and half its depth
-       legs      how far the feet stand below the barrel
-       lw        a leg's thickness, against the barrel's reach
-       neck      how far the neck rises;  nw its thickness
-       head      the skull's radius
-       muzzle    how far the snout juts beyond the skull, in skull radii
-       crown     the room kept above the skull for ears or horns
-       tail      the tail's length
-       ears      'up' (pointed), 'round', 'fox' (huge), 'none'
-       tailKind  'bush', 'brush', 'streamer', 'stub', 'flipper', 'none'
-       chest/haunch   where the chest and haunch sections sit, in barrel reaches
+     `neckRun` and `neckRise` are the two numbers that make a silhouette, and they
+     are measured from the CHEST FRONT, not from a point on the back. A wolf
+     carries its head well forward of its chest; a bear carries it almost on the
+     shoulder. Measuring from the withers hid that: every head landed over the
+     chest and the neck had nowhere to be, so the head looked stuck on.
 
-     A gazelle is a shallow barrel on long thin legs with a long neck and tall
-     horns. A boar is a deep barrel on tiny legs with almost no neck and a huge
-     head carried low. A bear is a heavy barrel on stubby legs with no neck at
-     all. Those are different NUMBERS, and the drawing follows them, so no two
-     species can converge on one blob.
+       neckRun  0.42 wolf, 0.44 gazelle, 0.46 deer, 0.10 bear, 0.08 boar
+
+     Two ratios decide the rest, both against the STANDING HEIGHT (leg + depth):
+       leg / height   0.05 seal, 0.30 bear, 0.42 boar, 0.55 wolf, 0.62 gazelle
+       head / height  0.16 gazelle, 0.20 wolf, 0.26 bear, 0.30 boar
+     A species whose ratios match another's converges on it, whatever the rest of
+     its row says. That was the whole failure: eighteen rows, one leg/height of
+     0.38 and one head/height of 0.30, so a bear and a gazelle were the same animal
+     with a different coat.
+
+     The bounds are enforced in ANIMAL_RULES and checked by animalAudit(), which
+     `node Tools/animal-proportions.cjs` runs over this exact table.
      --------------------------------------------------------------------------- */
-  var ANIMAL_LOOKS = {    // depth = the barrel's belly-to-withers, leg = ground-to-belly, both as a
-    // share of the shoulder-to-hip LENGTH. A quadrupeds' barrel is about half
-    // its length deep and its legs are the same order, so it reads as a body on
-    // legs and not as a plank on stilts.
-    wolf: { depth: 0.52, leg: 0.56, neck: 0.20, headR: 0.170, snout: 0.160,
-      horn: 0, ear: 0.110, earKind: 'up', tail: 0.40, tailKind: 'bush',
-      hump: 0.00, tuck: 0.30,
-      lean: 0.62, skullH: 1.75, muzzleD: 0.6, muzzleLen: 0.6,
-      muzzleTop: 0.3, muzzleBot: 0.2, headFwd: 0.8 },
-    dog: { depth: 0.54, leg: 0.46, neck: 0.18, headR: 0.180, snout: 0.150,
-      horn: 0, ear: 0.105, earKind: 'up', tail: 0.34, tailKind: 'bush',
-      hump: 0.02, tuck: 0.26,
-      lean: 0.55, skullH: 1.85, muzzleD: 0.55, muzzleLen: 0.55,
-      muzzleTop: 0.32, muzzleBot: 0.2, headFwd: 0.78 },
-    fox: { depth: 0.50, leg: 0.44, neck: 0.16, headR: 0.165, snout: 0.180,
-      horn: 0, ear: 0.150, earKind: 'fox', tail: 0.70, tailKind: 'brush',
-      hump: 0.00, tuck: 0.28,
-      lean: 0.48, skullH: 1.8, muzzleD: 0.75, muzzleLen: 0.75,
-      muzzleTop: 0.26, muzzleBot: 0.16, headFwd: 0.95 },
-    hyena: { depth: 0.52, leg: 0.54, neck: 0.20, headR: 0.180, snout: 0.150,
-      horn: 0, ear: 0.130, earKind: 'up', tail: 0.18, tailKind: 'bush',
-      hump: 0.14, tuck: 0.38,
-      lean: 0.58, skullH: 1.9, muzzleD: 0.62, muzzleLen: 0.62,
-      muzzleTop: 0.32, muzzleBot: 0.22, headFwd: 0.86 },
-    bigcat: { depth: 0.52, leg: 0.50, neck: 0.16, headR: 0.195, snout: 0.120,
-      horn: 0, ear: 0.080, earKind: 'round', tail: 0.66, tailKind: 'streamer',
-      hump: 0.02, tuck: 0.26,
-      lean: 0.3, skullH: 2.05, muzzleD: 0.34, muzzleLen: 0.34,
-      muzzleTop: 0.42, muzzleBot: 0.3, headFwd: 0.6 },
-    smallcat: { depth: 0.50, leg: 0.36, neck: 0.12, headR: 0.215, snout: 0.100,
-      horn: 0, ear: 0.085, earKind: 'round', tail: 0.50, tailKind: 'up',
-      hump: 0.00, tuck: 0.22,
-      lean: 0.28, skullH: 2.05, muzzleD: 0.28, muzzleLen: 0.28,
-      muzzleTop: 0.44, muzzleBot: 0.32, headFwd: 0.55 },
-    gazelle: { depth: 0.42, leg: 0.52, neck: 0.20, headR: 0.125, snout: 0.120,
-      horn: 0.30, ear: 0.105, earKind: 'up', tail: 0.12, tailKind: 'stub',
-      hump: 0.04, tuck: 0.38,
-      lean: 0.86, skullH: 1.7, muzzleD: 0.55, muzzleLen: 0.55,
-      muzzleTop: 0.26, muzzleBot: 0.18, headFwd: 0.7 },
-    longneck: { depth: 0.46, leg: 0.54, neck: 0.24, headR: 0.140, snout: 0.150,
-      horn: 0.34, ear: 0.115, earKind: 'up', tail: 0.18, tailKind: 'stub',
-      hump: 0.02, tuck: 0.30,
-      lean: 0.9, skullH: 1.6, muzzleD: 0.6, muzzleLen: 0.6,
-      muzzleTop: 0.24, muzzleBot: 0.16, headFwd: 0.75 },
-    ibex: { depth: 0.50, leg: 0.44, neck: 0.16, headR: 0.165, snout: 0.130,
-      horn: 0.34, ear: 0.105, earKind: 'up', tail: 0.10, tailKind: 'stub',
-      hump: 0.10, tuck: 0.26,
-      lean: 0.8, skullH: 1.75, muzzleD: 0.5, muzzleLen: 0.5,
-      muzzleTop: 0.28, muzzleBot: 0.18, headFwd: 0.72 },
-    sheep: { depth: 0.54, leg: 0.36, neck: 0.14, headR: 0.175, snout: 0.120,
-      horn: 0.18, ear: 0.105, earKind: 'up', tail: 0.08, tailKind: 'stub',
-      hump: 0.06, tuck: 0.22,
-      lean: 0.55, skullH: 1.85, muzzleD: 0.46, muzzleLen: 0.46,
-      muzzleTop: 0.34, muzzleBot: 0.24, headFwd: 0.62 },
-    bear: { depth: 0.62, leg: 0.36, neck: 0.10, headR: 0.245, snout: 0.150,
-      horn: 0, ear: 0.090, earKind: 'round', tail: 0.06, tailKind: 'stub',
-      hump: 0.14, tuck: 0.20,
-      lean: 0.34, skullH: 1.95, muzzleD: 0.62, muzzleLen: 0.62,
-      muzzleTop: 0.36, muzzleBot: 0.26, headFwd: 0.7 },
-    boar: { depth: 0.60, leg: 0.30, neck: 0.06, headR: 0.275, snout: 0.200,
-      horn: 0, ear: 0.115, earKind: 'up', tail: 0.08, tailKind: 'stub',
-      hump: 0.16, tuck: 0.18,
-      lean: 0.1, skullH: 1.55, muzzleD: 0.95, muzzleLen: 0.95,
-      muzzleTop: 0.3, muzzleBot: 0.22, headFwd: 1.05 },
-    equid: { depth: 0.46, leg: 0.56, neck: 0.22, headR: 0.145, snout: 0.200,
-      horn: 0, ear: 0.110, earKind: 'up', tail: 0.24, tailKind: 'streamer',
-      hump: 0.00, tuck: 0.28 },
-    hare: { depth: 0.54, leg: 0.22, neck: 0.14, headR: 0.280, snout: 0.110,
-      horn: 0, ear: 0.340, earKind: 'hare', tail: 0.09, tailKind: 'puff',
-      hump: 0.00, tuck: 0.22,
-      lean: 0.72, skullH: 2.1, muzzleD: 0.4, muzzleLen: 0.4,
-      muzzleTop: 0.4, muzzleBot: 0.28, headFwd: 0.58 },
-    rabbit: { depth: 0.56, leg: 0.18, neck: 0.10, headR: 0.290, snout: 0.100,
-      horn: 0, ear: 0.250, earKind: 'hare', tail: 0.08, tailKind: 'puff',
-      hump: 0.00, tuck: 0.20,
-      lean: 0.66, skullH: 2.1, muzzleD: 0.38, muzzleLen: 0.38,
-      muzzleTop: 0.4, muzzleBot: 0.28, headFwd: 0.56 },
-    rodent: { depth: 0.56, leg: 0.20, neck: 0.08, headR: 0.310, snout: 0.130,
-      horn: 0, ear: 0.140, earKind: 'round', tail: 0.80, tailKind: 'thin',
-      hump: 0.00, tuck: 0.18,
-      lean: 0.5, skullH: 1.9, muzzleD: 0.7, muzzleLen: 0.7,
-      muzzleTop: 0.3, muzzleBot: 0.22, headFwd: 0.85 },
-    hedgehog: { depth: 0.66, leg: 0.14, neck: 0.04, headR: 0.320, snout: 0.160,
-      horn: 0, ear: 0.070, earKind: 'round', tail: 0.05, tailKind: 'stub',
-      hump: 0.08, tuck: 0.12,
-      lean: 0.42, skullH: 1.85, muzzleD: 0.85, muzzleLen: 0.85,
-      muzzleTop: 0.28, muzzleBot: 0.2, headFwd: 0.95 },
-    seal: { depth: 0.56, leg: 0.00, neck: 0.18, headR: 0.220, snout: 0.140,
-      horn: 0, ear: 0.000, earKind: 'none', tail: 0.20, tailKind: 'thin',
-      hump: 0.00, tuck: 0.12,
-      lean: 0.34, skullH: 1.85, muzzleD: 0.5, muzzleLen: 0.5,
-      muzzleTop: 0.4, muzzleBot: 0.3, headFwd: 0.55 }
+
+  /* Two names for one animal: a deer and a maral are the same long-necked build,
+     an onager and a maral the same row. */
+  var ANIMAL_ROW_OF = {
+    deer: 'longneck', equid: 'longneck', mouse: 'rodent', cat: 'smallcat',
+    dog: 'dog', wolf: 'wolf', fox: 'fox'
+  };
+  function animalRow(shape) {
+    return ANIMAL_LOOKS[shape] || ANIMAL_LOOKS[ANIMAL_ROW_OF[shape]] || ANIMAL_LOOKS.wolf;
+  }
+
+  /* The horns, in the four currencies the island has: a gazelle's lyre, an ibex's
+     scimitar, a sheep's curl, a deer's antler; a boar's tusk; a mouse's nothing. */
+  var ANIMAL_HORN_OF = {
+    gazelle: 'lyre', ibex: 'scimitar', sheep: 'curl', longneck: 'antler',
+    boar: 'tusk', hare: 'none', rabbit: 'none', rodent: 'none', hedgehog: 'none',
+    seal: 'none', bigcat: 'none', smallcat: 'none', wolf: 'none', dog: 'none',
+    fox: 'none', hyena: 'none', bear: 'none'
   };
 
-  /* The shared skeleton every row is drawn on: where the legs stand, how far a
-     leg bends at each joint, how the body dips between footfalls. */
-  /* The legs stand at the corners of the barrel: a hind leg at the rear, a fore
-     leg under the chest. Placing them under the middle is what turned every
-     animal into a sausage on stubs. */
-  var ANIMAL_FRAME = {
-    nearHind: -0.42, nearFront: 0.86, farHind: -0.74, farFront: 0.58,
-    kneeAt: 0.46, elbowAt: 0.42, shin: 0.55, hockAt: 0.80,
-    kneeBend: 0.16, elbowBend: -0.11
+  var ANIMAL_LOOKS = {
+    // A wolf: high on its legs, a shallow barrel, a deep narrow chest, a head
+    // carried well forward on a thick neck, level with the back.
+    wolf: { depth: 0.50, leg: 0.62, neckRun: 0.220, neckRise: 0.170,
+      headR: 0.158, muzzle: 1.32, headPitch: -8,
+      horn: 0, ear: 0.105, earKind: 'up', tail: 0.44, tailKind: 'bush',
+      hump: -0.02, tuck: 0.30, skullH: 1.85,
+      muzzleTop: 0.52, muzzleBot: 0.38 },
+    // A yard dog: the same plan, a heavier barrel, a shorter muzzle.
+    dog: { depth: 0.50, leg: 0.52, neckRun: 0.198, neckRise: 0.136,
+      headR: 0.168, muzzle: 1.19, headPitch: -6,
+      horn: 0, ear: 0.115, earKind: 'up', tail: 0.36, tailKind: 'bush',
+      hump: 0.02, tuck: 0.28, skullH: 1.85,
+      muzzleTop: 0.55, muzzleBot: 0.40 },
+    // A fox: low and long, a narrow chest, a sharp wedge of a head carried out on
+    // a neck so short the head seems to lead, and a brush as long as its body.
+    fox: { depth: 0.44, leg: 0.48, neckRun: 0.209, neckRise: 0.111,
+      headR: 0.152, muzzle: 1.50, headPitch: -10,
+      horn: 0, ear: 0.150, earKind: 'fox', tail: 0.62, tailKind: 'brush',
+      hump: 0.00, tuck: 0.30, skullH: 1.80,
+      muzzleTop: 0.42, muzzleBot: 0.30 },
+    // A hyena: high at the shoulder and low at the hip, a crest down the neck.
+    hyena: { depth: 0.50, leg: 0.62, neckRun: 0.209, neckRise: 0.162,
+      headR: 0.168, muzzle: 1.23, headPitch: -8,
+      horn: 0, ear: 0.130, earKind: 'up', tail: 0.24, tailKind: 'bush',
+      hump: 0.14, tuck: 0.38, skullH: 1.85,
+      muzzleTop: 0.52, muzzleBot: 0.38 },
+    // A big cat: a deep chest, a level back, a broad short skull carried low and
+    // forward on a short thick neck, a long round tail.
+    bigcat: { depth: 0.52, leg: 0.52, neckRun: 0.165, neckRise: 0.085,
+      headR: 0.189, muzzle: 1.06, headPitch: -5,
+      horn: 0, ear: 0.080, earKind: 'round', tail: 0.60, tailKind: 'streamer',
+      hump: 0.02, tuck: 0.26, skullH: 1.92,
+      muzzleTop: 0.65, muzzleBot: 0.50 },
+    // A house cat: the same plan softer, a rounder barrel, a short tail held up.
+    smallcat: { depth: 0.50, leg: 0.45, neckRun: 0.143, neckRise: 0.068,
+      headR: 0.183, muzzle: 1.01, headPitch: -4,
+      horn: 0, ear: 0.090, earKind: 'round', tail: 0.50, tailKind: 'up',
+      hump: 0.00, tuck: 0.22, skullH: 1.92,
+      muzzleTop: 0.68, muzzleBot: 0.53 },
+    // A gazelle: the leggiest animal here, a shallow barrel, a long neck held
+    // nearly upright, a small head kept level above it, a lyre of horns.
+    gazelle: { depth: 0.44, leg: 0.72, neckRun: 0.165, neckRise: 0.306,
+      headR: 0.136, muzzle: 1.19, headPitch: -16,
+      horn: 0.30, ear: 0.105, earKind: 'up', tail: 0.12, tailKind: 'stub',
+      hump: 0.06, tuck: 0.36, skullH: 1.80,
+      muzzleTop: 0.44, muzzleBot: 0.33 },
+    // A red deer or a maral: the longest legs and neck here, an antler.
+    longneck: { depth: 0.52, leg: 0.78, neckRun: 0.154, neckRise: 0.357,
+      headR: 0.152, muzzle: 1.41, headPitch: -14,
+      horn: 0.34, ear: 0.115, earKind: 'up', tail: 0.16, tailKind: 'stub',
+      hump: 0.02, tuck: 0.32, skullH: 1.75,
+      muzzleTop: 0.39, muzzleBot: 0.30 },
+    // An onager: the same neck a little more forward, no antlers, a streamer tail.
+    equid: { depth: 0.50, leg: 0.75, neckRun: 0.176, neckRise: 0.323,
+      headR: 0.158, muzzle: 1.50, headPitch: -12,
+      horn: 0, ear: 0.125, earKind: 'up', tail: 0.24, tailKind: 'streamer',
+      hump: 0.02, tuck: 0.30, skullH: 1.80,
+      muzzleTop: 0.44, muzzleBot: 0.35 },
+    // A bezoar ibex: a deep barrel on sturdy legs, a short head carriage, scimitars.
+    ibex: { depth: 0.56, leg: 0.60, neckRun: 0.132, neckRise: 0.170,
+      headR: 0.152, muzzle: 1.28, headPitch: -10,
+      horn: 0.36, ear: 0.105, earKind: 'up', tail: 0.10, tailKind: 'stub',
+      hump: 0.10, tuck: 0.26, skullH: 1.85,
+      muzzleTop: 0.44, muzzleBot: 0.33 },
+    // A urial: a heavy woolly barrel on short legs, curled horns, a head carried low.
+    sheep: { depth: 0.58, leg: 0.52, neckRun: 0.099, neckRise: 0.119,
+      headR: 0.152, muzzle: 1.23, headPitch: -6,
+      horn: 0.20, ear: 0.105, earKind: 'up', tail: 0.08, tailKind: 'stub',
+      hump: 0.06, tuck: 0.22, skullH: 1.90,
+      muzzleTop: 0.55, muzzleBot: 0.40 },
+    // A brown bear: the deepest barrel here on the shortest legs, a shoulder mound,
+    // a head carried almost on the shoulder, a small round ear.
+    bear: { depth: 0.66, leg: 0.38, neckRun: 0.088, neckRise: 0.085,
+      headR: 0.194, muzzle: 1.19, headPitch: -4,
+      horn: 0, ear: 0.070, earKind: 'round', tail: 0.06, tailKind: 'stub',
+      hump: 0.16, tuck: 0.18, skullH: 1.85,
+      muzzleTop: 0.55, muzzleBot: 0.40 },
+    // A wild boar: a barrel that is most of the animal, tiny legs, a huge head
+    // carried LEVEL on a neck too short to lift it, a mane, tusks.
+    boar: { depth: 0.60, leg: 0.30, neckRun: 0.13, neckRise: 0.03,
+      headR: 0.174, muzzle: 1.32, headPitch: -2,
+      horn: 0, ear: 0.090, earKind: 'up', tail: 0.09, tailKind: 'stub',
+      hump: 0.18, tuck: 0.16, mane: 1, skullH: 1.80,
+      muzzleTop: 0.73, muzzleBot: 0.55 },
+    // A hare: long ears laid back, a rump higher than the shoulder, long hinds.
+    hare: { depth: 0.52, leg: 0.46, neckRun: 0.121, neckRise: 0.136,
+      headR: 0.147, muzzle: 1.14, headPitch: -6,
+      horn: 0, ear: 0.340, earKind: 'hare', tail: 0.09, tailKind: 'puff',
+      hump: -0.06, tuck: 0.24, skullH: 1.85,
+      muzzleTop: 0.57, muzzleBot: 0.43 },
+    // A rabbit: the same plan rounder and lower.
+    rabbit: { depth: 0.50, leg: 0.34, neckRun: 0.088, neckRise: 0.085,
+      headR: 0.152, muzzle: 1.10, headPitch: -4,
+      horn: 0, ear: 0.250, earKind: 'hare', tail: 0.08, tailKind: 'puff',
+      hump: -0.04, tuck: 0.22, skullH: 1.85,
+      muzzleTop: 0.57, muzzleBot: 0.43 },
+    // A dormouse: a round body on short legs, round ears, a tail as long as itself.
+    rodent: { depth: 0.46, leg: 0.32, neckRun: 0.077, neckRise: 0.051,
+      headR: 0.158, muzzle: 1.36, headPitch: -4,
+      horn: 0, ear: 0.100, earKind: 'round', tail: 0.78, tailKind: 'thin',
+      hump: 0.00, tuck: 0.18, skullH: 1.85,
+      muzzleTop: 0.44, muzzleBot: 0.35 },
+    // A hedgehog: a low dome of spines on almost no leg at all, a snout that
+    // reaches, round ears.
+    hedgehog: { depth: 0.52, leg: 0.16, neckRun: 0.110, neckRise: 0.017,
+      headR: 0.147, muzzle: 1.41, headPitch: -4,
+      horn: 0, ear: 0.050, earKind: 'round', tail: 0.05, tailKind: 'stub',
+      hump: 0.10, tuck: 0.12, spines: 1, skullH: 1.90,
+      muzzleTop: 0.42, muzzleBot: 0.33 },
+    // A Caspian seal: no legs, a torpedo lying on the ground, no ears.
+    seal: { depth: 0.40, leg: 0.02, neckRun: 0.132, neckRise: 0.119,
+      headR: 0.158, muzzle: 1.14, headPitch: -6,
+      horn: 0, ear: 0.000, earKind: 'none', tail: 0.20, tailKind: 'flipper',
+      hump: 0.00, tuck: 0.10, skullH: 1.90,
+      muzzleTop: 0.57, muzzleBot: 0.45 }
   };
 
 var ANIMAL_SIZES = {
@@ -13175,321 +13329,523 @@ var ANIMAL_SIZES = {
     return (1 - Math.cos(2 * Math.PI * at / 2)) * 0.5;
   }
 
+  /* @anatomy-begin */
   /* ---------------------------------------------------------------------------
-     DRAW ONE ANIMAL FROM ITS ROW OF MEASURES.
+     THE RULESET. Every bound an animal's own anatomy sits inside, calibrated
+     against real species rather than against the drawing. A row outside a bound
+     is a drawing error, not a species: animalAudit() names it, and the frame
+     clamps the measure so the picture stays attached even while the number is
+     wrong.
 
-     Ported from the original Darya's own wild-animal drawing (SpriteFactory.Actors
-     .WildAnimal), because a shape assembled out of anatomy reads as anatomy and a
-     silhouette I draw by hand reads as a doodle. In order, the same as the
-     original:
-
-       the barrel and two torso sections  -> so a cheetah's chest and a bear's rump
-       the belly, inside the torso        -> never cutting the outline
-       the legs, jointed at knee and hock -> so a leg is a limb and not a stick
-       the neck, tapered, leaning forward -> the head is carried out in FRONT
-       the head: a cranium and a wedge muzzle -> not a circle with a blob on it
-       ears, horns, tail, markings
-
-     Every measure is a fraction of the sprite, so the row holds at forty pixels
-     and at three hundred.
+     The two ratios that decide a silhouette are both against the STANDING HEIGHT
+     (leg + depth), because that is the number a reader judges:
+       leg / height   0.05 seal, 0.30 bear, 0.42 boar, 0.55 wolf, 0.62 gazelle
+       head / height  0.16 gazelle, 0.20 wolf, 0.26 bear, 0.30 boar
      --------------------------------------------------------------------------- */
-
-  /* A shape name from the audit table to a row of measures. Two names are the
-     same animal: a deer and an onager are both long-necked quadrupeds. */
-  var ANIMAL_ROW_OF = {
-    deer: 'longneck', equid: 'longneck', mouse: 'rodent', cat: 'smallcat',
-    dog: 'dog', wolf: 'wolf', fox: 'fox'
+  var ANIMAL_RULES = {
+    muzzle: [0.95, 2.10],      // nose past the skull's centre, in skull radii
+    headHeight: [0.12, 0.86],  // skull diameter against the standing height
+    headLength: [0.12, 0.48],  // nape to nose, against the body's length
+    legHeight: [0.02, 0.68],   // the belly line against the standing height
+    neckRun: [0.04, 0.46],     // the head's socket forward of the CHEST FRONT
+    neckRise: [-0.06, 0.46],   // the same socket above the withers
+    headCarry: [0.30, 1.15],   // skull centre from the socket, in radii
+    headPitch: [-30, 20],      // the head's own axis, degrees
+    napeGap: [0.00, 0.90],     // the nape's distance from the socket, in radii
+    crownAbove: [-0.40, 1.40], // the crown over the withers, in barrel depths
+    legSlim: [0.07, 0.30],     // leg width against its own visible length
+    stance: [0.48, 0.64],      // the two leg sockets, as a share of the body
+    heightLength: [0.32, 1.70],
+    tailLength: [0.00, 0.80]
   };
-  function animalRow(shape) {
-    return ANIMAL_LOOKS[shape] || ANIMAL_LOOKS[ANIMAL_ROW_OF[shape]] || ANIMAL_LOOKS.wolf;
+
+  /* Where a part hangs off its parent, as a share of the parent's OWN surface -
+     never a pixel and never a second copy of a measure. Move a row and the head
+     moves with the socket: it cannot come loose. These are the numbers the
+     skeleton overlay draws, so a wrong one is a picture rather than a theory. */
+  var ANIMAL_SOCKETS = {
+    withers: { edge: 'top', t: 0.86 },    // the neck's root, along the back
+    chest: { edge: 'front', t: 0.28 },    // the brisket, the neck's other root
+    tailRoot: { edge: 'rear', t: 0.46 },  // the tail's root, down the croup
+    hindLeg: { shareX: 0.26, depthDown: 0.40 },
+    foreLeg: { shareX: 0.82, depthDown: 0.40 },
+    earRoot: { rx: -0.10, ry: 0.30 },     // in skull radii, up from the centre
+    hornRoot: { rx: -0.12, ry: 0.36 },
+    // The neck's two ends ON THE HEAD. The crest meets the skull behind and
+    // ABOVE its centre; the throat meets the jaw below and before it. Both were
+    // under the jaw, so the neck could only leave as a thin tube from beneath the
+    // head - a stalk, not a neck. The gap between them IS the neck's depth.
+    nape: { rx: -0.72, ry: 0.12 },
+    throat: { rx: 0.10, ry: -0.58 }
+  };
+
+  function animalClamp(value, rule, name, frame) {
+    if (!(value >= rule[0])) { frame.clamped.push(name + '<' + rule[0]); return rule[0]; }
+    if (value > rule[1]) { frame.clamped.push(name + '>' + rule[1]); return rule[1]; }
+    return value;
   }
 
-  /* A head's diameter as a share of the body's length, and how far the snout
-     reaches beyond the skull as a share of the head. Plain anatomy, per species:
-     a boar's head is a third of its body and half of that is snout; a gazelle's is
-     a sixth on a long thin neck. */
-  var ANIMAL_HEAD_OF = {
-    wolf: { head: 0.20, snout: 0.55, horn: 0 },
-    dog: { head: 0.21, snout: 0.48, horn: 0 },
-    fox: { head: 0.21, snout: 0.70, horn: 0 },
-    hyena: { head: 0.21, snout: 0.52, horn: 0 },
-    bigcat: { head: 0.23, snout: 0.38, horn: 0 },
-    smallcat: { head: 0.27, snout: 0.34, horn: 0 },
-    gazelle: { head: 0.16, snout: 0.45, horn: 2.1 },
-    longneck: { head: 0.17, snout: 0.62, horn: 1.9 },
-    ibex: { head: 0.19, snout: 0.50, horn: 2.4 },
-    sheep: { head: 0.19, snout: 0.46, horn: 0.9 },
-    bear: { head: 0.25, snout: 0.50, horn: 0 },
-    boar: { head: 0.31, snout: 0.72, horn: 0 },
-    hare: { head: 0.24, snout: 0.42, horn: 0 },
-    rabbit: { head: 0.25, snout: 0.40, horn: 0 },
-    rodent: { head: 0.28, snout: 0.70, horn: 0 },
-    hedgehog: { head: 0.24, snout: 0.76, horn: 0 },
-    seal: { head: 0.21, snout: 0.52, horn: 0 }
-  };
+  /* A point on one quadratic edge at t, with the outward normal there. This is
+     the only place a normalised anchor becomes a coordinate, so "t = 0.86 along
+     the back" means one thing to every caller. */
+  function onEdge(edge, t) {
+    var u = 1 - t;
+    var x = u * u * edge.a[0] + 2 * u * t * edge.c[0] + t * t * edge.b[0];
+    var y = u * u * edge.a[1] + 2 * u * t * edge.c[1] + t * t * edge.b[1];
+    var dx = 2 * u * (edge.c[0] - edge.a[0]) + 2 * t * (edge.b[0] - edge.c[0]);
+    var dy = 2 * u * (edge.c[1] - edge.a[1]) + 2 * t * (edge.b[1] - edge.c[1]);
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: x, y: y, nx: dy / len * edge.out, ny: -dx / len * edge.out };
+  }
 
-  /* The horns, in the four currencies the island has: a gazelle's lyre, an ibex's
-     scimitar, a sheep's curl, a deer's antler; a boar's tusk; a mouse's nothing. */
-  var ANIMAL_HORN_OF = {
-    gazelle: 'lyre', ibex: 'scimitar', sheep: 'curl', longneck: 'antler',
-    boar: 'tusk', hare: 'none', rabbit: 'none', rodent: 'none', hedgehog: 'none',
-    seal: 'none', bigcat: 'none', smallcat: 'none', wolf: 'none', dog: 'none',
-    fox: 'none', hyena: 'none', bear: 'none'
-  };
+  var animalFrames = {};
+
+  /* Forget the cached frames, after a row is edited. */
+  function animalForget() { animalFrames = {}; }
+  if (typeof window !== 'undefined') window.__animalForget = animalForget;
+
+  /* One animal's skeleton, in body lengths: the ground at y = 0, the barrel's
+     centre at x = 0, the body one unit long. Every row measure is read once,
+     here. paintAnimal() asks this and nothing else, so a part's position has
+     exactly one owner. Pure - no canvas, no clock - so the audit and the
+     headless tool run this same code. */
+  function animalFrame(shape) {
+    var cached = animalFrames[shape];
+    if (cached) return cached;
+
+    var m = animalRow(shape);
+    var f = { shape: shape, row: m, clamped: [] };
+
+    var depth = m.depth;
+    var bellyY = m.leg;                 // ground to the belly line
+    var backY = bellyY + depth;         // belly line to the withers
+    var xRear = -0.5, xFront = 0.5;     // the body is one unit long, by definition
+    var hump = m.hump || 0;
+    var tuck = m.tuck === undefined ? 0.28 : m.tuck;
+
+    // ---- the barrel, as four quadratic edges. A positive `hump` lifts the back
+    // into a shoulder mound (a bear, a boar); a negative one puts the peak behind
+    // the withers.
+    var withersY = backY - hump * depth * 0.22;
+    var peakT = 0.50 + (hump >= 0 ? 0.08 : -0.10);
+    var peakX = xRear + (xFront - xRear) * peakT;
+    var backLift = depth * (0.035 + Math.abs(hump) * 0.55);
+    var frontBellyY = bellyY + depth * 0.30;
+    var rearBellyY = bellyY + depth * (0.10 + tuck * 0.30);
+
+    f.edges = {
+      top: { a: [xRear, backY], b: [xFront, withersY],
+        c: [peakX, (backY + withersY) * 0.5 + backLift], out: 1 },
+      belly: { a: [xRear, rearBellyY], b: [xFront, frontBellyY],
+        c: [xRear + 0.58, bellyY - depth * 0.030], out: -1 },
+      rear: { a: [xRear, backY], b: [xRear, rearBellyY],
+        c: [xRear - 0.030 - depth * 0.02, (backY + rearBellyY) * 0.5], out: -1 },
+      front: { a: [xFront, withersY], b: [xFront, frontBellyY],
+        c: [xFront + 0.050 + depth * 0.03, (withersY + frontBellyY) * 0.5], out: 1 }
+    };
+
+    // The belly's own line, sampled once: a leg starts ON this surface, so its top
+    // cannot show as a stub inside the torso, and it cannot float.
+    var profile = [];
+    for (var pi = 0; pi <= 24; pi++) profile.push(onEdge(f.edges.belly, pi / 24));
+    f.bellyYAt = function (x) {
+      for (var i = 1; i < profile.length; i++) {
+        if (profile[i].x >= x) {
+          var a = profile[i - 1], b = profile[i];
+          var span = (b.x - a.x) || 1;
+          return a.y + (b.y - a.y) * ((x - a.x) / span);
+        }
+      }
+      return profile[profile.length - 1].y;
+    };
+
+    // ---- the sockets on the torso's own surface.
+    f.withers = onEdge(f.edges.top, ANIMAL_SOCKETS.withers.t);
+    f.chest = onEdge(f.edges.front, ANIMAL_SOCKETS.chest.t);
+    f.tailRoot = onEdge(f.edges.rear, ANIMAL_SOCKETS.tailRoot.t);
+
+    // ---- the neck's far end: the head's socket. It is a POINT in the animal's
+    // own space, measured forward from the CHEST FRONT - because that is what a
+    // neck crosses. Measured from the withers, every head landed over the chest
+    // and the neck had nowhere to be, so the head looked stuck onto the shoulder.
+    // The neck is then whatever line joins the withers to that point: its length
+    // and its angle are both derived, so neither can contradict the other.
+    var neckRun = m.neckRun === undefined ? 0.30 : m.neckRun;
+    var neckRise = m.neckRise === undefined ? 0.18 : m.neckRise;
+    var socket = [xFront + neckRun - 0.10, backY + neckRise];
+    var neckDx = socket[0] - f.withers.x, neckDy = socket[1] - f.withers.y;
+    f.neck = {
+      root: f.withers, socket: socket, run: neckRun, rise: neckRise,
+      len: Math.sqrt(neckDx * neckDx + neckDy * neckDy),
+      angle: Math.atan2(neckDy, neckDx)
+    };
+
+    // ---- the head. Its own axis is `headPitch`, NOT the neck's: a neck held at
+    // 50 degrees still carries a level head, which is what every gazelle does.
+    var headR = m.headR;
+    var headAngle = (m.headPitch === undefined ? -5 : m.headPitch) * Math.PI / 180;
+    var headCarry = Math.max(ANIMAL_SOCKETS.nape.rx * 0.55,
+      Math.min(ANIMAL_RULES.headCarry[1], m.headFwd === undefined ? 0.80 : m.headFwd));
+    var headDir = [Math.cos(headAngle), Math.sin(headAngle)];
+    var headCentre = [socket[0] + headDir[0] * headCarry * headR,
+      socket[1] + headDir[1] * headCarry * headR];
+
+    var mlen = animalClamp(m.muzzle === undefined ? 1.20 : m.muzzle,
+      ANIMAL_RULES.muzzle, 'muzzle', f);
+
+    f.headR = headR;
+    f.head = {
+      x: headCentre[0], y: headCentre[1], angle: headAngle, dir: headDir,
+      mlen: mlen, skullH: m.skullH || 1.9,
+      muzzleTop: m.muzzleTop || 0.32, muzzleBot: m.muzzleBot || 0.22
+    };
+
+    f.ears = { len: m.ear || 0, kind: m.earKind || 'up' };
+    f.horns = { len: m.horn || 0, kind: ANIMAL_HORN_OF[shape] || 'none' };
+
+    // ---- the legs. A socket is a share of the body's length; the visible leg is
+    // whatever stands below it, and the thickness is bounded by that leg's OWN
+    // length - which is how a hedgehog stopped growing posts as wide as it is
+    // tall, while a bear keeps its stumps. The far pair stands a clear 2.2 leg
+    // widths behind, or four legs read as two.
+    var legW = Math.max(0.014, Math.min(depth * 0.24, bellyY * ANIMAL_RULES.legSlim[1] * 0.90));
+    var hipY = bellyY + depth * (1 - ANIMAL_SOCKETS.hindLeg.depthDown);
+    var farShift = legW * 2.2;
+    f.legW = legW;
+    f.legs = [
+      { index: 2, hind: true, far: true,
+        x: xRear + ANIMAL_SOCKETS.hindLeg.shareX - farShift, y: hipY },
+      { index: 3, hind: false, far: true,
+        x: xRear + ANIMAL_SOCKETS.foreLeg.shareX - farShift, y: hipY },
+      { index: 0, hind: true, far: false,
+        x: xRear + ANIMAL_SOCKETS.hindLeg.shareX, y: hipY },
+      { index: 1, hind: false, far: false,
+        x: xRear + ANIMAL_SOCKETS.foreLeg.shareX, y: hipY }
+    ];
+
+    // ---- the tail: a length, hung off the croup.
+    f.tail = {
+      len: m.tail || 0, kind: m.tailKind || 'stub',
+      root: [f.tailRoot.x, f.tailRoot.y + depth * 0.10]
+    };
+    f.bellyY = bellyY;
+    f.bodyY = bellyY + depth * 0.5;
+    f.sag = 0;
+
+    // ---- the ink: every tip the drawing can place, so the fit is a measurement.
+    f.bounds = animalFrameBounds(f);
+    animalFrames[shape] = f;
+    return f;
+  }
+
+  /* The head's eight landmarks, in skull radii from the skull's centre, +x
+     forward and +y up. Nose and chin are both DERIVED from `mlen`, so the nose
+     is always the furthest forward point and can never fold back inside the jaw.
+     That inversion was the whole of the mangled head: 14 of 18 rows traced the
+     nose behind the jaw, and a closed path filled with nonzero winding doubles
+     back through itself - a lobe with a notch, and an ear landing on the cheek. */
+  function headLandmarks(f) {
+    var h = f.head;
+    var hh = h.skullH;
+    var mlen = h.mlen;
+    return [
+      [-0.10, hh * 0.46],            // crown
+      [mlen * 0.46, hh * 0.40],      // brow
+      [mlen * 0.78, h.muzzleTop],    // the bridge, where the muzzle begins
+      [mlen, 0.10],                  // the nose
+      [mlen * 0.94, -0.16],          // the chin
+      [mlen * 0.58, -h.muzzleBot],   // the jaw
+      [ANIMAL_SOCKETS.throat.rx, ANIMAL_SOCKETS.throat.ry], // the throat
+      [ANIMAL_SOCKETS.nape.rx, ANIMAL_SOCKETS.nape.ry]      // the nape
+    ];
+  }
+
+  /* A head-local point (skull radii) about the head's centre, with an extra turn
+     about that centre for a pose. */
+  function headPointAbout(f, cx, cy, rx, ry, tilt) {
+    var a = f.head.angle + (tilt || 0);
+    var c = Math.cos(a), s = Math.sin(a);
+    var px = rx * f.headR, py = ry * f.headR;
+    return [cx + px * c - py * s, cy + px * s + py * c];
+  }
+
+  function headPoint(f, rx, ry) {
+    return headPointAbout(f, f.head.x, f.head.y, rx, ry, 0);
+  }
+
+  /* Where the head is for one frame of animation, from the frame's rest pose.
+     A grazing animal drops its whole head to the grass and the neck follows it -
+     the neck is the line BETWEEN the withers and the nape, so it is whatever
+     length the two ends need and it cannot detach. */
+  function animalPose(f, a) {
+    var pose = {
+      x: f.head.x, y: f.head.y, angle: f.head.angle, tilt: 0,
+      dip: 0, sway: 0, grazing: 0
+    };
+    if (!a) return pose;
+
+    var moving = !!a.moving;
+    var grazeK = a.grazing ? (a.grazeK === undefined ? 1 : Math.max(0, Math.min(1, a.grazeK))) : 0;
+    var drinkK = a.drinking > 0 ? Math.min(1, a.drinking) : 0;
+    var walk = a.walk % 8;
+    pose.dip = moving ? 0.010 * walkDipAt(walk) : 0;
+    pose.sway = moving ? Math.sin(2 * Math.PI * (walk + 0.6) / 8) * 0.05
+      : Math.sin(clock * 1.1 + (a.seed || 0)) * 0.02;
+
+    if (grazeK > 0) {
+      // The head goes down as far as the neck REACHES, and no further: below the
+      // brisket the neck's front edge and its crest cross each other, and the one
+      // closed path that makes this silhouette seamless folds through itself.
+      // `grazeAngle` is therefore bounded well short of vertical.
+      var grazeAngle = Math.max(-0.72, -0.34 - f.head.angle * 0.55);
+      var gx = f.withers.x + 0.14 + f.headR * 0.85;
+      // The lowest the skull's centre may go: just under the chest, so the muzzle
+      // - which is a skull-radius below and forward of it - is at the grass.
+      var gy = Math.max(f.chest.y - f.row.depth * 0.42, f.headR * 1.05);
+      pose.x += (gx - f.head.x) * grazeK;
+      pose.y += (gy - f.head.y) * grazeK;
+      pose.angle += (grazeAngle - f.head.angle) * grazeK;
+      pose.grazing = grazeK;
+    }
+    if (drinkK > 0) {
+      // Drinking turns the head about its own centre, and no further than the same
+      // bound allows: the muzzle reaches the water, the neck stays put.
+      pose.tilt += Math.max(-0.62, -0.34 + f.head.angle * 0.4) * drinkK;
+    }
+    pose.y -= pose.dip * 0.9;
+    return pose;
+  }
 
   /* ---------------------------------------------------------------------------
-     DRAW ONE ANIMAL IN ITS OWN BODY LENGTHS.
+     THE TRUNK: ONE CLOSED SILHOUETTE THROUGH THE HEAD, THE NECK AND THE BODY.
 
-     The unit is the shoulder-to-hip distance, and every other measure is a share
-     of it, so a species is a row a person can check against a description. The
-     drawing is then fitted into the sprite in BOTH directions and drawn from the
-     ground up, so a long animal is drawn long, a tall one tall, and neither is
-     stretched or cut.
+     This is the fix for the seams. A body drawn as a barrel, then a neck beside
+     it, then a head beside that, has three outlines meeting at three points, and
+     every one of those meetings shows: a notch under the jaw, a step where the
+     neck leaves the back, an ear that lands on the shoulder. One path through the
+     nose, over the crown, down the neck's crest to the withers, along the back,
+     round the rump, along the belly and up the chest has no seam to show,
+     because there is nothing there to meet.
+
+     The sockets still decide where every point IS; they all end up in one list.
      --------------------------------------------------------------------------- */
+  function animalTrunk(f, pose) {
+    var m = f.row, depth = m.depth;
+    var H = function (rx, ry) { return headPointAbout(f, pose.x, pose.y, rx, ry, pose.tilt); };
+    var marks = headLandmarks(f);
+    var pts = [];
+    var add = function (p) { pts.push([p[0], p[1]]); };
+    var quad = function (from, control, to, steps) {
+      for (var i = 1; i <= steps; i++) {
+        var u = i / steps, q = 1 - u;
+        add([q * q * from[0] + 2 * q * u * control[0] + u * u * to[0],
+          q * q * from[1] + 2 * q * u * control[1] + u * u * to[1]]);
+      }
+    };
+
+    // 1. THE HEAD, from the nose back along its underside. The throat is where
+    //    the neck's front line leaves, so the muzzle runs into the neck.
+    add(H(marks[3][0], marks[3][1]));   // the nose
+    add(H(marks[4][0], marks[4][1]));   // the chin
+    add(H(marks[5][0], marks[5][1]));   // the jaw
+    var throat = H(marks[6][0], marks[6][1]);
+
+    // 2. THE NECK'S FRONT, throat to brisket. A quadratic that bulges forward,
+    //    because a neck has depth and a straight line reads as a stick.
+    var brisket = [f.chest.x - depth * 0.02, f.chest.y];
+    var tMid = [(throat[0] + brisket[0]) * 0.5 + depth * 0.30,
+      (throat[1] + brisket[1]) * 0.5 + depth * 0.06];
+    quad(throat, tMid, brisket, 4);
+
+    // 3. THE CHEST and the BELLY, forward to back, taking the belly's own tuck.
+    for (var b1 = 1; b1 <= 5; b1++) {
+      var bp = onEdge(f.edges.belly, 1 - b1 / 6);
+      add([bp.x, bp.y]);
+    }
+
+    // 4. THE RUMP, up the rear edge.
+    for (var r1 = 3; r1 >= 0; r1--) {
+      var rp = onEdge(f.edges.rear, r1 / 4);
+      add([rp.x, rp.y]);
+    }
+
+    // 5. THE BACK, croup to withers, with the shoulder mound.
+    for (var k = 1; k <= 12; k++) {
+      var tp = onEdge(f.edges.top, k / 12);
+      add([tp.x, tp.y]);
+    }
+
+    // 6. THE NECK'S CREST, withers to nape, bulging up and back. The two ends are
+    //    sockets; only the bulge is invented, and it is a share of the gap, so a
+    //    short neck gets a short crest and a long neck a long one.
+    var nape = H(marks[7][0], marks[7][1]);
+    var cx2 = nape[0] - f.withers.x, cy2 = nape[1] - f.withers.y;
+    var span = Math.sqrt(cx2 * cx2 + cy2 * cy2) || 1;
+    var nX = cy2 / span, nY = -cx2 / span;
+    if (nY < 0) { nX = -nX; nY = -nY; }
+    var crest = [(f.withers.x + nape[0]) * 0.5 + nX * span * 0.26,
+      (f.withers.y + nape[1]) * 0.5 + nY * span * 0.26];
+    quad(f.withers, crest, nape, 4);
+
+    // 7. THE HEAD, up over the crown and forward to the nose: crown, brow, bridge.
+    add(H(marks[0][0], marks[0][1]));
+    add(H(marks[1][0], marks[1][1]));
+    add(H(marks[2][0], marks[2][1]));
+
+    // The whole animal falls and rises as one: a body that dips and a head that
+    // stays put is a head on a rubber neck.
+    for (var i = 0; i < pts.length; i++) pts[i][1] -= pose.dip * 0.6;
+    f.sag = pose.dip;
+    return pts;
+  }
+
+  /* Draw a closed outline through a point list, rounded by running a quadratic
+     curve from each midpoint to the next THROUGH the point between them. That is
+     how a hand-drawn silhouette is smoothed, and it never overshoots the points
+     the way a cubic with computed control points does. */
+  function traceRound(g, pts) {
+    var n = pts.length;
+    var midX = function (a, b) { return (a[0] + b[0]) * 0.5; };
+    var midY = function (a, b) { return (a[1] + b[1]) * 0.5; };
+    g.beginPath();
+    g.moveTo(midX(pts[n - 1], pts[0]), midY(pts[n - 1], pts[0]));
+    for (var i = 0; i < n; i++) {
+      var p = pts[i], next = pts[(i + 1) % n];
+      g.quadraticCurveTo(p[0], p[1], midX(p, next), midY(p, next));
+    }
+    g.closePath();
+  }
+
+  /* The frame's real extent: the trunk, the horns, the tail. The fit asks this,
+     so a horn can no longer be cut off and the ground is always at y = 0. */
+  function animalFrameBounds(f) {
+    var pts = animalTrunk(f, animalPose(f, null));
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i][0] < minX) minX = pts[i][0];
+      if (pts[i][0] > maxX) maxX = pts[i][0];
+      if (pts[i][1] < minY) minY = pts[i][1];
+      if (pts[i][1] > maxY) maxY = pts[i][1];
+    }
+    // An ear and a horn both reach up from the same crown socket.
+    var up = Math.max(f.ears.len, f.horns.len * 1.05);
+    var crown = headPoint(f, ANIMAL_SOCKETS.earRoot.rx, f.head.skullH * ANIMAL_SOCKETS.earRoot.ry);
+    maxY = Math.max(maxY, crown[1] + up);
+    minX = Math.min(minX, crown[0] - up * 0.7);
+    maxX = Math.max(maxX, crown[0] + up * 0.7);
+    // The tail trails behind and low.
+    minX = Math.min(minX, f.tail.root[0] - f.tail.len * 0.85);
+    maxY = Math.max(maxY, f.tail.root[1] + f.tail.len * 0.30);
+    var y0 = Math.min(0, minY);
+    return { x0: minX, x1: maxX, y0: y0, y1: maxY, w: maxX - minX, h: maxY - y0 };
+  }
+
+  /* The proportion audit: every rule, every species, as numbers. One owner,
+     called by the console as __animalAudit() and by Tools/animal-proportions.cjs,
+     so a report and the picture can never disagree about what a row says. */
+  function animalAudit() {
+    var rows = [], fails = [];
+    var rule = function (shape, name, value, range, why) {
+      if (!(value >= range[0] && value <= range[1])) {
+        fails.push(shape + ': ' + name + ' = ' + value.toFixed(3) +
+          ' outside [' + range[0] + ', ' + range[1] + '] (' + why + ')');
+        return why;
+      }
+      return null;
+    };
+    for (var shape in ANIMAL_LOOKS) {
+      if (!Object.prototype.hasOwnProperty.call(ANIMAL_LOOKS, shape)) continue;
+      var m = ANIMAL_LOOKS[shape];
+      var f = animalFrame(shape);
+      var verdict = [];
+      var push = function (v) { if (v) verdict.push(v); };
+      var stand = m.leg + m.depth;                        // the withers above ground
+      var headLen = f.headR * (f.head.mlen + 0.62);       // nape to nose
+      var nosePastJaw = f.head.mlen - f.head.mlen * 0.58; // nose minus jaw, in radii
+      var crownOverBack = headPoint(f, -0.10, f.head.skullH * 0.46)[1] - stand;
+      var stance = ANIMAL_SOCKETS.foreLeg.shareX - ANIMAL_SOCKETS.hindLeg.shareX;
+      var slim = f.legW / Math.max(1e-6, m.leg);
+      var nape = headPoint(f, ANIMAL_SOCKETS.nape.rx, ANIMAL_SOCKETS.nape.ry);
+      var napeGap = Math.sqrt(Math.pow(nape[0] - f.neck.socket[0], 2) +
+        Math.pow(nape[1] - f.neck.socket[1], 2)) / f.headR;
+      var b = f.bounds;
+
+      push(rule(shape, 'head/height', f.headR * 2 / stand, ANIMAL_RULES.headHeight, 'head size'));
+      push(rule(shape, 'head/length', headLen, ANIMAL_RULES.headLength, 'head size'));
+      push(rule(shape, 'nose-jaw', nosePastJaw, [0.20, 0.90], 'muzzle folds back'));
+      push(rule(shape, 'leg/height', m.leg / stand, ANIMAL_RULES.legHeight, 'legs'));
+      push(rule(shape, 'neck run', f.neck.run, ANIMAL_RULES.neckRun, 'neck'));
+      push(rule(shape, 'neck rise', f.neck.rise, ANIMAL_RULES.neckRise, 'neck'));
+      push(rule(shape, 'head pitch', f.head.angle * 180 / Math.PI, ANIMAL_RULES.headPitch, 'head tilt'));
+      push(rule(shape, 'nape/socket', napeGap, ANIMAL_RULES.napeGap, 'nape off its socket'));
+      push(rule(shape, 'crown/back', crownOverBack / m.depth, ANIMAL_RULES.crownAbove, 'head height'));
+      if (m.leg > 0.06) {
+        push(rule(shape, 'leg slim', slim, ANIMAL_RULES.legSlim, 'legs'));
+        push(rule(shape, 'stance', stance, ANIMAL_RULES.stance, 'legs'));
+      }
+      push(rule(shape, 'height/length', b.h / Math.max(1e-6, b.w), ANIMAL_RULES.heightLength, 'proportion'));
+      push(rule(shape, 'tail/length', f.tail.len / Math.max(1e-6, b.w), ANIMAL_RULES.tailLength, 'tail'));
+
+      rows.push({
+        shape: shape, head: f.headR * 2 / stand, headLen: headLen,
+        nose: nosePastJaw, neck: f.neck.angle * 180 / Math.PI,
+        crown: crownOverBack / m.depth, leg: m.leg / stand, slim: slim, span: stance,
+        hl: b.h / Math.max(1e-6, b.w), tail: f.tail.len / Math.max(1e-6, b.w),
+        w: b.w, h: b.h, stand: stand, clamped: f.clamped.slice(), verdict: verdict
+      });
+    }
+    return { rows: rows, fails: fails };
+  }
+  /* @anatomy-end */
+
   /* How wide an animal is drawn, as a share of the height it stands at. A caller
      that clips to a box needs this, or a deer is cut off at the nose. */
   function animalWidthShare(e) {
-    var shape = animalShapeOf(e.id);
-    var m = animalRow(shape);
-    var headR = m.headR, snout = headR * ((m.snout || 0.35) * 2.2);
-    var tailL = m.tail || 0;
-    var tailRoom = tailL > 0 ? tailL * 0.75 : 0;
-    var noseReach = headR * 1.5 + snout;
-    var top = m.leg + m.depth + m.neck + headR * 2 + Math.max(m.ear || 0, m.horn || 0) * 0.9;
-    var w = 1.0 + tailRoom * 0.6 + noseReach + headR;
-    return w / top;
+    var f = animalFrame(animalShapeOf(e.id));
+    return f.bounds.w / Math.max(1e-6, f.bounds.h);
   }
 
-  /* How far forward of the neck's top the skull sits, in head radii. A cat's head
-     sits almost on its neck; a boar's is carried out in front of it; a hare's is
-     set forward of a nearly upright neck. */
-  function neckRunShape(m) {
-    return m.headFwd === undefined ? 0.75 : m.headFwd;
-  }
-
+  /* ---------------------------------------------------------------------------
+     DRAW ONE ANIMAL.
+     The order is the depth order, and it is the whole of "why limbs clipped
+     awkwardly": the tail behind the body (it hangs off the croup - drawn after
+     the torso it lay ON the rump), the far legs behind it, the near legs behind
+     it too, then the one trunk silhouette, then the ears and horns off the crown,
+     then the face on the head.
+     --------------------------------------------------------------------------- */
   function paintAnimal(g, e, a, S) {
     var shape = animalShapeOf(e.id);
     var m = animalRow(shape);
+    var f = animalFrame(shape);
     var pal = beastLook(e, shape);
-
-    var grazing = !!(a && a.grazing);
-    var drinking = !!(a && a.drinking > 0);
-    var still = grazing || drinking || !a || !a.moving;
-    var pose = a ? (a.walk % 8) : 0;
-    var graze = a ? (a.grazeK || 0) : 0;
-
-    // ---- The animal, in body lengths. x runs from the tail end (0) to the nose
-    // end, so the whole thing can be measured before it is drawn.
-    var B = 1.0;                                  // the body, by definition
-    var half = B * 0.5;
-    var depth = m.depth, legLen = m.leg, neckRise = m.neck;
-    // headR is the skull's radius, snout the muzzle's length BEYOND the skull.
-    // Both are shares of the body length. A muzzle is about a third of the skull,
-    // so it is derived from headR instead of being an independent number - the
-    // two drifting apart is what made every head a blade.
-    var headR = m.headR, snout = headR * (m.snout || 0.35) * 2.2, earL = m.ear || 0;
-    var hornL = m.horn || 0, tailL = m.tail || 0;
-    var rumpY = m.rump || 0;
-    var hump = m.hump || 0;
-
-    // Vertical layout, in body lengths above the ground.
-    var groundY = 0;
-    var bellyY0 = legLen;
-    var backY0 = legLen + depth;
-    var topOfAnimal = backY0 + neckRise + headR * 2 + Math.max(earL, hornL) * 0.9;
-    // Horizontal layout.
-    var tailRoom = tailL > 0 ? tailL * 0.75 : 0;
-    var noseReach = headR * 1.5 + snout;
-    var widthOfAnimal = B + tailRoom * 0.6 + noseReach + headR;
-    // The whole animal, in body lengths, that has to fit inside the sprite: the
-    // tail behind and the muzzle in front are part of it.
-    var boxW = widthOfAnimal;
-
-    // ---- Measured by HEIGHT. An animal is two or three body lengths long and one
-    // tall; fitting it into a square box let its length set the scale, which drew
-    // every species short and flat. S is the height it stands at, and the drawing
-    // is as wide as it needs to be, centred on the point it stands at.
-    var sc = S / topOfAnimal;
-
-    g.save();
-    g.scale(sc, -sc);
-    // Centre the animal sideways on its own body: the barrel is centred, and the
-    // tail and nose reach out either side of it.
-    var cx0 = half;
-    g.translate(-cx0, 0);
-    var cx = half;                                 // the body's centre, in body lengths
-    var bodyY = bellyY0 + depth * 0.5;             // the barrel's centre
-    var xNose = cx + half * 0.94;                  // the chest's front
+    var pose = animalPose(f, a);
 
     var fur = pal.fur, belly = pal.belly, ink = pal.ink;
     var far = pal.far, nearLeg = pal.nearLeg;
     var hornC = pal.horn, tuskC = pal.tusk;
+    var still = !a || !a.moving || pose.grazing > 0.02 || (a && a.drinking > 0);
+    var walk = a ? (a.walk % 8) : 0;
 
-    var dip = still ? 0 : 0.010 * walkDipAt(pose);
-    var sway = still ? Math.sin(clock * 1.1 + (a ? a.seed : 0)) * 0.02
-      : Math.sin(2 * Math.PI * (pose + 0.6) / 8) * 0.05;
-
-    // A leg is a seventh of the body's depth: thick enough to carry the animal,
-    // thin enough not to read as a post.
-    var legW = Math.max(0.016, depth * 0.22);
-    var hindLong = m.hindLong || 1;
-
-    // ---- The legs: four, at the corners of the body, the far pair darker. A leg
-    // is three bones with a sight bend at the knee and the hock, so it reads as a
-    // limb and not as a bracket.
-    if (legLen > 0.02) {
-      var oneLeg = function (index, hipX, hind, colour) {
-        var posed = still ? { foot: 0, lift: 0 } : walkLegPose(pose, index, 0.10);
-        var top = bellyY0 + depth * 0.60 - dip;
-        var reach = B * 0.16;
-        var footX = hipX + posed.foot * reach;
-        var footY = groundY + posed.lift * 0.10 * (hind ? hindLong : 1);
-        var bend = (hind ? 0.042 : -0.030) * B;
-        var kneeAt = hind ? 0.52 : 0.46;
-        var hockAt = hind ? 0.80 : 0.84;
-        var kneeY = top + (footY - top) * kneeAt;
-        var kneeX = hipX + (footX - hipX) * kneeAt + bend;
-        var hockY = top + (footY - top) * hockAt;
-        var hockX = kneeX + (footX - kneeX) * 0.62 - bend * 0.80;
-        g.strokeStyle = colour;
-        g.lineCap = 'round';
-        g.lineJoin = 'round';
-        g.lineWidth = legW;
-        g.beginPath(); g.moveTo(hipX, top); g.lineTo(kneeX, kneeY); g.stroke();
-        g.lineWidth = legW * 0.72;
-        g.beginPath(); g.moveTo(kneeX, kneeY); g.lineTo(hockX, hockY); g.stroke();
-        g.beginPath(); g.moveTo(hockX, hockY); g.lineTo(footX, footY); g.stroke();
-        // The hoof: a dark mark on the ground, so the leg ends in a foot.
-        g.fillStyle = shadeHex(pal.fur, 0.40);
-        g.beginPath();
-        g.ellipse(footX + legW * 0.30, footY + legW * 0.18, legW * 0.62, legW * 0.30, 0, 0, TAU);
-        g.fill();
-      };
-      var hipHind = cx - half * 0.42, hipFore = cx + half * 0.84;
-      oneLeg(2, hipHind - B * 0.10, true, far);
-      oneLeg(3, hipFore - B * 0.10, false, far);
-      oneLeg(0, hipHind, true, fur);
-      oneLeg(1, hipFore, false, nearLeg);
-    }
-
-    // ---- The torso as a profile, in body lengths: the back's peak (hump), the
-    // chest's depth, the belly's tuck and, for a hare, a rump above the shoulder.
-    var xRear = cx - half, xFront = cx + half;
-    var backPeakX = cx + half * (hump >= 0 ? 0.42 : -0.48);
-    var backPeakY = backY0 + (Math.abs(hump) * depth * 0.55) + rumpY * depth * 0.5;
-    var withersY = backY0 - hump * depth * 0.30;
-    var bellyY = bellyY0;
-    var tuckY = bellyY0 + (m.tuck === undefined ? 0.28 : m.tuck) * depth * 0.55;
-
-    g.fillStyle = fur;
-    g.beginPath();
-    g.moveTo(xRear, bodyY - depth * 0.20);
-    g.quadraticCurveTo(xRear - B * 0.05, bodyY + depth * 0.42, cx - half * 0.72, backY0 - depth * 0.06);
-    g.quadraticCurveTo(backPeakX - half * 0.30, backPeakY, backPeakX, backPeakY);
-    // The loin dips behind the withers: a back with no dip is a loaf.
-    g.quadraticCurveTo(cx + half * 0.86, backY0 - depth * 0.10, xFront - B * 0.06, withersY);
-    g.quadraticCurveTo(xFront + B * 0.05, bodyY + depth * 0.02, cx + half * 0.86, bellyY + depth * 0.10);
-    g.quadraticCurveTo(cx + half * 0.30, bellyY - depth * 0.02, cx - half * 0.10, bellyY);
-    g.quadraticCurveTo(cx - half * 0.55, tuckY, xRear, bodyY - depth * 0.20);
-    g.closePath();
-    g.fill();
+    // ---- FIT. The caller asks for a standing height; the ink is measured from
+    // the frame, so a horn lies inside it instead of over the top. The ground is
+    // at y = 0 and the body's centre at x = 0, because that is what a caller
+    // positions: the animal, not its box.
+    var b = f.bounds;
+    var sc = S / Math.max(1e-6, b.h);
 
     g.save();
-    g.clip();
-    // The paler belly, inside the profile.
-    // A belly is a band along the underside, not a saddle over half the body.
-    g.globalAlpha = 0.55;
-    g.fillStyle = belly;
-    g.beginPath();
-    g.ellipse(cx + half * 0.06, bellyY + depth * 0.10, half * 0.68, depth * 0.17, 0, 0, TAU);
-    g.fill();
-    g.globalAlpha = 1;
+    g.scale(sc, -sc);
+    g.translate(0, -b.y0);
 
-    // ---- The markings, by species.
-    var kinds = e.id;
-    if (/tiger/.test(kinds)) {
-      var rnd = seeded(hueOf(e.id));
-      g.fillStyle = 'rgba(56,40,26,0.88)';
-      for (var ts = 0; ts < 9; ts++) {
-        var tx = cx - half * 0.92 + (ts + 0.5) * (half * 1.84 / 9) + (rnd() - 0.5) * 0.012;
-        var topS = backPeakY - depth * 0.10;
-        var lowS = bellyY + depth * 0.34 + rnd() * depth * 0.24;
-        g.beginPath();
-        g.moveTo(tx - 0.010, topS);
-        g.quadraticCurveTo(tx - 0.018, (topS + lowS) * 0.5, tx - 0.022 - rnd() * 0.008, lowS);
-        g.lineTo(tx - 0.006 - rnd() * 0.006, lowS - 0.004);
-        g.quadraticCurveTo(tx + 0.005, (topS + lowS) * 0.5, tx + 0.010, topS);
-        g.closePath();
-        g.fill();
-      }
-    } else if (/leopard|cheetah|lynx/.test(kinds)) {
-      g.fillStyle = 'rgba(58,42,28,0.55)';
-      for (var ls = 0; ls < 24; ls++) {
-        var lx = cx - half * 0.86 + ((ls * 41) % 100) / 100 * half * 1.7;
-        var ly = bellyY + depth * 0.20 + ((ls * 67) % 100) / 100 * depth * 0.75;
-        g.beginPath();
-        g.ellipse(lx, ly, 0.010, 0.006, 0.5, 0, TAU);
-        g.fill();
-      }
-    } else if (/fallow|chital|axis/.test(kinds)) {
-      g.fillStyle = 'rgba(255,252,244,0.55)';
-      for (var fs2 = 0; fs2 < 12; fs2++) {
-        g.beginPath();
-        g.arc(cx - half * 0.4 + (fs2 % 4) * half * 0.26,
-          backPeakY - depth * 0.30 - Math.floor(fs2 / 4) * depth * 0.26, 0.008, 0, TAU);
-        g.fill();
-      }
-    }
-    // A boar's mane along the spine; a hyena's crest on the neck.
-    if (m.mane) {
-      g.strokeStyle = 'rgba(58,46,34,0.80)';
-      g.lineCap = 'round';
-      g.lineWidth = 0.010;
-      for (var mn = 0; mn < 14; mn++) {
-        var mt = mn / 13;
-        var mx2 = cx - half * 0.55 + mt * half * 1.12;
-        var my2 = backPeakY - Math.abs(mt - 0.42) * depth * 0.45;
-        g.beginPath();
-        g.moveTo(mx2, my2 - 0.003);
-        g.lineTo(mx2 - 0.009, my2 + depth * 0.34);
-        g.stroke();
-      }
-    }
-    if (shape === 'hyena') {
-      g.strokeStyle = 'rgba(70,58,44,0.75)';
-      g.lineCap = 'round';
-      g.lineWidth = 0.011;
-      for (var hr = 0; hr < 9; hr++) {
-        var ht2 = hr / 8;
-        var hxr = cx + half * 0.30 + ht2 * half * 0.64;
-        var hyr = backPeakY - ht2 * depth * 0.30;
-        g.beginPath();
-        g.moveTo(hxr, hyr);
-        g.lineTo(hxr + 0.011, hyr + depth * 0.30);
-        g.stroke();
-      }
-    }
-    if (m.spines) {
-      g.strokeStyle = hornC;
-      g.lineCap = 'round';
-      g.lineWidth = 0.013;
-      for (var hs = 0; hs < 24; hs++) {
-        var ang = Math.PI * (0.05 + (hs / 23) * 0.90);
-        var hx2 = cx + Math.cos(ang) * half * 0.94;
-        var hy2 = bodyY + Math.sin(ang) * depth * 0.94;
-        g.beginPath();
-        g.moveTo(hx2, hy2);
-        g.lineTo(hx2 + Math.cos(ang) * depth * 0.30, hy2 + Math.sin(ang) * depth * 0.30);
-        g.stroke();
-      }
-    }
-    g.restore();
+    var legW = f.legW;
+    var dip = pose.dip;
 
-    // ---- The tail, behind the body, in body lengths.
-    if (tailL > 0.02) {
-      var tbx = cx - half + sway * B * 0.10, tby = bodyY + depth * 0.18;
-      var kind = m.tailKind || 'stub';
-      var tdx = -tailL * 0.62, tdy = -tailL * 0.34;
+    // ---- THE TAIL, behind everything: it hangs off the croup.
+    if (f.tail.len > 0.02) {
+      var tbx = f.tail.root[0], tby = f.tail.root[1] - dip * 0.6;
+      var tailL = f.tail.len;
+      var tdx = -tailL * 0.62, tdy = -tailL * 0.30 + pose.sway * 0.10;
+      var kind = f.tail.kind;
       if (kind === 'brush') {
         g.fillStyle = fur;
         g.beginPath();
@@ -13504,14 +13860,14 @@ var ANIMAL_SIZES = {
         g.beginPath();
         g.ellipse(tbx + tdx * 1.02, tby + tdy - tailL * 0.04, tailL * 0.14, tailL * 0.11, 0.4, 0, TAU);
         g.fill();
-      } else if (kind === 'streamer') {
+      } else if (kind === 'streamer' || kind === 'bush') {
         g.strokeStyle = fur;
         g.lineCap = 'round';
-        g.lineWidth = Math.max(0.012, legW * 0.62);
+        g.lineWidth = Math.max(0.012, legW * (kind === 'bush' ? 0.95 : 0.62));
         g.beginPath();
         g.moveTo(tbx, tby);
-        g.bezierCurveTo(tbx - tailL * 0.30, tby - tailL * 0.10,
-          tbx + tdx * 0.60, tby + tdy + tailL * 0.30, tbx + tdx, tby + tdy);
+        g.quadraticCurveTo(tbx - tailL * 0.45, tby - tailL * (kind === 'bush' ? 0.45 : 0.16) + pose.sway,
+          tbx + tdx * 1.15, tby + tdy);
         g.stroke();
       } else if (kind === 'flipper') {
         g.fillStyle = far;
@@ -13527,7 +13883,7 @@ var ANIMAL_SIZES = {
         g.lineWidth = 0.012;
         g.beginPath();
         g.moveTo(tbx, tby);
-        g.quadraticCurveTo(tbx - tailL * 0.40, tby + tailL * 0.10 + sway,
+        g.quadraticCurveTo(tbx - tailL * 0.40, tby + tailL * 0.10 + pose.sway,
           tbx - tailL * 0.86, tby + tailL * 0.22);
         g.stroke();
       } else if (kind === 'up') {
@@ -13536,17 +13892,8 @@ var ANIMAL_SIZES = {
         g.lineWidth = Math.max(0.014, legW * 0.66);
         g.beginPath();
         g.moveTo(tbx, tby);
-        g.quadraticCurveTo(tbx - tailL * 0.30, tby + tailL * 0.70 + sway,
+        g.quadraticCurveTo(tbx - tailL * 0.30, tby + tailL * 0.70 + pose.sway,
           tbx - tailL * 0.42, tby + tailL * 0.92);
-        g.stroke();
-      } else if (kind === 'bush') {
-        g.strokeStyle = fur;
-        g.lineCap = 'round';
-        g.lineWidth = Math.max(0.016, legW * 0.85);
-        g.beginPath();
-        g.moveTo(tbx, tby);
-        g.quadraticCurveTo(tbx - tailL * 0.50, tby - tailL * 0.42 + sway,
-          tbx + tdx, tby + tdy);
         g.stroke();
       } else {
         g.fillStyle = fur;
@@ -13556,254 +13903,465 @@ var ANIMAL_SIZES = {
       }
     }
 
-    // ---- The neck: a trapezoid leaning forward out of the WITHERS, as wide at
-    // its root as the chest and as wide at its top as the skull. HOW FAR it leans
-    // is the species' own business: a boar carries its head low and forward on a
-    // neck too short to lift, a gazelle holds it high above the withers, and a
-    // cat carries it almost level with the back. That lean, not the length, is
-    // what makes a silhouette read as its animal.
-    var shoulderX = cx + half * 0.62;
-    var shoulderY = backY0 - depth * 0.06;
-    var neckLean = (m.lean === undefined ? 0.45 : m.lean);   // 0 level, 1 upright
-    var neckRun = neckRise * (1 - neckLean) * 1.9 + headR * 0.55;
-    var neckLift = neckRise * (0.55 + neckLean * 1.5);
-    var neckTopX = shoulderX + neckRun;
-    var neckTopY = shoulderY + neckLift;
-    var neckBaseW = Math.max(headR * 1.35, depth * 0.62);
-    var neckTopW = Math.max(headR * 0.85, depth * 0.26, 0.014);
-    if (neckRise > 0.004) {
-      g.fillStyle = fur;
+    // ---- THE LEGS, behind the body so their tops are covered by it. A leg that
+    // starts on the belly's own surface and is drawn behind that belly has no cap
+    // to show, at any species.
+    var reach = Math.max(0.025, m.leg * 0.24);
+    var oneLeg = function (leg) {
+      var posed = still ? { foot: 0, lift: 0 } : walkLegPose(walk, leg.index, 0.10);
+      var hipX = leg.x;
+      var footX = hipX + posed.foot * reach;
+      var footY = posed.lift * 0.10 * (leg.hind ? 1.05 : 1);
+      var topY = f.bellyYAt(hipX) + m.depth * 0.34 - dip * 0.6;
+      var bend = (leg.hind ? 0.060 : -0.045) * Math.max(0.18, m.leg);
+      var kneeAt = leg.hind ? 0.48 : 0.44;
+      var hockAt = leg.hind ? 0.78 : 0.82;
+      var kneeY = topY + (footY - topY) * kneeAt;
+      var kneeX = hipX + (footX - hipX) * kneeAt + bend;
+      var hockY = topY + (footY - topY) * hockAt;
+      var hockX = kneeX + (footX - kneeX) * 0.62 - bend * 0.80;
+      g.strokeStyle = leg.far ? far : (leg.hind ? nearLeg : fur);
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.lineWidth = legW;
+      g.beginPath(); g.moveTo(hipX, topY); g.lineTo(kneeX, kneeY); g.stroke();
+      g.lineWidth = legW * 0.74;
+      g.beginPath(); g.moveTo(kneeX, kneeY); g.lineTo(hockX, hockY); g.stroke();
+      g.beginPath(); g.moveTo(hockX, hockY); g.lineTo(footX, footY); g.stroke();
+      // The hoof: a dark mark on the ground, so the leg ends in a foot.
+      g.fillStyle = shadeHex(pal.fur, 0.40);
       g.beginPath();
-      g.moveTo(shoulderX - neckBaseW * 0.5, shoulderY - depth * 0.16);
-      g.lineTo(neckTopX - neckTopW, neckTopY);
-      g.lineTo(neckTopX + neckTopW, neckTopY);
-      g.lineTo(shoulderX + neckBaseW * 0.5, shoulderY - depth * 0.16);
-      g.closePath();
+      g.ellipse(footX + legW * 0.30, footY + legW * 0.18, legW * 0.62, legW * 0.30, 0, 0, TAU);
       g.fill();
-      // A shadow down the near side of the neck, so it is a column and not a wedge.
-      g.fillStyle = shadeColour(fur, 0.88);
-      g.beginPath();
-      g.moveTo(shoulderX + neckBaseW * 0.30, shoulderY - depth * 0.10);
-      g.lineTo(neckTopX + neckTopW * 0.55, neckTopY);
-      g.lineTo(neckTopX + neckTopW * 0.10, neckTopY);
-      g.lineTo(shoulderX + neckBaseW * 0.02, shoulderY - depth * 0.10);
-      g.closePath();
-      g.fill();
-    }
-
-    // A grazing animal drops its whole neck, and the head follows the top of it.
-    if (graze > 0.001) {
-      neckTopY = groundY + headR * 1.3;
-      neckTopX = shoulderX + B * 0.22 + headR;
-    }
-
-    // ---- The head, TRACED as a silhouette from named landmarks.
-    // Every animal has the same eight landmarks - crown, brow, bridge, nose, chin,
-    // jaw, throat, nape - and the species moves them. A head built from arithmetic
-    // at the joins closes into a lobe; a traced outline is what a head looks like.
-    //
-    // THE COORDINATE SPACE MATTERS. A landmark is expressed in head radii FROM THE
-    // SKULL'S CENTRE, and P() adds that centre before turning. Mixing the two -
-    // handing a relative point to an absolute transform - drew the whole head at
-    // the animal's feet, which is what put its eyes up in the sky.
-    var headX = neckTopX + neckRunShape(m) * headR;
-    var headY = neckTopY;
-    var tilt = drinking ? 0.95 : 0;
-    var turn = function (x, y) {
-      if (!tilt) return [x, y];
-      var dx = x - headX, dy = y - headY;
-      var c = Math.cos(tilt), s2 = Math.sin(tilt);
-      return [headX + dx * c - dy * s2, headY + dx * s2 + dy * c];
     };
-    var P = function (rx, ry) { return turn(headX + rx * headR, headY + ry * headR); };
+    if (m.leg > 0.02) {
+      for (var li = 0; li < f.legs.length; li++) oneLeg(f.legs[li]);
+    }
 
-    var hh = m.skullH || 1.9;                  // the head's height, in head radii
-    var mlen = (m.muzzleLen === undefined ? 0.55 : m.muzzleLen);
-    var mt = m.muzzleTop || 0.34;              // the muzzle's depth at its root
-    var mb = m.muzzleBot || 0.22;
-
-    var hp = [
-      P(-0.10, hh * 0.46),      // crown
-      P(0.46, hh * 0.40),       // brow
-      P(0.78, mt),              // the bridge, where the muzzle begins
-      P(mlen, 0.10),            // the nose
-      P(mlen * 0.92, -0.18),    // the chin
-      P(0.64, -mb),             // the jaw
-      P(-0.02, -hh * 0.34),     // the throat
-      P(-0.62, -hh * 0.06)      // the nape
-    ];
-
+    // ---- THE TRUNK: head, neck and body as ONE closed path.
+    var trunk = animalTrunk(f, pose);
     g.fillStyle = fur;
-    var headPath = function () {
-      g.beginPath();
-      var n = hp.length;
-      var mid = function (a2, b2) { return [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2]; };
-      var m0 = mid(hp[n - 1], hp[0]);
-      g.moveTo(m0[0], m0[1]);
-      for (var qi = 0; qi < n; qi++) {
-        var p1 = hp[qi], p2 = hp[(qi + 1) % n];
-        var m1 = mid(p1, p2);
-        g.quadraticCurveTo(p1[0], p1[1], m1[0], m1[1]);
-      }
-      g.closePath();
-    };
-    headPath();
+    traceRound(g, trunk);
     g.fill();
 
-    var cr = P(-0.14, 0.06);
-    // The shade under the jaw and the pale muzzle, inside the head's own clip.
+    // ---- The pale belly and the species' markings, inside the trunk's own clip,
+    // so none of them can cross the outline. The belly band follows the belly's
+    // own curve: an ellipse centred on the barrel sat in the middle of the animal
+    // instead of along its underside.
     g.save();
-    headPath();
+    traceRound(g, trunk);
     g.clip();
-    g.fillStyle = shadeColour(fur, 0.86);
-    g.fillRect(headX - headR * 2.2, headY - headR * 2.4, headR * 4.4, headR * 1.55);
+    // A pale underside is a FADE, not a shape. Any filled shape has an edge, so
+    // two low-alpha fills still painted a band across the animal that read as a
+    // second body behind it. Inside the body's clip, a gradient whose every stop
+    // is a fade has no edge at all: the coat simply gets paler toward the ground.
+    // Top is TRANSPARENT and the belly line is SOLID: a gradient repeats its last
+    // stop below `y1` and its first above `y0`, so writing it the other way round
+    // put a solid band at the top of the fill - a straight line across the flank.
+    var washTop = f.bellyY + m.depth * 0.62 - dip * 0.6;
+    var washBottom = f.bellyY - m.depth * 0.14 - dip * 0.6;
+    var wash = g.createLinearGradient(0, washTop, 0, washBottom);
+    wash.addColorStop(0, 'rgba(255,255,255,0)');
+    wash.addColorStop(0.42, 'rgba(255,255,255,0)');
+    wash.addColorStop(1, belly);
+    g.globalAlpha = 0.72;
+    g.fillStyle = wash;
+    g.fillRect(-0.56, washBottom, 1.12, washTop - washBottom);
+    g.globalAlpha = 1;
+
+    var backY0 = f.bellyY + m.depth - dip * 0.6;
+    var backPeakY = backY0 + m.depth * (0.03 + Math.abs(m.hump || 0) * 0.3);
+    var bellyBandY = f.bellyY + m.depth * 0.30 - dip * 0.6;
+    var kinds = e.id;
+    if (/tiger/.test(kinds)) {
+      var rnd = seeded(hueOf(e.id));
+      g.fillStyle = 'rgba(56,40,26,0.88)';
+      for (var ts = 0; ts < 9; ts++) {
+        var tx = -0.46 + (ts + 0.5) * (0.92 / 9) + (rnd() - 0.5) * 0.012;
+        var topS = backPeakY - m.depth * 0.04;
+        var lowS = bellyBandY + rnd() * m.depth * 0.22;
+        g.beginPath();
+        g.moveTo(tx - 0.010, topS);
+        g.quadraticCurveTo(tx - 0.018, (topS + lowS) * 0.5, tx - 0.022 - rnd() * 0.008, lowS);
+        g.lineTo(tx - 0.006 - rnd() * 0.006, lowS - 0.004);
+        g.quadraticCurveTo(tx + 0.005, (topS + lowS) * 0.5, tx + 0.010, topS);
+        g.closePath();
+        g.fill();
+      }
+    } else if (/leopard|cheetah|lynx/.test(kinds)) {
+      g.fillStyle = 'rgba(58,42,28,0.55)';
+      for (var ls = 0; ls < 24; ls++) {
+        var lx = -0.43 + ((ls * 41) % 100) / 100 * 0.85;
+        var ly = f.bellyY + m.depth * 0.20 + ((ls * 67) % 100) / 100 * m.depth * 0.70 - dip * 0.6;
+        g.beginPath();
+        g.ellipse(lx, ly, 0.010, 0.006, 0.5, 0, TAU);
+        g.fill();
+      }
+    } else if (/fallow|chital|axis/.test(kinds)) {
+      g.fillStyle = 'rgba(255,252,244,0.55)';
+      for (var fs2 = 0; fs2 < 12; fs2++) {
+        g.beginPath();
+        g.arc(-0.2 + (fs2 % 4) * 0.13,
+          backPeakY - m.depth * 0.26 - Math.floor(fs2 / 4) * m.depth * 0.22, 0.008, 0, TAU);
+        g.fill();
+      }
+    }
+    if (m.mane) {
+      g.strokeStyle = 'rgba(58,46,34,0.80)';
+      g.lineCap = 'round';
+      g.lineWidth = 0.010;
+      for (var mn = 0; mn < 14; mn++) {
+        var mt = mn / 13;
+        var mx2 = -0.28 + mt * 0.56;
+        var my2 = backPeakY - Math.abs(mt - 0.42) * m.depth * 0.40;
+        g.beginPath();
+        g.moveTo(mx2, my2 - 0.003);
+        g.lineTo(mx2 - 0.009, my2 + m.depth * 0.30);
+        g.stroke();
+      }
+    }
+    if (shape === 'hyena') {
+      g.strokeStyle = 'rgba(70,58,44,0.75)';
+      g.lineCap = 'round';
+      g.lineWidth = 0.011;
+      for (var hr = 0; hr < 9; hr++) {
+        var ht2 = hr / 8;
+        var hxr = 0.10 + ht2 * 0.34;
+        var hyr = backPeakY - ht2 * m.depth * 0.26;
+        g.beginPath();
+        g.moveTo(hxr, hyr);
+        g.lineTo(hxr + 0.011, hyr + m.depth * 0.28);
+        g.stroke();
+      }
+    }
+    if (m.spines) {
+      g.strokeStyle = hornC;
+      g.lineCap = 'round';
+      g.lineWidth = 0.013;
+      for (var hs = 0; hs < 24; hs++) {
+        var ang = Math.PI * (0.05 + (hs / 23) * 0.90);
+        var hx2 = Math.cos(ang) * 0.47;
+        var hy2 = backPeakY - m.depth * 0.34 + Math.sin(ang) * m.depth * 0.52;
+        g.beginPath();
+        g.moveTo(hx2, hy2);
+        g.lineTo(hx2 + Math.cos(ang) * m.depth * 0.28, hy2 + Math.sin(ang) * m.depth * 0.28);
+        g.stroke();
+      }
+    }
+
+    // ---- THE FACE, on the head, inside the trunk's clip.
+    var P = function (rx, ry) { return headPointAbout(f, pose.x, pose.y, rx, ry, pose.tilt); };
+
+    // The paler muzzle and chin: the front of the snout only. Taking the marking
+    // from the skull's centre out to the nose covered most of a long head, which
+    // read as a pale blob rather than a muzzle.
     g.fillStyle = belly;
-    var mp = [P(0.18, 0.30), P(mlen * 0.98, 0.06),
-      P(mlen * 0.98, -0.10), P(0.18, -0.34)];
+    var lipA = f.head.mlen * 0.62;
+    var lipB = f.head.mlen * 0.98;
+    var mp = [P(lipA, f.head.muzzleTop * 0.55), P(lipB, 0.05),
+      P(lipB, -0.10), P(lipA, -f.head.muzzleBot * 0.62)];
     g.beginPath();
     g.moveTo(mp[0][0], mp[0][1]);
     for (var mi = 1; mi < 4; mi++) g.lineTo(mp[mi][0], mp[mi][1]);
     g.closePath();
     g.fill();
-    g.restore();
 
-    // The nose: a dark mark at the muzzle's end.
-    var nz = P(mlen * 0.94, 0.10);
+    // The nose at the muzzle's end, and the eye high on the skull.
+    var nz = P(f.head.mlen * 0.94, 0.10);
     g.fillStyle = ink;
     g.beginPath();
-    g.ellipse(nz[0], nz[1], Math.max(0.010, headR * 0.15), Math.max(0.008, headR * 0.11),
-      m.earKind === 'hare' ? 0.4 : 0, 0, TAU);
+    g.ellipse(nz[0], nz[1], Math.max(0.010, f.headR * 0.16), Math.max(0.008, f.headR * 0.12),
+      f.ears.kind === 'hare' ? 0.4 : 0, 0, TAU);
     g.fill();
-    // The eye, high on the skull and set back from the muzzle.
-    var ey2 = P(0.18, 0.44);
+    var ey2 = P(f.head.mlen * 0.30, 0.40);
     g.beginPath();
-    g.arc(ey2[0], ey2[1], Math.max(0.010, headR * 0.14), 0, TAU);
+    g.arc(ey2[0], ey2[1], Math.max(0.010, f.headR * 0.16), 0, TAU);
     g.fill();
-    // A fox's white bib under the jaw, the field mark that names it.
     if (shape === 'fox') {
       g.fillStyle = belly;
-      var bib = P(0.30, -0.62);
+      var bib = P(0.22, -0.62);
       g.beginPath();
-      g.ellipse(bib[0], bib[1], headR * 0.52, headR * 0.40, 0, 0, TAU);
+      g.ellipse(bib[0], bib[1], f.headR * 0.55, f.headR * 0.42, 0, 0, TAU);
       g.fill();
     }
+    g.restore();
 
-    // ---- The ears, in body lengths.
-    var earKind = m.earKind || 'up';
+    // ---- THE EARS, rooted on the crown socket and turned with the head. The far
+    // ear is drawn first and darker, so the head has two sides.
+    var earKind = f.ears.kind;
+    var earL = f.ears.len;
+    var earRadii = earL / Math.max(1e-6, f.headR);
+    var rootRy = f.head.skullH * ANIMAL_SOCKETS.earRoot.ry;
     if (earKind !== 'none' && earL > 0.001) {
-      var ew = earKind === 'fox' ? earL * 0.46 : earL * 0.52;
-      if (earKind === 'long') {
+      var farRoot = P(0.26, rootRy);
+      var farTip = P(0.18 + earRadii * 0.30, rootRy + earRadii * 0.86);
+      var farBack = P(0.52, rootRy + earRadii * 0.26);
+      g.fillStyle = far;
+      g.beginPath();
+      g.moveTo(farRoot[0], farRoot[1]);
+      g.quadraticCurveTo(farTip[0], farTip[1], farBack[0], farBack[1]);
+      g.closePath();
+      g.fill();
+
+      var nearRoot = P(ANIMAL_SOCKETS.earRoot.rx, rootRy);
+      if (earKind === 'round') {
         g.fillStyle = fur;
         g.beginPath();
-        g.ellipse(cr[0] + headR * 0.10, cr[1] + headR * 0.55 + earL * 0.5,
-          ew * 0.62, earL * 0.62, -0.42, 0, TAU);
-        g.fill();
-        g.fillStyle = shadeHex(fur, 0.78);
-        g.beginPath();
-        g.ellipse(cr[0] + headR * 0.10, cr[1] + headR * 0.55 + earL * 0.5,
-          ew * 0.30, earL * 0.42, -0.42, 0, TAU);
-        g.fill();
-      } else if (earKind === 'round') {
-        g.fillStyle = fur;
-        g.beginPath();
-        g.arc(cr[0] - headR * 0.15, cr[1] + headR * 0.80, ew * 0.70, 0, TAU);
-        g.fill();
-        g.beginPath();
-        g.arc(cr[0] + headR * 0.55, cr[1] + headR * 0.70, ew * 0.60, 0, TAU);
-        g.fill();
-        g.fillStyle = shadeHex(fur, 0.76);
-        g.beginPath();
-        g.arc(cr[0] - headR * 0.15, cr[1] + headR * 0.80, ew * 0.36, 0, TAU);
-        g.fill();
-      } else {
-        g.fillStyle = fur;
-        g.beginPath();
-        g.moveTo(cr[0] - headR * 0.30, cr[1] + headR * 0.60);
-        g.quadraticCurveTo(cr[0] - headR * 0.55, cr[1] + headR * 0.60 + earL * 0.9,
-          cr[0] + headR * 0.02, cr[1] + headR * 0.60 + earL * 1.05);
-        g.quadraticCurveTo(cr[0] + headR * 0.22, cr[1] + headR * 0.60 + earL * 0.5,
-          cr[0] + headR * 0.16, cr[1] + headR * 0.52);
-        g.closePath();
+        g.arc(nearRoot[0], nearRoot[1] + earRadii * 0.46 * f.headR,
+          Math.max(0.008, earRadii * 0.80 * f.headR), 0, TAU);
         g.fill();
         g.fillStyle = shadeHex(fur, 0.74);
         g.beginPath();
-        g.moveTo(cr[0] - headR * 0.20, cr[1] + headR * 0.64);
-        g.quadraticCurveTo(cr[0] - headR * 0.36, cr[1] + headR * 0.60 + earL * 0.6,
-          cr[0] + headR * 0.00, cr[1] + headR * 0.62 + earL * 0.72);
-        g.quadraticCurveTo(cr[0] + headR * 0.10, cr[1] + headR * 0.60 + earL * 0.35,
-          cr[0] + headR * 0.06, cr[1] + headR * 0.56);
+        g.arc(nearRoot[0], nearRoot[1] + earRadii * 0.48 * f.headR,
+          Math.max(0.005, earRadii * 0.42 * f.headR), 0, TAU);
+        g.fill();
+      } else if (earKind === 'long') {
+        // A hare's ear: a long blade laid back, wider at the root.
+        var baseA = P(ANIMAL_SOCKETS.earRoot.rx + 0.20, rootRy - 0.06);
+        var tipA = P(ANIMAL_SOCKETS.earRoot.rx - earRadii * 0.30, rootRy + earRadii * 1.00);
+        var baseB = P(ANIMAL_SOCKETS.earRoot.rx + 0.02, rootRy - 0.10);
+        g.fillStyle = fur;
+        g.beginPath();
+        g.moveTo(baseA[0], baseA[1]);
+        g.quadraticCurveTo((baseA[0] + tipA[0]) * 0.5 + f.headR * 0.16,
+          (baseA[1] + tipA[1]) * 0.5, tipA[0], tipA[1]);
+        g.quadraticCurveTo(baseB[0] - f.headR * 0.04, (baseB[1] + tipA[1]) * 0.5,
+          baseB[0], baseB[1]);
+        g.closePath();
+        g.fill();
+        g.fillStyle = shadeHex(fur, 0.78);
+        g.beginPath();
+        g.ellipse((baseA[0] + tipA[0]) * 0.5, (baseA[1] + tipA[1]) * 0.5,
+          Math.max(0.004, earRadii * 0.22 * f.headR), Math.max(0.006, earRadii * 0.52 * f.headR),
+          -0.34, 0, TAU);
+        g.fill();
+      } else {
+        // A pointed ear: base on the crown, tip up and a little back.
+        var tip = P(ANIMAL_SOCKETS.earRoot.rx - earRadii * (earKind === 'fox' ? 0.06 : 0.20),
+          rootRy + earRadii * 1.00);
+        var back = P(ANIMAL_SOCKETS.earRoot.rx + earRadii * 0.44, rootRy + earRadii * 0.30);
+        g.fillStyle = fur;
+        g.beginPath();
+        g.moveTo(nearRoot[0], nearRoot[1] - f.headR * 0.12);
+        g.quadraticCurveTo((nearRoot[0] + tip[0]) * 0.5 - f.headR * 0.09, (nearRoot[1] + tip[1]) * 0.5,
+          tip[0], tip[1]);
+        g.quadraticCurveTo(back[0], back[1], nearRoot[0], nearRoot[1] - f.headR * 0.12);
+        g.closePath();
+        g.fill();
+        g.fillStyle = shadeHex(fur, 0.74);
+        var innerTip = P(ANIMAL_SOCKETS.earRoot.rx - earRadii * 0.02, rootRy + earRadii * 0.72);
+        g.beginPath();
+        g.moveTo(nearRoot[0], nearRoot[1]);
+        g.quadraticCurveTo((nearRoot[0] + innerTip[0]) * 0.5, (nearRoot[1] + innerTip[1]) * 0.5,
+          innerTip[0], innerTip[1]);
+        g.quadraticCurveTo(nearRoot[0] + f.headR * 0.14, nearRoot[1] + f.headR * 0.10,
+          nearRoot[0], nearRoot[1]);
         g.closePath();
         g.fill();
       }
     }
 
-    // ---- The horns, in body lengths, rooted on the skull's crown.
-    var hornKind = ANIMAL_HORN_OF[shape] || 'none';
+    // ---- THE HORNS, rooted on the crown socket and turned with the head.
+    var hornKind = f.horns.kind;
+    var hornL = f.horns.len;
     g.strokeStyle = hornC;
     g.lineCap = 'round';
     g.lineJoin = 'round';
-    var hx0 = cr[0] - headR * 0.10, hy0 = cr[1] + headR * 0.60;
-    var span = hornL > 0.01 ? hornL : headR * 1.2;
+    var crownPt = P(ANIMAL_SOCKETS.hornRoot.rx, f.head.skullH * ANIMAL_SOCKETS.hornRoot.ry);
+    var span = hornL > 0.01 ? hornL : f.headR * 1.2;
     if (hornKind === 'lyre') {
       g.lineWidth = Math.max(0.012, hornL * 0.11);
       for (var lyr = -1; lyr <= 1; lyr += 2) {
         g.beginPath();
-        g.moveTo(hx0 + lyr * headR * 0.16, hy0 - headR * 0.10);
-        g.quadraticCurveTo(hx0 + lyr * headR * 0.85, hy0 + span * 0.60,
-          hx0 + lyr * headR * 0.30, hy0 + span);
+        g.moveTo(crownPt[0] + lyr * f.headR * 0.16, crownPt[1]);
+        g.quadraticCurveTo(crownPt[0] + lyr * f.headR * 0.85, crownPt[1] + span * 0.60,
+          crownPt[0] + lyr * f.headR * 0.30, crownPt[1] + span);
         g.stroke();
       }
     } else if (hornKind === 'scimitar') {
       g.lineWidth = Math.max(0.014, hornL * 0.12);
       for (var sc2 = -1; sc2 <= 1; sc2 += 2) {
         g.beginPath();
-        g.moveTo(hx0 + sc2 * headR * 0.14, hy0 - headR * 0.10);
-        g.quadraticCurveTo(hx0 - sc2 * headR * 0.30, hy0 + span * 0.80,
-          hx0 - sc2 * headR * 1.40, hy0 + span * 0.80);
+        g.moveTo(crownPt[0] + sc2 * f.headR * 0.14, crownPt[1]);
+        g.quadraticCurveTo(crownPt[0] - sc2 * f.headR * 0.30, crownPt[1] + span * 0.80,
+          crownPt[0] - sc2 * f.headR * 1.40, crownPt[1] + span * 0.80);
         g.stroke();
       }
     } else if (hornKind === 'curl') {
       g.lineWidth = Math.max(0.016, hornL * 0.16);
       for (var cu = -1; cu <= 1; cu += 2) {
         g.beginPath();
-        g.moveTo(hx0 + cu * headR * 0.20, hy0 - headR * 0.15);
-        g.quadraticCurveTo(hx0 + cu * headR * 1.00, hy0 + headR * 0.35,
-          hx0 + cu * headR * 0.75, hy0 - headR * 0.80);
+        g.moveTo(crownPt[0] + cu * f.headR * 0.20, crownPt[1] - f.headR * 0.15);
+        g.quadraticCurveTo(crownPt[0] + cu * f.headR * 1.00, crownPt[1] + f.headR * 0.35,
+          crownPt[0] + cu * f.headR * 0.75, crownPt[1] - f.headR * 0.80);
         g.stroke();
       }
     } else if (hornKind === 'antler') {
       g.lineWidth = Math.max(0.010, hornL * 0.055);
       for (var an = -1; an <= 1; an += 2) {
-        var ax = hx0 + an * headR * 0.22;
+        var ax = crownPt[0] + an * f.headR * 0.22;
         g.beginPath();
-        g.moveTo(ax, hy0);
-        g.quadraticCurveTo(ax - an * headR * 0.30, hy0 + span * 0.60,
-          ax - an * headR * 0.70, hy0 + span * 1.05);
+        g.moveTo(ax, crownPt[1]);
+        g.quadraticCurveTo(ax - an * f.headR * 0.30, crownPt[1] + span * 0.60,
+          ax - an * f.headR * 0.70, crownPt[1] + span * 1.05);
         g.stroke();
         for (var tin = 1; tin <= 3; tin++) {
           var tt = tin / 3.4;
-          var bx2 = ax - an * headR * 0.40 * tt;
-          var by2 = hy0 + span * 0.60 * tt;
+          var bx2 = ax - an * f.headR * 0.40 * tt;
+          var by2 = crownPt[1] + span * 0.60 * tt;
           g.beginPath();
           g.moveTo(bx2, by2);
-          g.lineTo(bx2 + an * headR * 0.55, by2 + headR * 0.35 + tt * headR * 0.10);
+          g.lineTo(bx2 + an * f.headR * 0.55, by2 + f.headR * 0.35 + tt * f.headR * 0.10);
           g.stroke();
         }
       }
     } else if (hornKind === 'tusk') {
+      // A boar's two tusks rise from the SIDES of the lower jaw, curving up and
+      // out. They were drawn from one point, offset by 0.004 of a radius, so the
+      // pair overlapped into a single pale slab across the snout.
       g.strokeStyle = tuskC;
-      g.lineWidth = Math.max(0.008, headR * 0.11);
-      var tick = P(mlen * 0.62, 0.02);
+      g.lineWidth = Math.max(0.006, f.headR * 0.055);
+      var tuskRoot = P(f.head.mlen * 0.52, -f.head.muzzleBot * 0.85);
+      var tuskSide = f.headR * 0.16;
       for (var tk = -1; tk <= 1; tk += 2) {
+        var base = P(f.head.mlen * 0.52, -f.head.muzzleBot * 0.85 + tk * 0.10);
+        var tip = P(f.head.mlen * 0.84, f.head.muzzleBot * 0.30 + tk * 0.16);
         g.beginPath();
-        g.moveTo(tick[0] - headR * 0.30, tick[1] - headR * 0.25 + tk * 0.004);
-        g.quadraticCurveTo(tick[0] + headR * 0.10, tick[1] - headR * 0.02,
-          tick[0] + headR * 0.24, tick[1] + headR * 0.46);
+        g.moveTo(base[0], base[1]);
+        g.quadraticCurveTo(tip[0] - f.headR * 0.12, tip[1] - f.headR * 0.20,
+          tip[0], tip[1]);
         g.stroke();
       }
+      // Keep the root reference so a future edit cannot drift the two apart.
+      if (tuskRoot && tuskSide) { /* the pair straddles the muzzle */ }
+    }
+
+    // ---- THE SKELETON OVERLAY, on with ?skeleton=on or window.ANIMAL_SKELETON.
+    if (animalSkeletonOn()) {
+      drawAnimalSkeleton(g, f, pose, trunk, headLandmarks(f));
     }
 
     g.restore();
+  }
+
+  /* ---------------------------------------------------------------------------
+     THE SKELETON, DRAWN OVER THE ANIMAL.
+     On with `?skeleton=on`, `window.ANIMAL_SKELETON = true`, or
+     `__animalSketch(ids, size, true)`. It puts the frame the drawing was made
+     from on top of the drawing: the trunk's anchor points, the barrel's four
+     edges, every socket with the part that hangs off it, the head's box and its
+     forward axis, and the fit's box. A part that leaves its socket or its box is
+     then a picture, not a theory.
+     --------------------------------------------------------------------------- */
+  function animalSkeletonOn() {
+    if (typeof window === 'undefined') return false;
+    if (window.ANIMAL_SKELETON) return true;
+    return /(?:^|[?&])skeleton=on(?:&|$)/.test(String(window.location.search || ''));
+  }
+
+  function drawAnimalSkeleton(g, f, pose, trunk, marks) {
+    var T = g.getTransform ? g.getTransform() : { a: 1 };
+    var unit = Math.abs(T.a) || 1;
+    var px = 1.5 / unit;
+    var frameInk = 'rgba(196,74,40,0.70)';
+    var jointInk = 'rgba(28,112,184,0.95)';
+    var headInk = 'rgba(28,112,184,0.55)';
+
+    var dot = function (x, y, r, c) {
+      g.fillStyle = c || jointInk;
+      g.beginPath();
+      g.arc(x, y, r, 0, TAU);
+      g.fill();
+    };
+    var line = function (x1, y1, x2, y2, c, w) {
+      g.strokeStyle = c || jointInk;
+      g.lineWidth = w || px;
+      g.beginPath();
+      g.moveTo(x1, y1);
+      g.lineTo(x2, y2);
+      g.stroke();
+    };
+
+    // The trunk's anchor points: the silhouette IS the skeleton.
+    for (var i = 0; i < trunk.length; i++) dot(trunk[i][0], trunk[i][1], px * 0.8, frameInk);
+
+    // The barrel's four edges, faint.
+    for (var name in f.edges) {
+      if (!Object.prototype.hasOwnProperty.call(f.edges, name)) continue;
+      g.strokeStyle = 'rgba(196,74,40,0.35)';
+      g.lineWidth = px;
+      g.beginPath();
+      var p0 = onEdge(f.edges[name], 0);
+      g.moveTo(p0.x, p0.y - pose.dip * 0.6);
+      for (var e = 1; e <= 14; e++) {
+        var pt = onEdge(f.edges[name], e / 14);
+        g.lineTo(pt.x, pt.y - pose.dip * 0.6);
+      }
+      g.stroke();
+    }
+
+    // The neck's bone: withers to the head's socket, and the socket itself.
+    dot(f.withers.x, f.withers.y, px * 2.4);
+    line(f.withers.x, f.withers.y, f.neck.socket[0], f.neck.socket[1], jointInk, px * 1.6);
+    dot(f.neck.socket[0], f.neck.socket[1], px * 2.6);
+    // The scruff, from the withers to the nape: the neck's crest.
+    var nape = headPointAbout(f, pose.x, pose.y, marks[7][0], marks[7][1], pose.tilt);
+    line(f.withers.x, f.withers.y, nape[0], nape[1], 'rgba(28,112,184,0.45)', px);
+    dot(nape[0], nape[1], px * 1.8, headInk);
+    dot(f.tailRoot.x, f.tailRoot.y, px * 2.0);
+    line(f.tail.root[0], f.tail.root[1], f.tail.root[0] - f.tail.len * 0.7,
+      f.tail.root[1] - f.tail.len * 0.35, 'rgba(28,112,184,0.6)', px);
+
+    // The leg sockets, far pair faint.
+    for (var l = 0; l < f.legs.length; l++) {
+      var leg = f.legs[l];
+      var topY = f.bellyYAt(leg.x) + f.row.depth * 0.34 - pose.dip * 0.6;
+      line(leg.x, topY, leg.x, 0, leg.far ? 'rgba(28,112,184,0.35)' : jointInk, px);
+      dot(leg.x, topY, px * 1.8, leg.far ? 'rgba(28,112,184,0.45)' : jointInk);
+    }
+
+    // The head: its box, its landmarks, and its forward axis.
+    var pts = [];
+    for (var h = 0; h < marks.length; h++) {
+      pts.push(headPointAbout(f, pose.x, pose.y, marks[h][0], marks[h][1], pose.tilt));
+    }
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var q = 0; q < pts.length; q++) {
+      if (pts[q][0] < minX) minX = pts[q][0];
+      if (pts[q][0] > maxX) maxX = pts[q][0];
+      if (pts[q][1] < minY) minY = pts[q][1];
+      if (pts[q][1] > maxY) maxY = pts[q][1];
+    }
+    g.strokeStyle = headInk;
+    g.lineWidth = px;
+    g.strokeRect(minX, minY, maxX - minX, maxY - minY);
+    g.beginPath();
+    for (var q2 = 0; q2 < pts.length; q2++) {
+      if (q2 === 0) g.moveTo(pts[q2][0], pts[q2][1]);
+      else g.lineTo(pts[q2][0], pts[q2][1]);
+    }
+    g.closePath();
+    g.stroke();
+    for (var q3 = 0; q3 < pts.length; q3++) dot(pts[q3][0], pts[q3][1], px * 1.5, headInk);
+    var fa = f.head.angle + pose.tilt;
+    line(pose.x, pose.y, pose.x + Math.cos(fa) * f.headR * 1.7,
+      pose.y + Math.sin(fa) * f.headR * 1.7, jointInk, px * 1.3);
+    dot(pose.x, pose.y, px * 2.2);
+
+    // The fit's box: what the drawing was scaled to. Anything outside it is cut
+    // off by whoever clips the picture, which is the bug this box exists to show.
+    g.strokeStyle = 'rgba(60,140,60,0.85)';
+    g.lineWidth = px;
+    g.strokeRect(f.bounds.x0, f.bounds.y0, f.bounds.w, f.bounds.h);
+    g.fillStyle = 'rgba(50,120,50,0.95)';
+    g.font = (10 / unit) + 'px monospace';
+    g.fillText(f.shape + '  h ' + f.bounds.h.toFixed(2) + '  w ' + f.bounds.w.toFixed(2) +
+      '  neck ' + Math.round(f.neck.angle * 180 / Math.PI) + 'deg',
+      f.bounds.x0 + 0.01, f.bounds.y0 + 0.02);
+  }
+
+  if (typeof window !== 'undefined') {
+    window.__animalAudit = function () { return animalAudit(); };
   }
 
   /* The leg width of the current animal, for anything that needs to match it. */
@@ -14110,37 +14668,93 @@ var ANIMAL_SIZES = {
      Called from the console as __animalSheet(). */
   /* Every animal, large, with its name under it: the sheet the anatomy is judged
      from. Called as __animalSheet(). */
-  /* The numbers a species is actually drawn from, so a proportion can be checked
-     against anatomy instead of against the picture. */
-  window.__animalNumbers = function (ids) {
-    var out = [];
+  var SHEET_IDS = ['creature-wildboar', 'creature-graywolf', 'creature-redfox',
+    'creature-stripedhyena', 'creature-caspiantiger', 'creature-junglecat',
+    'creature-persiangazelle', 'creature-maral', 'creature-onager',
+    'creature-bezoaribex', 'creature-urial', 'creature-brownbear',
+    'creature-rabbit', 'creature-dormouse', 'creature-hedgehog',
+    'creature-caspianseal', 'pet-shepherd', 'pet-tabby'];
+
+  /* ---------------------------------------------------------------------------
+     THE ANATOMY TOOLS, on the console.
+
+       __animalAudit()              every rule against every species, as numbers
+       __animalSketch(ids, size)    large plates over a grid, skeletons optional
+       __animalPoses(id, size)      one species through its four behaviours
+       __animalWorldSheet()         every species at the size the world draws it
+       __animalTry(id, anim)        one pose, reporting an error instead of a blank
+
+     They exist because a proportion is read against something or not at all, and
+     because a blank canvas has to say WHY it is blank.
+     --------------------------------------------------------------------------- */
+  window.__animalSketch = function (ids, size, skeleton) {
+    if (skeleton) window.ANIMAL_SKELETON = true;
+    ids = ids || SHEET_IDS;
+    size = size || 300;
+    var cols = 2, rows = Math.ceil(ids.length / cols);
+    var c = document.createElement('canvas');
+    c.width = size * cols; c.height = size * rows;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
     for (var i = 0; i < ids.length; i++) {
-      var e = findSpecies(ids[i]) || { id: ids[i], sh: 'beast' };
-      var shape = animalShapeOf(e.id);
-      var m = animalRow(shape);
-      var B = 1.0;
-      var top = m.leg + m.depth + m.neck + m.headR * 2 + Math.max(m.ear || 0, m.horn || 0) * 0.9;
-      var tailRoom = (m.tail || 0) > 0 ? (m.tail || 0) * 0.75 : 0;
-      var noseReach = m.headR * 1.5 + m.snout;
-      out.push({
-        id: e.id, shape: shape,
-        leg: m.leg, depth: m.depth,
-        heightInBodyLengths: Math.round(top * 100) / 100,
-        lengthInBodyLengths: Math.round((B + tailRoom * 0.6 + noseReach + m.headR) * 100) / 100,
-        pxHeight: Math.round(beastHeight(e))
-      });
+      var e = findSpecies(ids[i]) || { id: ids[i], sh: 'beast', f: ids[i], e: ids[i] };
+      var ox = (i % cols) * size, oy = Math.floor(i / cols) * size;
+      animalCellGrid(g, ox, oy, size);
+      g.save();
+      g.translate(ox + size / 2, oy + size - size * 0.13);
+      paintAnimal(g, e, null, size * 0.74);
+      g.restore();
+      animalCellLabel(g, (e.e || ids[i]) + '  ·  ' + animalShapeOf(ids[i]), ox, oy, size);
     }
-    return out;
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
   };
 
-  window.__animalSheet = function () {
-    var ids = ['creature-wildboar', 'creature-graywolf', 'creature-redfox',
-      'creature-stripedhyena', 'creature-caspiantiger', 'creature-junglecat',
-      'creature-persiangazelle', 'creature-maral', 'creature-onager',
-      'creature-bezoaribex', 'creature-urial', 'creature-brownbear',
-      'creature-rabbit', 'creature-dormouse', 'creature-hedgehog',
-      'creature-caspianseal', 'pet-shepherd', 'pet-tabby'];
-    var box = 300, cols = 2, rows = Math.ceil(ids.length / cols);
+  window.__animalPoses = function (id, size) {
+    id = id || 'creature-graywolf';
+    size = size || 230;
+    var states = [
+      { n: 'walk', a: { moving: true, walk: 2, facing: 1, seed: 3 } },
+      { n: 'stand', a: { moving: false, walk: 0, facing: 1, seed: 3 } },
+      { n: 'graze', a: { moving: false, walk: 0, facing: 1, seed: 3, grazing: true, grazeK: 1 } },
+      { n: 'drink', a: { moving: false, walk: 0, facing: 1, seed: 3, drinking: 1 } }
+    ];
+    var c = document.createElement('canvas');
+    c.width = size * states.length; c.height = size;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    for (var i = 0; i < states.length; i++) {
+      var ox = i * size;
+      animalCellGrid(g, ox, 0, size);
+      g.save();
+      g.translate(ox + size / 2, size - size * 0.16);
+      paintAnimal(g, e, states[i].a, size * 0.66);
+      g.restore();
+      animalCellLabel(g, states[i].n, ox, 0, size);
+    }
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
+  };
+
+  window.__animalWorldSheet = function (ids) {
+    ids = ids || ['creature-graywolf', 'creature-redfox', 'creature-wildboar',
+      'creature-persiangazelle', 'creature-maral', 'creature-brownbear',
+      'creature-junglecat', 'creature-caspianseal', 'creature-hedgehog',
+      'creature-dormouse'];
+    var box = 230, cols = 5, rows = Math.ceil(ids.length / cols);
     var c = document.createElement('canvas');
     c.width = box * cols; c.height = box * rows;
     c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
@@ -14153,59 +14767,75 @@ var ANIMAL_SIZES = {
     for (var i = 0; i < ids.length; i++) {
       var e = findSpecies(ids[i]) || { id: ids[i], sh: 'beast', f: ids[i], e: ids[i] };
       var ox = (i % cols) * box, oy = Math.floor(i / cols) * box;
-      // A ground line, so the feet have something to stand on and the shape of
-      // the body is measured against a horizontal.
-      g.strokeStyle = 'rgba(150,138,112,0.55)';
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(ox + 20, oy + box - 34);
-      g.lineTo(ox + box - 20, oy + box - 34);
-      g.stroke();
-      ctx.save();
-      ctx.translate(ox + box / 2, oy + box - 34);
-      paintAnimal(ctx, e, null, 210);
-      ctx.restore();
-      g.fillStyle = '#4A4038';
-      g.font = '15px Georgia, serif';
-      g.textAlign = 'center';
-      g.fillText((e.e || ids[i]) + '  ·  ' + animalShapeOf(ids[i]), ox + box / 2, oy + box - 12);
+      animalCellGrid(g, ox, oy, box);
+      g.save();
+      g.translate(ox + box / 2, oy + box - box * 0.18);
+      // The size the world draws it at, so a shape that reads at 300 px and is
+      // mush at 40 px shows as mush.
+      paintAnimal(g, e, { moving: false, walk: 0, facing: 1, seed: 3 }, beastHeight(e));
+      g.restore();
+      animalCellLabel(g, ids[i].replace(/^(creature|pet)-/, '') + '  ' +
+        Math.round(beastHeight(e)) + 'px', ox, oy, box);
     }
     ctx = prev;
     document.body.appendChild(c);
+    return c.width + 'x' + c.height;
   };
 
-  /* One animal through all eight poses of its walk, so a bad joint shows up as
-     a picture rather than as a line of arithmetic. Called as __walkSheet('creature-redfox'). */
-  window.__walkSheet = function (id) {
-    id = id || 'creature-redfox';
-    var box = 120, cols = 4, rows = 2;
+  window.__animalTry = function (id, a, size) {
+    size = size || 300;
     var c = document.createElement('canvas');
-    c.width = box * cols; c.height = box * rows;
+    c.width = size; c.height = size;
     c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
-      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+      'width:' + size + 'px;height:' + size + 'px;max-width:none;';
     var g = c.getContext('2d');
     var prev = ctx;
     ctx = g;
-    for (var i = 0; i < 8; i++) {
-      var anim = {
-        seed: 7, walk: i, moving: true, gait: 'walk', facing: 1,
-        grazing: false, drinking: 0, grazeK: 0, leap: 0
-      };
-      var e = { id: id, sh: 'beast', f: id, e: id };
-      ctx.save();
-      ctx.translate((i % cols) * box + box / 2, Math.floor(i / cols) * box + box * 0.85);
-      paintAnimal(ctx, e, anim, 100);
-      ctx.restore();
-      ctx.strokeStyle = '#B9AE96';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo((i % cols) * box, Math.floor(i / cols) * box + box * 0.85);
-      ctx.lineTo((i % cols) * box + box, Math.floor(i / cols) * box + box * 0.85);
-      ctx.stroke();
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, size, size);
+    var e = findSpecies(id);
+    if (!e) return 'no species ' + id;
+    var out = 'ok';
+    try {
+      g.save();
+      g.translate(size / 2, size - size * 0.16);
+      paintAnimal(g, e, a, size * 0.68);
+      g.restore();
+    } catch (err) {
+      out = err.message + ' @ ' + String(err.stack || '').split('\n')[1];
     }
     ctx = prev;
     document.body.appendChild(c);
+    return out;
   };
+
+  /* A ten-per-cent grid and a ground line behind one cell. */
+  function animalCellGrid(g, ox, oy, size) {
+    g.strokeStyle = 'rgba(120,110,90,0.13)';
+    g.lineWidth = 1;
+    for (var k = 1; k < 10; k++) {
+      g.beginPath();
+      g.moveTo(ox + k * size / 10, oy);
+      g.lineTo(ox + k * size / 10, oy + size);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(ox, oy + k * size / 10);
+      g.lineTo(ox + size, oy + k * size / 10);
+      g.stroke();
+    }
+    g.strokeStyle = 'rgba(150,138,112,0.60)';
+    g.beginPath();
+    g.moveTo(ox + size * 0.06, oy + size - size * 0.14);
+    g.lineTo(ox + size * 0.94, oy + size - size * 0.14);
+    g.stroke();
+  }
+
+  function animalCellLabel(g, text, ox, oy, size) {
+    g.fillStyle = '#4A4038';
+    g.font = '13px Georgia, serif';
+    g.textAlign = 'left';
+    g.fillText(text, ox + size * 0.06, oy + size - size * 0.045);
+  }
 
   function drawSeal(e, x, y, t) {
     var bob = Math.sin(t * 1.4 + x) * 4;
@@ -15164,6 +15794,169 @@ var ANIMAL_SIZES = {
     }
   }
 
+  /* ---- The can: keeping it still while the spring fills it ----------------
+     The place existed in the state machine only. `addPlace('stream')` pointed its
+     `draw` at drawStream(d, W, H), which is the SECTION's water painter and takes a
+     section, so pressing "fill the can" opened a black page and the round was
+     unreachable. This is its page, drawn on the same 390x844 sheet as every other. */
+  function drawCan(cssW, cssH) {
+    hits = [];
+    pageBegin(cssW, cssH);
+
+    // Paper, and the one rule every page of the book carries.
+    ctx.fillStyle = C.plaster;
+    ctx.fillRect(0, 0, 390, 844);
+    ctx.strokeStyle = 'rgba(42,35,32,0.16)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(18, 18, 354, 808);
+
+    placeHeader('The spring');
+
+    // The water, in the stream's own shape so the page and the section agree:
+    // streamCentre/streamHalf are the one pair that describe it.
+    var W = 390;
+    var top = 118, bot = 560;
+    ctx.beginPath();
+    for (var v = 0; v <= 1.001; v += 0.02) {
+      var c0 = streamCentre(v) * W, h0 = streamHalf(v) * W;
+      var y0 = top + v * (bot - top);
+      if (v === 0) ctx.moveTo(c0 - h0, y0); else ctx.lineTo(c0 - h0, y0);
+    }
+    for (var v2 = 1; v2 >= -0.001; v2 -= 0.02) {
+      var c1 = streamCentre(v2) * W, h1 = streamHalf(v2) * W;
+      ctx.lineTo(c1 + h1, top + v2 * (bot - top));
+    }
+    ctx.closePath();
+    var wg = ctx.createLinearGradient(W * 0.2, 0, W * 0.8, 0);
+    wg.addColorStop(0, '#8FB0B0');
+    wg.addColorStop(0.5, POND_WATER);
+    wg.addColorStop(1, '#69939A');
+    ctx.fillStyle = wg;
+    ctx.fill();
+
+    // The current, travelling down the stream. Its speed is the clock's, so the
+    // water reads as running and not as a pond.
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(236,250,248,0.55)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 18; i++) {
+      var tv = ((i * 0.055 + (clock * 0.30) % 0.055) % 1);
+      var yy = top + tv * (bot - top);
+      var cc = streamCentre(tv) * W, hw = streamHalf(tv) * W;
+      var off = ((i * 37) % 100) / 100 * 2 - 1;
+      var x0 = cc + off * hw * 0.78;
+      var len = hw * (0.16 + ((i * 13) % 10) / 40);
+      ctx.beginPath();
+      ctx.moveTo(x0 - len, yy);
+      ctx.quadraticCurveTo(x0, yy - 4, x0 + len, yy);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // She stands on the near bank with the can, under the water: the page reads top
+    // to bottom as the spring, then the bank, then her.
+    var bankX = 195, standY = 668;
+    ctx.fillStyle = 'rgba(150,142,108,0.30)';
+    ctx.beginPath();
+    ctx.ellipse(bankX, standY + 34, 104, 18, 0, 0, TAU);
+    ctx.fill();
+
+    // The can: a pail with a handle, filling as she holds it still.
+    var fill = clamp(stream.fill, 0, 1);
+    var canX = bankX, canY = standY;
+    ctx.fillStyle = '#7FA7A2';
+    ctx.beginPath();
+    ctx.moveTo(canX - 26, canY - 34);
+    ctx.lineTo(canX + 26, canY - 34);
+    ctx.lineTo(canX + 20, canY + 17);
+    ctx.lineTo(canX - 20, canY + 17);
+    ctx.closePath();
+    ctx.fill();
+    // The water in it, rising from the bottom.
+    if (fill > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(canX - 26, canY - 34);
+      ctx.lineTo(canX + 26, canY - 34);
+      ctx.lineTo(canX + 20, canY + 17);
+      ctx.lineTo(canX - 20, canY + 17);
+      ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = '#BFDCDA';
+      var wy = canY + 17 - fill * 48;
+      ctx.fillRect(canX - 28, wy, 56, 60);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(canX - 22, wy);
+      ctx.quadraticCurveTo(canX, wy - 4, canX + 22, wy);
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Its rim and handle.
+    ctx.strokeStyle = '#5E8783';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.ellipse(canX, canY - 34, 26, 5, 0, 0, TAU);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(canX, canY - 36, 20, Math.PI * 1.08, Math.PI * 1.92);
+    ctx.stroke();
+
+    // She holds it: both hands, and a slosh when it is shaken.
+    var shake = stream.slosh > 0 ? Math.sin(clock * 30) * 3 * stream.slosh : 0;
+    ctx.save();
+    ctx.translate(canX + shake, 0);
+    ctx.fillStyle = '#E8D9C0';
+    ctx.beginPath();
+    ctx.ellipse(-24, canY - 8, 7, 5, 0.3, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(24, canY - 8, 7, 5, -0.3, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // How far along it is, as a bar that fills, under everything and clear of the water.
+    var bw = 210, bx = 195 - bw / 2, by = 754;
+    ctx.fillStyle = 'rgba(216,204,184,0.45)';
+    roundRect(bx, by, bw, 10, 5);
+    ctx.fill();
+    ctx.fillStyle = C.turquoise;
+    roundRect(bx, by, Math.max(10, bw * fill), 10, 5);
+    ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = 'italic 400 12px ' + FONT_UI;
+    if (stream.done) {
+      ctx.fillStyle = C.turquoiseDeep;
+      ctx.font = '600 13px ' + FONT_UI;
+      ctx.fillText('the can is full', 195, by + 34);
+    } else if (stream.msgAge < 3 && stream.msg) {
+      ctx.fillStyle = C.terracotta;
+      ctx.fillText(stream.msg, 195, by + 34);
+    } else {
+      ctx.fillText('hold it still while it fills', 195, by + 34);
+    }
+    ctx.textAlign = 'left';
+
+    // Anywhere on the bank holds it: her hands are the whole verb.
+    hits = [];
+    addHit(0, 120, 390, 600, 'hold');
+
+    if (stream.done && clock - stream.doneAt > 3.6) {
+      placeDoneCard('The can is full', 'She carried the spring back to the beds.', [
+        'cheshmeh \u00b7 spring'
+      ]);
+      pageEnd();
+      return;
+    }
+    pageEnd();
+  }
+
   function drawBiomeGround(d) {
     var W = world.w, H = world.h;
     var pal = groundPalette(d.kind);
@@ -16005,6 +16798,25 @@ var ANIMAL_SIZES = {
     return !!d && d.kind === 'openwater' && !interior;
   }
 
+  /* Where a boat can be. Water is the only ground it has: the open water she rows
+     across, and the two bays she sets out from. ONE answer, because the boat's
+     state used to be written by two setters that could not agree - `unboard` and
+     `travelTo` cleared it, and walking across a seam did not, so a boat rowed out
+     of the open water into the orchard left her sitting in it on dry grass with
+     the section's own plants, animals and stones gone (buildProps answers with the
+     single `boarded` stub for any section that is not open water). */
+  function boatMayFloat(def) {
+    return !!def && (def.kind === 'openwater' || def.kind === 'sea');
+  }
+
+  /* Put the boat away unless this section may hold it. Every place that changes
+     section asks this, so a crossing, a travel and a probe cannot drift apart. */
+  function settleBoatFor(def) {
+    if (boatMayFloat(def)) return;
+    boatRide.riding = false;
+    boatRide.wake.length = 0;
+  }
+
   /* The channel where the river enters the bay: the mouth's own last row, read
      from the other side. One pair of numbers for the drawing and the walk test. */
   function bayChannel(W) {
@@ -16107,13 +16919,16 @@ var ANIMAL_SIZES = {
     var out = [];
     var i;
 
-    // In a boat, the boat is under her: the way out is offered where she is.
-    if (boatRide.riding && !interior && d.kind !== 'openwater') {
+    // In a boat, the boat is under her: the way out is offered where she is. The
+    // place's own things are still there - a boat is an extra prop, not a reason to
+    // empty the section, which is what making this an early return did: rowing onto
+    // the orchard showed one stub and nothing else.
+    if (boatRide.riding && !interior) {
       out.push({
         k: 'boarded', x: hero.x, y: hero.y,
         verb: 'step out of the boat', act: 'unboard', name: ''
       });
-      return out;
+      if (d.kind === 'openwater') return out;   // open water holds nothing else that stands
     }
 
     if (interior === 'house') {
@@ -16897,6 +17712,17 @@ var ANIMAL_SIZES = {
       walkTarget = null;
       return;
     }
+    // A bank is a wall to a boat. Without this, a boat rowed north out of the open
+    // water landed in the meadow: she sat in it on dry grass, and the place she was
+    // in drew nothing but the boat (its own props were replaced by the boarded stub).
+    if (boatRide.riding && !boatMayFloat(nextDef)) {
+      if (hero.x < m) hero.x = m + 6;
+      else if (hero.x > W - m) hero.x = W - m - 6;
+      if (hero.y < 110) hero.y = 118;
+      else if (hero.y > H - m) hero.y = H - m - 6;
+      walkTarget = null;
+      return;
+    }
     section.cx = nx;
     section.cy = ny;
     hero.x = hx;
@@ -16905,6 +17731,9 @@ var ANIMAL_SIZES = {
     hero.vy = 0;
     walkTarget = null;
     islandVerb = null;
+    // No boat repair is needed here: the guard above refuses a boat onto land, so the
+    // rule has one enforcement point for a crossing and settleBoatFor handles the
+    // transitions she cannot steer (travel, a probe).
     visitSection(nx, ny);
   }
 
@@ -18507,7 +19336,7 @@ var ANIMAL_SIZES = {
   addPlace('beeline', { from: 'island', label: 'Bee-line', enter: enterBeeline, update: updateBeeline, draw: drawBeeline, down: beelineDown, move: beelineMove, up: beelineUp, auto: autoBeeline });
 
   addPlace('wagon', { from: 'island', label: 'Wagon', enter: enterWagon, update: updateWagon, draw: drawWagon, down: wagonTap, auto: autoWagon });
-  addPlace('stream', { from: 'island', label: 'Stream', enter: enterStream, update: updateStream, draw: drawStream, down: streamDown, move: streamMove, up: streamUp, auto: autoStream });
+  addPlace('stream', { from: 'island', label: 'Stream', enter: enterStream, update: updateStream, draw: drawCan, down: streamDown, move: streamMove, up: streamUp, auto: autoStream });
 
   addPlace('hens', { from: 'island', label: 'Hens', enter: enterHens, update: updateHens, draw: drawHens, down: henTap, auto: autoHens });
   addPlace('kitchen', { from: 'island', label: 'Kitchen', enter: enterKitchen, update: updateKitchen, draw: drawKitchen, down: kitchenTap, auto: autoKitchen });
