@@ -54,6 +54,7 @@
   <div class="row"><label>tuck</label><input type="range" id="r_tuck" min="0" max="0.80" step="0.01"><output id="o_tuck"></output></div>
   <div class="row"><label>chest deep</label><input type="range" id="r_deep" min="0" max="0.45" step="0.01"><output id="o_deep"></output></div>
   <div class="row"><label>hump</label><input type="range" id="r_hump" min="-0.2" max="0.4" step="0.01"><output id="o_hump"></output></div>
+  <div class="row"><label>thigh</label><input type="range" id="r_thigh" min="0" max="0.45" step="0.005"><output id="o_thigh"></output></div>
 
   <h2>Head</h2>
   <div class="row"><label>headR</label><input type="range" id="r_headR" min="0.06" max="0.34" step="0.002"><output id="o_headR"></output></div>
@@ -103,6 +104,7 @@ const SAMPLE = {
 const SLIDERS = [
   ['leg','Body',0.02,0.80,0.005],['depth','Body',0.20,0.70,0.005],
   ['tuck','Body',0,0.80,0.01],['deep','Body',0,0.45,0.01],['hump','Body',-0.2,0.4,0.01],
+  ['thigh','Body',0,0.45,0.005],
   ['headR','Head',0.06,0.34,0.002],['muzzle','Head',0.60,1.80,0.01],
   ['skullH','Head',0.4,2.2,0.02],['cheek','Head',0.10,0.80,0.01],
   ['headPitch','Head',-30,20,1],
@@ -123,7 +125,7 @@ let frame = 0;
 /* The game page is one directory up from the tuner, whichever directory the
    tuner is served from: dist/tools/ sees dist/index.html, and tools/ sees
    ../dist/index.html. Try both, in order. */
-const CANDIDATES = ['index.html'];    // published beside it
+const CANDIDATES = ['index.html'];    // one dir up in dist/
 
 const gameFrame = document.createElement('iframe');
 gameFrame.style.cssText = 'position:fixed;left:-9999px;top:0;width:900px;height:900px;border:0';
