@@ -122,12 +122,20 @@
   var FONT_UI = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   var FONT_SERIF = 'Georgia, "Iowan Old Style", "Times New Roman", serif';
 
-  /* World: a portrait page that fills the screen; landscape stays 1280x720. */
-  var world = { w: 720, h: 1280 };
+  /* WORLD AND VIEW. One screenful is `view`: the drawing scale is fixed by it, so
+     a section that holds more ground does not draw its animals bigger or smaller.
+     `world` is the SECTION, and a big open place is several screenfuls long, which
+     is what lets a herd, a grazer, the thing it grazes and the keeper all be in it
+     at once. `cam` is where the eye is, in world units; it follows her and is
+     clamped so the section always fills the screen rather than letterboxing. */
+  var view = { w: 640, h: 1387 };
+  var world = { w: 640, h: 1387 };
+  var cam = { x: 320, y: 694 };
   var dpr = 1;
   var fitScale = 1;
   var ox = 0;
   var oy = 0;
+  var cssView = { w: 390, h: 844 };   // the canvas in CSS pixels, for the camera
 
   /* 3. STATE */
   var phase = 'title';
@@ -467,15 +475,19 @@
     particles.length = 0;
     floaters.length = 0;
     pickups.length = 0;
-    layout();
-    hero.x = world.w * 0.5;
-    hero.y = world.h * 0.64;
     if (dayMode === 'island') {
       section.cx = 0;
       section.cy = 0;
       interior = null;
-      propCache = {};
     }
+    // The section's own size first, then the place she stands in it: the yard is
+    // wider than one screen now, and its middle is not the middle of the screen.
+    fitSection();
+    layout();
+    hero.x = world.w * 0.5;
+    hero.y = world.h * 0.55;
+    followCamera(true);
+    propCache = {};
     if (dayMode === 'gather') {
       for (var i = 0; i < R.maxPickups; i++) spawnPickup();
       showNotice(T('Gather nectar'), T('carry it home to the hive'));
@@ -540,6 +552,24 @@
     hive.r = clamp(world.w * 0.16, 96, 132);
     buildScenery();
     buildMotes();
+  }
+
+  /* The place's own furniture depends on its SIZE, so it is laid out whenever the
+     size changes and not once at boot: the yard's hive sat where its one-screenful
+     yard used to be after the yard grew. */
+  function relayoutPlace() {
+    hive.x = world.w * 0.5;
+    hive.y = Math.max(150, world.h * 0.155);
+    hive.r = clamp(world.w * 0.16, 96, 132);
+  }
+
+  /* The section's ground is fitted to its own size whenever the place changes,
+     and the camera is snapped to her inside it. One function, called from every
+     place that changes section, because a size that updates in two of three
+     places is a section that is half its own size after one crossing. */
+  function enterSection() {
+    fitSection();
+    layout();
   }
 
   /* Where the garden's rows lie on the page: the centre of row's patch and its
@@ -770,6 +800,45 @@
       ]
     },
 
+    /* THE MEADOW. Standing hay: long grass in drifts, flowers only where the scythe
+       has not been, and the paths worn between them. */
+    meadow: {
+      base: { k: 'blade', n: 46, t: 0.62, s: [1.05, 2.20] },
+      verge: { k: 'blade', n: 34, t: 0.70, s: [1.47, 2.94] },
+      vergeKind: 'daisy', vergeN: 12,
+      beds: [
+        bed(0.28, 0.28, 0.15, 'daisy', 20, { s: [1.89, 2.94] }),
+        bed(0.72, 0.52, 0.16, 'clover', 22),
+        bed(0.44, 0.76, 0.14, 'daisy', 16, { s: [1.68, 2.73] }),
+        bed(0.20, 0.62, 0.08, 'stone', 6, { r: [3.6, 9.0] })
+      ]
+    },
+
+    /* THE GLASSHOUSE AND THE HENHOUSE keep their own ground: swept gravel and
+       trodden straw. A place with a building on it still has ground, and leaving
+       the design out is what left these two with nothing at all. */
+    glass: {
+      base: { k: 'thatch', n: 22, s: [1.26, 2.10] },
+      verge: { k: 'blade', n: 26, t: 0.50, s: [1.05, 2.10] },
+      vergeKind: 'clover', vergeN: 6,
+      beds: [
+        bed(0.14, 0.80, 0.09, 'clover', 14),
+        bed(0.86, 0.80, 0.09, 'clover', 14),
+        bed(0.50, 0.14, 0.08, 'blade', 12, { t: 0.44, s: [0.84, 1.68] })
+      ]
+    },
+
+    henhouse: {
+      base: { k: 'thatch', n: 40, s: [1.68, 2.94] },
+      verge: { k: 'thatch', n: 24, s: [2.10, 3.36] },
+      vergeKind: 'blade', vergeN: 10, vergeT: 0.42,
+      beds: [
+        bed(0.24, 0.34, 0.12, 'blade', 18, { t: 0.38, s: [1.26, 2.31] }),
+        bed(0.76, 0.62, 0.13, 'blade', 18, { t: 0.38, s: [1.26, 2.31] }),
+        bed(0.50, 0.86, 0.09, 'thatch', 12, { s: [2.52, 3.78] })
+      ]
+    },
+
     /* THE WET PLACES. Sedge tussocks along the bank, the water itself bare. */
     wet: {
       base: { k: 'blade', n: 36, t: 0.50, s: [0.95, 1.89] },
@@ -794,13 +863,27 @@
     if (kind === 'desert') return DRESSING.desert;
     if (kind === 'heights') return DRESSING.heights;
     if (kind === 'beach') return DRESSING.beach;
+    if (kind === 'meadow') return DRESSING.meadow;
+    if (kind === 'glass') return DRESSING.glass;
+    if (kind === 'henhouse') return DRESSING.henhouse;
     if (kind === 'pond' || kind === 'stream' || kind === 'river') return DRESSING.wet;
     return null;   // sea, openwater: nothing grows
   }
 
   function buildScenery() {
+    // The dressing belongs to ONE place at ONE size. Both are checked, because a
+    // crossing changes the place and a resize changes the size, and a rebuild that
+    // cannot tell they are unchanged repaints 600 pieces every time a page closes.
+    var key = biomeKey() + ':' + world.w + 'x' + world.h;
+    if (scenery.key === key && scenery.pieces && scenery.pieces.length) return;
     quietGround.dirty = true;
     scenery.pieces = [];
+    // The key it was built for is kept, so the dressing belongs to the place it was
+    // made for. The dressing used to be rebuilt only on a resize and on travel,
+    // never on a walk across a seam, so every biome kept the yard's tufts; and
+    // keepSceneryDry then moved those same tufts out of each water it met, in
+    // place, so the pond's pushes were still there in the woods.
+    scenery.key = key;
     var d = typeof sectionDef === 'function' ? sectionDef() : null;
     var design = d ? dressingFor(d.kind) : DRESSING.yard;
     if (!design) return;
@@ -811,6 +894,15 @@
     var rnd = seeded(20261106 + (d ? d.kind.length * 977 : 0) + sec.cx * 7919 + sec.cy * 104729);
     var W = world.w, H = world.h;
     var i, x, y;
+
+    // A big section is the SAME GROUND, more of it. The base layer is what the
+    // ground is like everywhere, so it scales with the AREA; the verge is a border,
+    // so it scales with the border's LENGTH; and the beds stay the handful the
+    // design composed, because a bed repeated five times down one page is not a
+    // place with beds in it, it is a texture.
+    var area = (W * H) / Math.max(1, view.w * view.h);
+    var count = function (n) { return Math.round((n || 0) * area); };
+    var edgeCount = function (n) { return Math.round((n || 0) * Math.sqrt(area)); };
 
     function push(kind, x2, y2, extra) {
       var o = { k: kind, x: x2, y: y2 };
@@ -847,31 +939,34 @@
       }
     }
 
-    // THE VERGE: the band round the page's edge. This is the composition - the
-    // middle is the stage and stays open, and the dressing frames it.
+    // THE VERGE: the band round the ground's edge. This is the composition - the
+    // middle is the stage and stays open, and the dressing frames it. The band is
+    // a WIDTH, so it is measured against one screenful: a wide section has a wider
+    // ground, not a thicker border, and a border that grew with the width would
+    // swallow the stage it is meant to frame.
+    var bandW = Math.min(W, view.w) * 0.13;
     function edgePoint() {
-      var band = 0.13;
       if (rnd() < 0.55) {
         // The sides.
         var left = rnd() < 0.5;
-        x = left ? 10 + rnd() * W * band : W - 10 - rnd() * W * band;
+        x = left ? 10 + rnd() * bandW : W - 10 - rnd() * bandW;
         y = 96 + rnd() * (H - 130);
       } else {
         // The top and bottom.
         var top = rnd() < 0.5;
-        y = top ? 96 + rnd() * H * band : H - 12 - rnd() * H * band;
+        y = top ? 96 + rnd() * bandW : H - 12 - rnd() * bandW;
         x = 10 + rnd() * (W - 20);
       }
     }
 
     if (design.verge) {
-      for (i = 0; i < (design.verge.n || 0); i++) {
+      for (i = 0; i < edgeCount(design.verge.n); i++) {
         edgePoint();
         place(design.verge.k, x, y, design.verge);
       }
     }
     if (design.vergeKind) {
-      for (i = 0; i < (design.vergeN || 0); i++) {
+      for (i = 0; i < edgeCount(design.vergeN); i++) {
         edgePoint();
         place(design.vergeKind, x, y, {
           t: design.vergeT, s: [0.6, 1.2], r: [3, 9], s2: design.vergeS
@@ -879,68 +974,91 @@
       }
     }
 
-    // THE BASE: a thin even layer, so the ground underfoot is known. Deliberately
-    // sparse - enough to name the ground, not enough to be a texture - and kept
-    // out of the stage's middle.
+    // THE BASE: the ground underfoot, everywhere, at a density. It used to be
+    // weighted toward the page's edge - the verge - and kept out of the middle, and
+    // that composition is right for ONE page. A section that is three pages long
+    // has three pages of middle, so the same weighting leaves a bald field: the
+    // weighting is now against the nearest tile's own edge, which is the same rule
+    // the design was composed with, repeated down the ground.
     if (design.base) {
-      for (i = 0; i < design.base.n; i++) {
-        // Weighted by distance from the middle: most of the ground's growth belongs
-        // in the verge, and the stage itself is kept thinnest. This is what makes
-        // the page read as a clearing with a centre rather than a field.
+      var tiles = Math.max(1, Math.round(Math.sqrt(area)));
+      var tileH = H / tiles;
+      for (i = 0; i < count(design.base.n); i++) {
         var u = rnd();
+        var ti = Math.floor(rnd() * tiles);
+        var ty0 = ti * tileH;
         if (u < 0.55) {
-          // The verge.
+          // The verge of this tile.
           var side2 = rnd();
           if (side2 < 0.5) {
-            x = rnd() < 0.5 ? 10 + rnd() * W * 0.16 : W - 10 - rnd() * W * 0.16;
-            y = 96 + rnd() * (H - 130);
+            var sideBand = Math.min(W, view.w) * 0.16;
+            x = rnd() < 0.5 ? 10 + rnd() * sideBand : W - 10 - rnd() * sideBand;
+            y = ty0 + 96 + rnd() * (tileH - 130);
           } else {
-            y = rnd() < 0.5 ? 96 + rnd() * H * 0.14 : H - 12 - rnd() * H * 0.14;
+            y = ty0 + (rnd() < 0.5 ? 20 + rnd() * tileH * 0.14 : tileH - 12 - rnd() * tileH * 0.14);
             x = 10 + rnd() * (W - 20);
           }
         } else if (u < 0.85) {
           // The shoulder between the verge and the stage.
           x = W * (0.12 + 0.76 * rnd());
-          y = 104 + (H - 150) * rnd();
+          y = ty0 + 40 + (tileH - 80) * rnd();
         } else {
           // A few inside the stage, so it is not bald.
-          var ang0 = rnd() * TAU, rr0 = Math.sqrt(rnd()) * W * 0.24;
+          var ang0 = rnd() * TAU, rr0 = Math.sqrt(rnd()) * W * 0.20;
           x = clamp(W * 0.5 + Math.cos(ang0) * rr0, 14, W - 14);
-          y = clamp(H * 0.52 + Math.sin(ang0) * rr0 * 1.4, 104, H - 16);
+          y = clamp(ty0 + tileH * 0.5 + Math.sin(ang0) * rr0 * 1.2, 104, H - 16);
         }
+        y = clamp(y, 96, H - 14);
         place(design.base.k, x, y, design.base);
       }
     }
 
     // THE BEDS: grouped where the design says they belong, each with its own
-    // rougher ground so the bed has a body and an edge.
+    // rougher ground so the bed has a body and an edge. A bed's place is written as
+    // a fraction OF A PAGE, so a section taller than a page repeats the composition
+    // down its ground instead of stacking every bed on the first screenful: the same
+    // page, walked further. The horizontal anchor is jittered per page, or the beds
+    // would line up in a column down the middle of a long section.
+    var pageH = view.h;
+    var pages = Math.max(1, Math.round(H / pageH));
     for (i = 0; i < design.beds.length; i++) {
       var b = design.beds[i];
-      var cx = b.ax * W, cy = b.ay * H;
       var rad = b.rad * W * (b.wide || 1);
       var squash = b.wide ? 0.42 : 0.75;
+      for (var pg = 0; pg < pages; pg++) {
+        var ax = pages > 1 ? clamp(b.ax + (rnd() - 0.5) * 0.18, 0.10, 0.90) : b.ax;
+        var cx = ax * W;
+        var cy = clamp(pg * pageH + b.ay * pageH, pageH * 0.2, H - pageH * 0.1);
 
-      // The bed's own ground: longer and looser than the lawn, so the species has
-      // something to stand in.
-      var fillerN = Math.round(b.n * 1.4);
-      for (var f = 0; f < fillerN; f++) {
-        var fa = rnd() * TAU, fr = Math.sqrt(rnd()) * rad * 1.12;
-        x = clamp(cx + Math.cos(fa) * fr, 12, W - 12);
-        y = clamp(cy + Math.sin(fa) * fr * squash, 98, H - 14);
-        place('blade', x, y, { s: [1.1, 2.3], t: 0.42 });
-      }
+        // The bed's own ground: longer and looser than the lawn, so the species has
+        // something to stand in.
+        var fillerN = Math.round(b.n * 1.4);
+        for (var f = 0; f < fillerN; f++) {
+          var fa = rnd() * TAU, fr = Math.sqrt(rnd()) * rad * 1.12;
+          var bx2 = clamp(cx + Math.cos(fa) * fr, 12, W - 12);
+          var by2 = clamp(cy + Math.sin(fa) * fr * squash, 98, H - 14);
+          place('blade', bx2, by2, { s: [1.1, 2.3], t: 0.42 });
+        }
 
-      // And the species itself, denser at the middle.
-      for (var j = 0; j < b.n; j++) {
-        var ang = rnd() * TAU;
-        var rr = Math.sqrt(rnd()) * rad;
-        x = clamp(cx + Math.cos(ang) * rr, 14, W - 14);
-        y = clamp(cy + Math.sin(ang) * rr * squash, 100, H - 16);
-        place(b.k, x, y, b);
+        // And the species itself, denser at the middle.
+        for (var j = 0; j < b.n; j++) {
+          var ang = rnd() * TAU;
+          var rr = Math.sqrt(rnd()) * rad;
+          var sx2 = clamp(cx + Math.cos(ang) * rr, 14, W - 14);
+          var sy2 = clamp(cy + Math.sin(ang) * rr * squash, 100, H - 16);
+          place(b.k, sx2, sy2, b);
+        }
       }
     }
 
     scenery.pieces.sort(function (a, b) { return a.y - b.y; });
+
+    // The build owes a layout that is dry: the water of this place is asked ONCE,
+    // here, and the answer is part of the layout. Asking it every frame instead
+    // moved the same tufts again and again - each frame pushed them another 22
+    // units out of the pond - so the dressing walked off its own ground while she
+    // stood still, and a pond's pushes stayed in the woods after she left them.
+    keepSceneryDry();
   }
 
   /* The scenery of one section, kept out of its water. Called after the section
@@ -2088,7 +2206,7 @@
       // The day goes on while she walks it: eight real minutes to a whole day.
       day.t = (day.t + dt * day.rate) % 1;
       stepInto(dt, speed);
-      updateIslandVerb(); updateFauna(dt); sectionCross();
+      updateIslandVerb(); updateFauna(dt); sectionCross(); followCamera(false);
       if (sectionDef() && sectionDef().kind === 'garden') gardenTick(dt);
     }
 
@@ -5047,17 +5165,23 @@
     section.cx = Number(sp[0]);
     section.cy = Number(sp[1]);
     interior = null;
-    // The boat is the section's decision, not the traveller's: settleBoatFor owns it, and the
-    // open water boards her on its own (via the island update) once she is standing on it.
+    var oldW = world.w, oldH = world.h;
+    fitSection();
+    // The middle of the new place, which is the open stage every design keeps, so
+    // she never lands inside something. Set AFTER the size is fitted: the middle of
+    // a one-screen section and the middle of a long one are not the same spot.
     hero.x = world.w * 0.5;
-    hero.y = world.h * 0.56;
+    hero.y = world.h * 0.50;
     hero.vx = 0; hero.vy = 0;
     walkTarget = null;
     islandVerb = null;
-    propCache = {};
+    // The boat is the section's decision, not the traveller's: settleBoatFor owns it, and the
+    // open water boards her on its own (via the island update) once she is standing on it.
     settleBoatFor(def);
     scene = 'island';
-    buildScenery();
+    if (oldW !== world.w || oldH !== world.h) layout();
+    else { buildScenery(); buildMotes(); }
+    followCamera(true);
     visitSection(section.cx, section.cy);
     return true;
   }
@@ -6574,11 +6698,15 @@
     scene = 'island';
     stage = 'island';
     section.cx = cx; section.cy = cy; interior = null;
+    var oldW = world.w, oldH = world.h;
+    fitSection();
     hero.x = world.w * 0.5; hero.y = world.h * 0.5;
     hero.vx = 0; hero.vy = 0;
     walkTarget = null; islandVerb = null;
-    propCache = {};
     settleBoatFor(sectionDef());
+    if (oldW !== world.w || oldH !== world.h) layout();
+    else { buildScenery(); buildMotes(); }
+    followCamera(true);
     visitSection(cx, cy);
     return sectionDef().name;
   };
@@ -7331,6 +7459,200 @@ props: islandProps.map(function (p) {
     if (b !== undefined) out = out.split('{1}').join(String(b));
     if (c !== undefined) out = out.split('{2}').join(String(c));
     return out;
+  }
+
+  /* What the animal is called twice more: its scientific name, which is the same
+     in every language, and its Farsi name in the International Phonetic Alphabet,
+     which is what a word about a thing should also be able to say. */
+  var LATIN = {
+    'creature-honeybee': 'Apis mellifera',
+    'creature-robber': 'Nomada sp.',
+    'creature-wax-moth': 'Galleria mellonella',
+    'creature-bee': 'Apis sp.',
+    'creature-hornet': 'Vespa crabro',
+    'creature-asian-hornet': 'Vespa velutina',
+    'creature-ant': 'Formicidae',
+    'creature-beetle': 'Aethina tumida',
+    'creature-butterfly': 'Lepidoptera',
+    'creature-rabbit': 'Oryctolagus cuniculus',
+    'creature-redfox': 'Vulpes vulpes',
+    'plant-grass': 'Poaceae',
+    'plant-clover': 'Trifolium sp.',
+    'plant-daisy': 'Bellis perennis',
+    'plant-poppy': 'Papaver sp.',
+    'plant-lavender': 'Althaea officinalis',
+    'plant-tulip': 'Tulipa sp.',
+    'plant-marigold': 'Fritillaria imperialis',
+    'plant-wheat': 'Triticum aestivum',
+    'plant-saffroncrocus': 'Crocus sativus',
+    'plant-sunflower': 'Helianthus annuus',
+    'plant-moss': 'Bryophyta',
+    'plant-boxwood': 'Buxus sempervirens',
+    'plant-olivetree': 'Pistacia atlantica',
+    'plant-persianironwood': 'Parrotia persica',
+    'plant-orientalbeech': 'Fagus orientalis',
+    'plant-silktree': 'Albizia julibrissin',
+    'plant-hawthorn': 'Crataegus sp.',
+    'plant-fig': 'Ficus carica',
+    'plant-mulberry': 'Morus alba',
+    'plant-chenar': 'Platanus orientalis',
+    'plant-reed': 'Phragmites australis',
+    'plant-waterlily': 'Nymphaea sp.',
+    'plant-rose': 'Rosa persica',
+    'plant-appletree': 'Juglans regia',
+    'plant-cherrytree': 'Prunus scoparia',
+    'plant-beans': 'Phaseolus vulgaris',
+    'plant-tomato': 'Solanum lycopersicum',
+    'plant-pumpkin': 'Cucurbita pepo',
+    'plant-pomegranate': 'Punica granatum',
+    'plant-grape': 'Vitis vinifera',
+    'plant-apricot': 'Prunus armeniaca',
+    'plant-peach': 'Prunus persica',
+    'plant-bitterorange': 'Citrus aurantium',
+    'plant-mint': 'Mentha sp.',
+    'plant-basil': 'Ocimum basilicum',
+    'plant-jasmine': 'Jasminum sp.',
+    'plant-apple': 'Malus domestica',
+    'plant-pear': 'Pyrus communis',
+    'plant-sweetcherry': 'Prunus avium',
+    'plant-sourcherry': 'Prunus cerasus',
+    'plant-plum': 'Prunus domestica',
+    'plant-persimmon': 'Diospyros kaki',
+    'plant-sweetorange': 'Citrus sinensis',
+    'plant-tangerine': 'Citrus reticulata',
+    'plant-quince': 'Cydonia oblonga',
+    'plant-watermelon': 'Citrullus lanatus',
+    'plant-melon': 'Cucumis melo',
+    'plant-strawberry': 'Fragaria x ananassa',
+    'plant-thymebush': 'Artemisia aucheri',
+    'plant-milkvetch': 'Astragalus sp.',
+    'plant-willow': 'Quercus brantii',
+    'plant-poplar': 'Populus alba',
+    'plant-oleander': 'Nerium oleander',
+    'plant-wildrue': 'Peganum harmala',
+    'plant-saltbush': 'Atriplex sp.',
+    'plant-cypress': 'Cupressus sempervirens',
+    'plant-juniper': 'Juniperus excelsa',
+    'plant-geranium': 'Pelargonium sp.',
+    'fungus-puffball': 'Lycoperdon sp.',
+    'fungus-capstem': 'Agaricus campestris',
+    'fungus-bracket': 'Pleurotus ostreatus',
+    'fungus-coral': 'Ramaria sp.',
+    'fungus-morel': 'Morchella sp.',
+    'fungus-truffle': 'Terfezia sp.',
+    'bird-sunbird': 'Nectariniidae',
+    'bird-bluebird': 'Monticola solitarius',
+    'bird-thrush': 'Turdus sp.',
+    'bird-nightingale': 'Luscinia megarhynchos',
+    'bird-hoopoe': 'Upupa epops',
+    'bird-iraniangroundjay': 'Podoces pleskei',
+    'bird-hoodedcrow': 'Corvus cornix',
+    'bird-magpie': 'Pica pica',
+    'bird-rockdove': 'Columba livia',
+    'bird-chukar': 'Alectoris chukar',
+    'bird-peregrine': 'Falco peregrinus',
+    'bird-goldeneagle': 'Aquila chrysaetos',
+    'bird-caspiansnowcock': 'Tetraogallus caspius',
+    'bird-songbird': 'Passeriformes',
+    'bird-barnswallow': 'Hirundo rustica',
+    'bird-housesparrow': 'Passer domesticus',
+    'bird-starling': 'Sturnus vulgaris',
+    'creature-junglecat': 'Felis chaus',
+    'creature-maral': 'Cervus elaphus maral',
+    'creature-brownbear': 'Ursus arctos',
+    'creature-graywolf': 'Canis lupus',
+    'creature-wildboar': 'Sus scrofa',
+    'creature-dormouse': 'Glis glis',
+    'creature-caspiantiger': 'Panthera tigris virgata',
+    'creature-fallowdeer': 'Dama mesopotamica',
+    'creature-mouse': 'Mus musculus',
+    'creature-persiangazelle': 'Gazella subgutturosa',
+    'creature-onager': 'Equus hemionus onager',
+    'creature-cheetah': 'Acinonyx jubatus venaticus',
+    'creature-pallascat': 'Otocolobus manul',
+    'creature-asiaticlion': 'Panthera leo persica',
+    'creature-sandfox': 'Vulpes rueppellii',
+    'creature-goldenjackal': 'Canis aureus',
+    'creature-stripedhyena': 'Hyaena hyaena',
+    'creature-blanfordsfox': 'Vulpes cana',
+    'creature-urial': 'Ovis vignei',
+    'creature-bezoaribex': 'Capra aegagrus',
+    'creature-lynx': 'Lynx lynx',
+    'creature-persianleopard': 'Panthera pardus tulliana',
+    'creature-mouflon': 'Ovis gmelini',
+    'creature-hedgehog': 'Erinaceus concolor',
+    'creature-caspianseal': 'Pusa caspica',
+    'creature-flamingo': 'Phoenicopterus roseus',
+    'creature-frog': 'Anura',
+    'creature-mosquito': 'Culicidae',
+    'fish-mahi': 'Actinopterygii',
+    'fish-kapor': 'Cyprinus carpio',
+    'fish-ghezelala': 'Salmo trutta',
+    'fish-mahisefid': 'Rutilus kutum',
+    'chicken-barred': 'Gallus gallus domesticus',
+    'chicken-speckled': 'Gallus gallus domesticus',
+    'chicken-red': 'Gallus gallus domesticus',
+    'chicken-silkie': 'Gallus gallus domesticus',
+    'pet-tabby': 'Felis catus',
+    'pet-ginger': 'Felis catus',
+    'pet-blackcat': 'Felis catus',
+    'pet-shepherd': 'Canis familiaris',
+    'pet-retriever': 'Canis familiaris',
+    'pet-terrier': 'Canis familiaris'
+  };
+
+  /* The Farsi name in IPA. The island writes Farsi in Finglish, and Finglish is a
+     regular romanisation, so one table of letters answers for every word instead
+     of a hand-typed transcription per row that could drift from the spelling.
+     Long vowels are the marked ones: á is ā. No stress mark: Finglish does not
+     record where the stress falls, and a guessed stress is worse than none. */
+  var IPA_LETTERS = [
+    ['kh', 'x'], ['sh', '\u0283'], ['ch', 't\u0283'], ['zh', '\u0292'],
+    ['gh', '\u0263'], ['aa', '\u0251\u02D0'],
+    ['a', '\u00E6'], ['\u00E1', '\u0251\u02D0'], ['e', 'e'], ['i', 'i\u02D0'],
+    ['o', 'o'], ['u', 'u\u02D0'],
+    ['b', 'b'], ['p', 'p'], ['t', 't'], ['d', 'd'], ['k', 'k'], ['g', '\u0261'],
+    ['f', 'f'], ['v', 'v'], ['w', 'v'], ['s', 's'], ['z', 'z'], ['j', 'd\u0292'],
+    ['h', 'h'], ['m', 'm'], ['n', 'n'], ['l', 'l'], ['r', '\u027E'],
+    ['y', 'j'], ['q', '\u0263'], ['x', 'ks'], ['c', 'k'], ["'", '\u0294']
+  ];
+  var IPA_OVERRIDE = {};
+
+  function ipaOf(farsi) {
+    if (!farsi) return '';
+    var src = String(farsi).toLowerCase();
+    var out = '';
+    var i = 0;
+    while (i < src.length) {
+      var ch = src.charAt(i);
+      if (ch === ' ' || ch === '-' || ch === ',') { out += ch; i++; continue; }
+      var pair = src.substr(i, 2);
+      var hit = null;
+      for (var k = 0; k < IPA_LETTERS.length; k++) {
+        var from = IPA_LETTERS[k][0];
+        if (from.length === 2) {
+          if (pair === from) { hit = IPA_LETTERS[k][1]; i += 2; break; }
+        }
+      }
+      if (hit === null) {
+        for (var m = 0; m < IPA_LETTERS.length; m++) {
+          if (IPA_LETTERS[m][0] === ch) { hit = IPA_LETTERS[m][1]; i += 1; break; }
+        }
+      }
+      if (hit === null) { out += ch; i++; continue; }
+      out += hit;
+    }
+    return out;
+  }
+
+  /* The two extra readings of one species, when it has them. A person of the
+     island and a thing she found are not a taxon and are not given one. */
+  function speciesSay(sp) {
+    if (!sp) return null;
+    var sci = LATIN[sp.id] || '';
+    var ipa = ipaOf(sp.f);
+    if (!sci && !ipa) return null;
+    return { sci: sci, ipa: ipa };
   }
 
   /* The meaning of a taught word, in the chosen language. The word itself (the
@@ -10280,8 +10602,10 @@ props: islandProps.map(function (p) {
     paused = false;
   }
 
-  /* Leaving a place returns her to the island where she stood, not to the menu.
-     The menu is one step further out, and only the island's own arrow goes there. */
+  /* Leaving a place returns her to the island WHERE SHE STOOD. The section and her
+     spot in it are already the game's state, so nothing needs restoring; what this
+     owes is a sized section and a camera on her, because a place opened from a big
+     section replaced the world's size and must put it back. */
   function backToIsland() {
     phase = 'playing';
     scene = 'island';
@@ -10290,6 +10614,8 @@ props: islandProps.map(function (p) {
     notice = null;
     hits = [];
     paused = false;
+    fitSection();
+    followCamera(true);
   }
 
   function enterPlace(id) {
@@ -10365,15 +10691,15 @@ props: islandProps.map(function (p) {
   }
 
   function updateLook() {
-    if (clock - look.at > 900) backToTitle();
+    if (clock - look.at > 900) backToIsland();
   }
 
   function lookDown(p) {
-    backToTitle();
+    backToIsland();
   }
 
   function autoLook() {
-    if (clock - look.at > 3.2) backToTitle();
+    if (clock - look.at > 3.2) backToIsland();
   }
 
   function drawLook(cssW, cssH) {
@@ -10395,14 +10721,13 @@ props: islandProps.map(function (p) {
     var s = clamp(Math.min(cssW, cssH) / 520, 0.8, 1.4);
     var pad = 18 * s;
 
-    // The whole column - plate, name, word, lines, the way out - is measured
-    // first and centred, so a tall phone does not leave a hole under it.
-    var plateH = Math.min(cssH * 0.50, 340 * s);
-    // The column's real height: the plate plus everything under it, measured
-    // from the same numbers that draw it, so it centres on what is visible.
-    var textH = (sp ? 214 : 74) * s;
+    // The column's height is the plate plus the text under it, taken from the same
+    // steps the cursor below walks, so the block is centred once and stays centred
+    // whatever the entry says.
+    var plateH = Math.min(cssH * 0.46, 330 * s);
+    var textH = (sp ? 268 : 96) * s;
     var totalH = plateH + textH;
-    var top = Math.max(20 * s, (cssH - totalH) / 2);
+    var top = Math.max(16 * s, (cssH - totalH) / 2 - 30 * s);
     var plateY = top;
     var plateX = pad;
     var plateW = cssW - pad * 2;
@@ -10418,20 +10743,24 @@ props: islandProps.map(function (p) {
       ctx.save();
       roundRect(plateX, plateY, plateW, plateH, 14 * s);
       ctx.clip();
-      var cx = cssW / 2, cy = plateY + plateH * 0.84;
-      // Each kind is drawn at the size it needs to fill the plate. The size comes from
-      // the drawing's OWN ink, measured, never from a guess - the guess is what cropped
-      // the plant cards. One rule for every kind: the card draws them all through
-      // drawSpecies, so the ink measured the same way is exactly what it will scale.
+      // The plate is a frame, and the drawing is fitted to it by its INK, on both
+      // axes and from its own anchor. The anchor is not the centre - an animal's
+      // head is forward of it and its tail behind - so the ink's own middle is
+      // what goes to the plate's middle. Fitting the height alone and centring the
+      // ANCHOR is what pushed a gazelle's head out past the right edge.
       var ink = speciesInkBox(sp);
-      var room = plateH * 0.86;
-      var wide = plateW * 0.88;
-      var sc = Math.min(room / Math.max(1, ink.h), wide / Math.max(1, ink.w));
+      var roomW = plateW * 0.86;
+      var roomH = plateH * 0.80;
+      var sc = Math.min(roomH / Math.max(1, ink.h), roomW / Math.max(1, ink.w));
+      var inkMidX = (ink.l + ink.r) / 2;
+      var inkMidY = (ink.t - ink.b) / 2;
+      var cx = cssW / 2 - inkMidX * sc;
+      var cy = plateY + plateH * 0.52 + inkMidY * sc;
       if (sp.sh === 'insect') {
         // A leaf, so the insect has something to stand on.
         ctx.fillStyle = '#8FA96A';
         ctx.beginPath();
-        ctx.ellipse(cx, cy - 6 * s, 66 * s, 12 * s, 0, 0, TAU);
+        ctx.ellipse(cssW / 2, cy - 6 * s, 66 * s, 12 * s, 0, 0, TAU);
         ctx.fill();
       }
       ctx.save();
@@ -10443,43 +10772,72 @@ props: islandProps.map(function (p) {
 
     var y = plateY + plateH;
 
+    // Everything under the plate is written on one cursor that only ever moves
+    // DOWN, each line advancing by its own size. Fixed offsets per line is what
+    // made the Persian script and the scientific name print on top of each other:
+    // two blocks measured independently cannot be assumed to miss.
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    y += 30 * s;
+
     // The name, in the keeper's own hand.
     var title = sp ? (sp.e || sp.f) : 'nothing here';
     ctx.fillStyle = C.ink;
     fitFont(ctx, title, 26 * s, plateW - 40 * s, '600', FONT_SERIF, 'italic ');
-    ctx.fillText(title, cssW / 2, y + 38 * s);
+    ctx.fillText(title, cssW / 2, y);
+    y += 26 * s;
 
     ctx.fillStyle = C.turquoise;
-    ctx.fillRect(cssW / 2 - 18 * s, y + 58 * s, 36 * s, 2 * s);
+    ctx.fillRect(cssW / 2 - 18 * s, y, 36 * s, 2 * s);
+    y += 22 * s;
 
     if (sp) {
       // The word, in both scripts, which is the pair the island teaches.
       ctx.fillStyle = C.turquoiseDeep;
       ctx.font = 'italic 600 ' + Math.round(20 * s) + 'px ' + FONT_SERIF;
-      ctx.fillText(sp.f, cssW / 2, y + 84 * s);
+      ctx.fillText(sp.f, cssW / 2, y);
+      y += 26 * s;
       ctx.fillStyle = C.inkSoft;
-      ctx.font = '400 ' + Math.round(17 * s) + 'px ' + FONT_UI;
-      ctx.fillText(sp.p || '', cssW / 2, y + 110 * s);
+      ctx.font = '400 ' + Math.round(16 * s) + 'px ' + FONT_UI;
+      ctx.fillText(sp.p || '', cssW / 2, y);
+      y += 28 * s;
+
+      // Its other two names, under the pair: what taxonomists call it in every
+      // language, and how the Farsi name is SAID.
+      var say = speciesSay(sp);
+      if (say && say.sci) {
+        ctx.fillStyle = C.inkSoft;
+        ctx.font = 'italic 400 ' + Math.round(13 * s) + 'px ' + FONT_SERIF;
+        ctx.fillText(say.sci, cssW / 2, y);
+        y += 18 * s;
+      }
+      if (say && say.ipa) {
+        ctx.fillStyle = 'rgba(42,35,32,0.52)';
+        ctx.font = '400 ' + Math.round(12 * s) + 'px ' + FONT_UI;
+        ctx.fillText('\u200E/' + say.ipa + '/', cssW / 2, y);
+        y += 22 * s;
+      } else {
+        y += 6 * s;
+      }
 
       // What it is, and where it lives.
       ctx.fillStyle = C.inkSoft;
       ctx.font = '400 ' + Math.round(13 * s) + 'px ' + FONT_UI;
       var lines = lookLines(sp);
-      var ly = y + 138 * s;
       for (var i = 0; i < lines.length; i++) {
         var wrapped = wrapText(lines[i], plateW - 30 * s, '400 ' + Math.round(13 * s) + 'px ' + FONT_UI);
         for (var w = 0; w < wrapped.length && w < 2; w++) {
-          ctx.fillText(wrapped[w], cssW / 2, ly);
-          ly += 19 * s;
+          ctx.fillText(wrapped[w], cssW / 2, y);
+          y += 19 * s;
         }
-        ly += 4 * s;
+        y += 3 * s;
       }
     }
 
     // The way out is the page itself, said plainly under everything else.
     ctx.fillStyle = 'rgba(42,35,32,0.42)';
     ctx.font = 'italic 400 ' + Math.round(12 * s) + 'px ' + FONT_SERIF;
-    ctx.fillText(T('tap to go back'), cssW / 2, y + (sp ? 214 : 74) * s);
+    ctx.fillText(T('tap to go back'), cssW / 2, y + 12 * s);
 
     hits = [];
     addHit(0, 0, cssW, cssH, 'card');
@@ -10571,7 +10929,7 @@ props: islandProps.map(function (p) {
     if (!h) return;
     if (h.act === 'gap') { shrine.sel = h.arg; sfx.pick(); return; }
     if (h.act === 'word') { shrinePlace(shrine.sel, h.arg); return; }
-    if (h.act === 'card') { backToTitle(); }
+    if (h.act === 'card') { backToIsland(); }
   }
 
   function updateShrine(dt) {
@@ -10861,7 +11219,7 @@ props: islandProps.map(function (p) {
 
   function lakeTap(p) {
     if (chromeTap(p)) return;
-    if (lake.state === 'done') { backToTitle(); return; }
+    if (lake.state === 'done') { backToIsland(); return; }
     if (lake.state === 'rise') { lakeStrike(); return; }
     if (lake.state === 'hooked') { lakeReel(); return; }
     if (lake.state === 'idle' && p.y > 250) { lakeCast(p); }
@@ -12137,7 +12495,7 @@ props: islandProps.map(function (p) {
 
   function autoComb() {
     if (comb.done) {
-      if (clock - comb.doneAt > 3.6) backToTitle();
+      if (clock - comb.doneAt > 3.6) backToIsland();
       return;
     }
     for (var i = 0; i < comb.cells.length; i++) {
@@ -12363,7 +12721,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoQueen() {
-    if (queen.done) { if (clock - queen.foundAt > 5.4) backToTitle(); return; }
+    if (queen.done) { if (clock - queen.foundAt > 5.4) backToIsland(); return; }
     if (queen.found) return;
     for (var i = 0; i < 12; i++) {
       if (queen.notes[i] >= 0) continue;
@@ -12595,7 +12953,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoGlass() {
-    if (glass.done) { if (clock - glass.doneAt > 3.6) backToTitle(); return; }
+    if (glass.done) { if (clock - glass.doneAt > 3.6) backToIsland(); return; }
     if (!glass.child) {
       if (glass.picked.length < 2) {
         for (var i = 0; i < glass.blooms.length; i++) {
@@ -12978,7 +13336,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoHens() {
-    if (hens.done) { if (clock - hens.doneAt > 3.6) backToTitle(); return; }
+    if (hens.done) { if (clock - hens.doneAt > 3.6) backToIsland(); return; }
     if (hens.picked.length < 2) {
       var best = henBestTwo(hens.aim);
       for (var k = 0; k < 2; k++) {
@@ -13266,7 +13624,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoKitchen() {
-    if (kitchen.done) { if (clock - kitchen.doneAt > 3.6) backToTitle(); return; }
+    if (kitchen.done) { if (clock - kitchen.doneAt > 3.6) backToIsland(); return; }
     var want = POT_DISHES[kitchen.dish];
     for (var i = 0; i < POT_ITEMS.length; i++) {
       var name = POT_ITEMS[i];
@@ -13549,7 +13907,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoWagon() {
-    if (wagon.done) { if (clock - wagon.doneAt > 3.6) backToTitle(); return; }
+    if (wagon.done) { if (clock - wagon.doneAt > 3.6) backToIsland(); return; }
     if (wagon.found < 2) {
       for (var i = 0; i < wagon.spots.length; i++) {
         if (wagon.spots[i].open) continue;
@@ -13863,7 +14221,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoStream() {
-    if (stream.done) { if (clock - stream.doneAt > 3.6) backToTitle(); return; }
+    if (stream.done) { if (clock - stream.doneAt > 3.6) backToIsland(); return; }
     if (!stream.held) { stream.held = true; stream.lastX = 195; stream.lastY = 500; }
   }
 
@@ -13974,7 +14332,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoLanterns() {
-    if (lanterns.done) { if (clock - lanterns.doneAt > 3.8) backToTitle(); return; }
+    if (lanterns.done) { if (clock - lanterns.doneAt > 3.8) backToIsland(); return; }
     var next = null;
     for (var i = 0; i < lanterns.lamps.length; i++) {
       var l = lanterns.lamps[i];
@@ -14216,7 +14574,7 @@ props: islandProps.map(function (p) {
   }
 
   function autoBeeline() {
-    if (beeline.done) { if (clock - beeline.doneAt > 3.8) backToTitle(); return; }
+    if (beeline.done) { if (clock - beeline.doneAt > 3.8) backToIsland(); return; }
     if (beeline.recorded === null) {
       beeline.needle = BEELINE_TRUE;
       beelineRecord();
@@ -14519,8 +14877,8 @@ props: islandProps.map(function (p) {
   }
 
   function autoRemoval() {
-    if (removal.scattered) { if (clock - removal.sting > 2.6) backToTitle(); return; }
-    if (removal.done) { if (clock - removal.doneAt > 3.8) backToTitle(); return; }
+    if (removal.scattered) { if (clock - removal.sting > 2.6) backToIsland(); return; }
+    if (removal.done) { if (clock - removal.doneAt > 3.8) backToIsland(); return; }
     var step = REMOVAL_STEPS[removal.step];
     if (step === 'survey') removalTap({ x: 195, y: 300 });
     else if (step === 'smoke') removalTap({ x: 84, y: 640 });
@@ -14855,7 +15213,7 @@ props: islandProps.map(function (p) {
 
   function autoRegion(id) {
     var r = regionOf(id), st = regionState[id];
-    if (st.done) { if (clock - st.doneAt > 3.4) backToTitle(); return; }
+    if (st.done) { if (clock - st.doneAt > 3.4) backToIsland(); return; }
     if (!st.rowed) { if (st.rowing <= 0) st.rowing = 1.4; return; }
     for (var i = 0; i < r.finds.length; i++) if (!st.found[i]) { takeFind(r, st, i); return; }
   }
@@ -16214,8 +16572,17 @@ props: islandProps.map(function (p) {
      drawing is 41, so the scale that "fitted" it came out twice too large and the
      plate's clip cut the plant into stripes. Measured once per species, then cached. */
   var inkBoxCache = {};
+  /* The ink of one drawing, measured at 1x, as OFFSETS FROM ITS OWN ANCHOR:
+     l and r to the left and right of the point the caller stands it on, t above
+     that point and b below it. The set matters, not just the size: an animal
+     carries its head forward of its centre and its tail behind, so a probe that
+     answered only {w, h} let a card centre the drawing on its ANCHOR, and the head
+     crossed the right edge of the plate while the tail side stayed empty. Plant,
+     fungus, bird and beast all report the same four numbers now, so one fitting
+     rule holds for every kind. */
+  var NO_INK = { l: -30, r: 30, t: 60, b: 0, w: 60, h: 60 };
   function speciesInkBox(sp) {
-    if (!sp) return { w: 60, h: 60 };
+    if (!sp) return NO_INK;
     var key = sp.id || (sp.sh + ':' + (sp.e || ''));
     if (inkBoxCache[key]) return inkBoxCache[key];
     var box = 700;
@@ -16223,11 +16590,12 @@ props: islandProps.map(function (p) {
     probe.width = box; probe.height = box;
     var g = probe.getContext('2d');
     var prev = ctx;
-    var out = { w: 60, h: 60 };
+    var ax = box / 2, ay = box - 100;
+    var out = NO_INK;
     try {
       ctx = g;
       g.save();
-      g.translate(box / 2, box - 100);
+      g.translate(ax, ay);
       drawSpeciesRaw(sp, 0, 0, 0, 1);
       g.restore();
       var d = g.getImageData(0, 0, box, box).data;
@@ -16242,7 +16610,12 @@ props: islandProps.map(function (p) {
           }
         }
       }
-      if (bot > top && right > left) out = { w: right - left, h: bot - top };
+      if (bot > top && right > left) {
+        out = {
+          l: left - ax, r: right - ax, t: ay - top, b: bot - ay,
+          w: right - left, h: bot - top
+        };
+      }
     } catch (err) { /* the fallback box still fits something sane */ }
     ctx = prev;
     inkBoxCache[key] = out;
@@ -21285,7 +21658,9 @@ var ANIMAL_SIZES = {
       } else {
         // A scatter, not a grid. Each thing gets its own clump: a seed point in
         // the safe band, then jitter inside a clump radius. Nothing stands in a
-        // column, and no two sections are laid out alike.
+        // column, and no two sections are laid out alike. On a section taller than
+        // one screenful the clumps run down the WHOLE of it, so a big place is
+        // walked through rather than crowded into its first page.
         var placedCount = 0;
         for (i = 0; i < list.length; i++) {
           var e = list[i];
@@ -21294,7 +21669,9 @@ var ANIMAL_SIZES = {
           var ga = i * 2.3999632 + (rnd() - 0.5) * 0.9;
           var gr2 = 0.26 + 0.20 * ((i * 0.6180339887) % 1);
           var px2 = clamp(0.5 + Math.cos(ga) * gr2, 0.16, 0.84);
-          var py2 = clamp(0.50 + Math.sin(ga) * gr2 * 1.5, 0.20, 0.86);
+          // Vertically across the WHOLE section, not the middle of it: a place
+          // taller than the screen has its species all the way down it.
+          var py2 = clamp(0.5 + Math.sin(ga) * (0.18 + gr2 * 0.62), 0.12, 0.88);
           // Plants sit where they are; animals move from their start anyway.
           out.push({
             k: 'species', sp: e,
@@ -21318,16 +21695,19 @@ var ANIMAL_SIZES = {
       }
 
       // The carved stones: this section's words, one stone each. They stand
-      // inside the page's safe band, never in the corners: anything she has to
-      // walk up to must not sit on a seam, or reaching for it walks her into the
-      // next section instead.
+      // inside the safe band, never in the corners: anything she has to walk up to
+      // must not sit on a seam, or reaching for it walks her into the next
+      // section instead. They are spread DOWN a tall section, one per band, so a
+      // long place does not put every stone on its last screenful.
       var stones = WORD_STONES[d.kind] || [];
       var per = (d.kind === 'sea' || d.kind === 'lake') ? 0 : Math.min(4, stones.length);
       var stoneX = [0.20, 0.32, 0.68, 0.80];
       for (i = 0; i < per; i++) {
         var st = stones[(i + Math.abs(section.cx * 3 + section.cy * 5)) % stones.length];
+        var band = (i + 0.5) / Math.max(1, per);
         out.push({
-          k: 'carved', w: st, x: W * stoneX[i], y: H * (i < 2 ? 0.80 : 0.86),
+          k: 'carved', w: st, x: W * stoneX[i],
+          y: clamp(H * (0.30 + band * 0.58), 200, H - 80),
           verb: 'read the stone', act: 'stone', name: ''
         });
       }
@@ -21348,10 +21728,11 @@ var ANIMAL_SIZES = {
         var dxo = b1.x - a1.x, dyo = b1.y - a1.y;
         if (Math.abs(dxo) < need && Math.abs(dyo) < 46) {
           // Push the later one sideways, away from the earlier, and keep it on
-          // the page.
+          // the ground: the clamp is the page's own margin, not a band in the
+          // middle of it, or every crowded pair drifts toward the centre.
           var push = (need - Math.abs(dxo)) * (dxo >= 0 ? 1 : -1);
-          b1.x = clamp(b1.x + push, W * 0.16, W * 0.84);
-          b1.y = clamp(b1.y + 22, H * 0.16, H * 0.88);
+          b1.x = clamp(b1.x + push, 40, W - 40);
+          b1.y = clamp(b1.y + 22, H * 0.14, H * 0.90);
         }
       }
     }
@@ -21597,20 +21978,60 @@ var ANIMAL_SIZES = {
     }
 
     var turn = Math.abs((cx || 0) * 3 + (cy || 0) * 7) % Math.max(1, own.length);
+    /* The rotation picks one row of each kind first, so no place is a copy of the
+       one next to it. When a wide ground asks for more bodies than there are rows,
+       it goes round the pool again rather than stopping: a herd needs five deer,
+       and five deer is not five DIFFERENT animals. */
     var pick = function (pool, n) {
       var out = [];
-      for (var k = 0; k < pool.length && out.length < n; k++) out.push(pool[(k + turn) % pool.length]);
+      if (!pool.length) return out;
+      for (var k = 0; k < n; k++) out.push(pool[(k + turn) % pool.length]);
       return out;
     };
-    // The people of this section stand here whatever the rotation says: an errand
-    // that sends her to the shepherd cannot be met by a section he is not in.
+    // Then the wild beasts and the plants, in numbers that follow the GROUND: a
+    // section covering three screenfuls holds three times what one screenful of its
+    // kind holds, so a wide place has a herd in it and a narrow one still reads as
+    // populated. People always stand, whatever the rotation says: an errand that
+    // sends her to the shepherd cannot be met by a section he is not in.
     var people = [], beasts = [];
     for (i = 0; i < animals.length; i++) {
       if (animals[i].sh === 'being') people.push(animals[i]); else beasts.push(animals[i]);
     }
-    // Then three wild beasts and three plants: enough to read as a place, few
-    // enough that walking in gives the eye somewhere to rest.
-    return people.concat(pick(beasts, Math.max(1, 3 - people.length))).concat(pick(plants, 3));
+    var hold = HOLDING[kind] || HOLDING.other;
+    var growing = Math.max(1, sectionArea());
+    return people
+      .concat(pick(beasts, Math.max(2, Math.round(hold.beasts * growing))))
+      .concat(pick(plants, Math.round(hold.plants * growing)));
+  }
+
+  /* How much one screenful of a kind of place holds. The SECTION's holding is this
+     multiplied by its own area in screenfuls, so a wide ground holds a herd and a
+     long one holds several; a screenful of either still reads as populated, which
+     is the whole point of the bigger sections. The plants outnumber the beasts
+     everywhere, because the grazing is what makes the beasts move. */
+  var HOLDING = {
+    woods: { beasts: 5, plants: 6 },
+    steppe: { beasts: 5, plants: 5 },
+    heights: { beasts: 4, plants: 5 },
+    meadow: { beasts: 5, plants: 6 },
+    desert: { beasts: 4, plants: 5 },
+    river: { beasts: 4, plants: 5 },
+    beach: { beasts: 3, plants: 5 },
+    garden: { beasts: 3, plants: 5 },
+    glass: { beasts: 2, plants: 5 },
+    yard: { beasts: 4, plants: 6 },
+    pond: { beasts: 4, plants: 5 },
+    stream: { beasts: 3, plants: 5 },
+    henhouse: { beasts: 4, plants: 4 },
+    apiary: { beasts: 3, plants: 5 },
+    sea: { beasts: 4, plants: 0 },
+    other: { beasts: 4, plants: 5 }
+  };
+
+  /* How many screenfuls this section covers. One owner for the answer, so the
+     dressing, the species and the holding all grow together. */
+  function sectionArea() {
+    return (world.w * world.h) / Math.max(1, view.w * view.h);
   }
 
   function findSpecies(id) {
@@ -21935,6 +22356,7 @@ var ANIMAL_SIZES = {
     // No boat repair is needed here: the guard above refuses a boat onto land, so the
     // rule has one enforcement point for a crossing and settleBoatFor handles the
     // transitions she cannot steer (travel, a probe).
+    enterSection();
     visitSection(nx, ny);
   }
 
@@ -22739,7 +23161,6 @@ var ANIMAL_SIZES = {
     if (!interior) drawSectionEdges(d);
     if (!interior) drawStepRing();
     if (!interior && d.kind !== 'sea') {
-      keepSceneryDry();
       drawScenery();
     }
     islandProps = buildProps();
@@ -23341,14 +23762,14 @@ var ANIMAL_SIZES = {
     for (var i = 0; i < 3; i++) {
       if (!shrine.blanks[i]) { shrinePlace(i, SHRINE_ANSWER[i]); return; }
     }
-    if (shrine.done && clock - shrine.doneAt > 3.6) backToTitle();
+    if (shrine.done && clock - shrine.doneAt > 3.6) backToIsland();
   }
 
   function autoLake() {
     if (lake.state === 'idle') lakeCast({ x: rand(70, 320), y: rand(300, 540) });
     else if (lake.state === 'rise') lakeStrike();
     else if (lake.state === 'hooked') lakeReel();
-    else if (lake.state === 'done' && clock - lake.doneAt > 3.8) backToTitle();
+    else if (lake.state === 'done' && clock - lake.doneAt > 3.8) backToIsland();
   }
 
   function autoSky() {
@@ -23360,7 +23781,7 @@ var ANIMAL_SIZES = {
       skyUp({ x: sky.stars[l[1]].x, y: sky.stars[l[1]].y });
       return;
     }
-    if (sky.done && clock - sky.doneAt > 3.8) backToTitle();
+    if (sky.done && clock - sky.doneAt > 3.8) backToIsland();
   }
 
   /* 13. RESIZE / BOOT */
@@ -23373,25 +23794,30 @@ var ANIMAL_SIZES = {
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
 
-    var oldW = world.w, oldH = world.h;
-    var landscape = cssW >= cssH;
-    if (landscape) {
-      world.w = 1280;
-      world.h = 720;
+    // The VIEW is one screenful; the SECTION is fitted to it afterwards, so a
+    // resize changes the camera and not the size of the animals.
+    // The VIEW is one screenful, in world units, with the same shape as the
+    // window: 640 across the short side. Deriving BOTH sides from the aspect is
+    // what keeps the section filling the screen instead of letterboxing it.
+    var oldVW = view.w, oldVH = view.h;
+    if (cssW >= cssH) {
+      view.h = 640;
+      view.w = Math.round(640 * cssW / cssH);
     } else {
-      world.w = 640;
-      world.h = Math.round(clamp(640 * cssH / cssW, 1040, 1600));
+      view.w = 640;
+      view.h = Math.round(640 * cssH / cssW);
     }
+    cssView.w = cssW;
+    cssView.h = cssH;
+    fitScale = Math.min(cssW / view.w, cssH / view.h);
 
-    if (world.w !== oldW || world.h !== oldH) {
+    if (view.w !== oldVW || view.h !== oldVH) {
+      fitSection();
       layout();
       keepInBounds();
       buildBackground();
     }
-
-    fitScale = Math.min(cssW / world.w, cssH / world.h);
-    ox = (cssW - world.w * fitScale) / 2;
-    oy = (cssH - world.h * fitScale) / 2;
+    followCamera(true);
   }
 
   function keepInBounds() {
@@ -23407,7 +23833,64 @@ var ANIMAL_SIZES = {
     }
   }
 
-  /* Pointer: tap to walk, drag to lead her there. */
+  /* How big a section's ground is, in world units, against one screenful of view.
+     A wide open place is more than one screenful: that is what gives a herd room
+     to move, a grazer something to graze, and her room to stand among them. The
+     water sections stay one screen, because their far edge is a horizon. */
+  function sectionSize() {
+    var d = typeof sectionDef === 'function' ? sectionDef() : null;
+    var k = d ? d.kind : 'yard';
+    var f = 1;
+    if (interior) f = 1;
+    // The pond is a round body of water drawn as a share of its own page: make that
+    // page taller and the pond becomes an ocean, with the far bank off screen. So a
+    // round water stays one screenful.
+    else if (k === 'sea' || k === 'openwater' || k === 'pond') f = 1;
+    // The open land is the wide ground: a herd needs room to be a herd, and a
+    // grazer needs the plants it eats to be in the same place as itself.
+    else if (k === 'woods' || k === 'steppe' || k === 'heights' || k === 'desert' ||
+      k === 'meadow') f = 1.8;
+    // A running water is a long channel, so it takes the extra length as length.
+    else if (k === 'river' || k === 'stream' || k === 'beach') f = 1.6;
+    else f = 1.3;
+    return { w: Math.round(view.w * f), h: Math.round(view.h * f) };
+  }
+
+  /* Put the section's size on the world, and keep her inside it. Called whenever
+     the place changes: a crossing, a travel, in and out of the house. */
+  function fitSection() {
+    var s = sectionSize();
+    world.w = s.w;
+    world.h = s.h;
+    hero.x = clamp(hero.x, 60, world.w - 60);
+    hero.y = clamp(hero.y, 120, world.h - 40);
+    relayoutPlace();
+    followCamera(true);
+    propCache = {};
+  }
+
+  /* The eye follows her, and stops at the section's own edges, so a big place is
+     walked through rather than watched from a fixed seat. The section always
+     fills the screen: when it is only one screenful the camera is pinned. */
+  function followCamera(snap) {
+    var halfW = view.w / 2, halfH = view.h / 2;
+    // The eye leads her a little, so she is not always dead centre.
+    var leadY = view.h * 0.06;
+    var tx, ty;
+    if (world.w <= view.w + 1) tx = world.w / 2;
+    else tx = clamp(hero.x, halfW, world.w - halfW);
+    if (world.h <= view.h + 1) ty = world.h / 2;
+    else ty = clamp(hero.y - leadY, halfH, world.h - halfH);
+    if (snap) { cam.x = tx; cam.y = ty; }
+    else {
+      // A small lag, so the ground under her does not slide with every step.
+      var k = 0.18;
+      cam.x += (tx - cam.x) * k;
+      cam.y += (ty - cam.y) * k;
+    }
+    ox = cssView.w / 2 - cam.x * fitScale;
+    oy = cssView.h / 2 - cam.y * fitScale;
+  }
   function pointerWorld(e) {
     var rect = canvas.getBoundingClientRect();
     return {
