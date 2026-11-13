@@ -13397,24 +13397,24 @@ var ANIMAL_SIZES = {
 
      Sources and the derivation are in Tools/references/animal-proportions.md. */
   var ANIMAL_SPINE = {
-    gazelle: { c: 7, t: 13, l: 6, hipSetback: 0.20 },
-    longneck: { c: 7, t: 14, l: 6, hipSetback: 0.19 },
-    equid: { c: 7, t: 18, l: 6, hipSetback: 0.18 },
-    ibex: { c: 7, t: 13, l: 6, hipSetback: 0.21 },
-    sheep: { c: 7, t: 13, l: 6, hipSetback: 0.21 },
-    wolf: { c: 7, t: 13, l: 7, hipSetback: 0.19 },
-    dog: { c: 7, t: 13, l: 7, hipSetback: 0.19 },
-    fox: { c: 7, t: 13, l: 7, hipSetback: 0.17 },
-    hyena: { c: 7, t: 15, l: 5, hipSetback: 0.20 },
-    bigcat: { c: 7, t: 13, l: 7, hipSetback: 0.21 },
-    smallcat: { c: 7, t: 13, l: 7, hipSetback: 0.20 },
-    bear: { c: 7, t: 14, l: 6, hipSetback: 0.22 },
-    boar: { c: 7, t: 14, l: 6, hipSetback: 0.20 },
-    hare: { c: 7, t: 12, l: 7, hipSetback: 0.22 },
-    rabbit: { c: 7, t: 12, l: 7, hipSetback: 0.22 },
-    rodent: { c: 7, t: 13, l: 6, hipSetback: 0.20 },
-    hedgehog: { c: 7, t: 15, l: 5, hipSetback: 0.20 },
-    seal: { c: 7, t: 15, l: 5, hipSetback: 0.16 }
+    gazelle: { c: 7, t: 13, l: 6, hipSetback: 0.12 },
+    longneck: { c: 7, t: 14, l: 6, hipSetback: 0.12 },
+    equid: { c: 7, t: 18, l: 6, hipSetback: 0.11 },
+    ibex: { c: 7, t: 13, l: 6, hipSetback: 0.13 },
+    sheep: { c: 7, t: 13, l: 6, hipSetback: 0.13 },
+    wolf: { c: 7, t: 13, l: 7, hipSetback: 0.11 },
+    dog: { c: 7, t: 13, l: 7, hipSetback: 0.11 },
+    fox: { c: 7, t: 13, l: 7, hipSetback: 0.10 },
+    hyena: { c: 7, t: 15, l: 5, hipSetback: 0.12 },
+    bigcat: { c: 7, t: 13, l: 7, hipSetback: 0.13 },
+    smallcat: { c: 7, t: 13, l: 7, hipSetback: 0.12 },
+    bear: { c: 7, t: 14, l: 6, hipSetback: 0.14 },
+    boar: { c: 7, t: 14, l: 6, hipSetback: 0.13 },
+    hare: { c: 7, t: 12, l: 7, hipSetback: 0.14 },
+    rabbit: { c: 7, t: 12, l: 7, hipSetback: 0.14 },
+    rodent: { c: 7, t: 13, l: 6, hipSetback: 0.12 },
+    hedgehog: { c: 7, t: 15, l: 5, hipSetback: 0.12 },
+    seal: { c: 7, t: 15, l: 5, hipSetback: 0.10 }
   };
 
   /* The two leg sockets, in body-length shares from the REAR of the barrel:
@@ -13644,9 +13644,24 @@ var ANIMAL_SIZES = {
     // measured from the rear of the barrel.
     var legShares = animalLegShares(shape);
     f.legShares = legShares;
+    // The far limb of each pair is drawn slightly FORWARD of the near one - the
+    // direction a body recedes in a side view - so the offset always moves inward.
+    // Subtracting it from both pairs moved the far HIND leg toward the rump, and the
+    // hind socket is already within one limb width of the rump's rear edge, so the
+    // far hind limb left the body on every species (overhang 0.04 to 0.16).
+    // The vertebra places the JOINT; it cannot know how wide the animal's thigh is.
+    // The joint may sit close to the rump while the thigh's back edge - half a
+    // thigh's width behind it - still crosses it, which is a haunch sticking out
+    // behind the animal. One clearance rule, applied where the width IS known:
+    //   socket.x >= rear + thighW / 2
+    // the smallest shift that keeps the whole haunch inside the body.
+    var thighHalf = (m.thigh === undefined ? 0.19 : m.thigh) * 0.5;
+    legShares.hind = Math.max(legShares.hind, thighHalf + 0.05);
+    legShares.fore = Math.min(legShares.fore, 1 - thighHalf * 0.55);
+
     f.legs = [
       { index: 2, hind: true, far: true,
-        x: xRear + legShares.hind - farShift, y: hipY },
+        x: xRear + legShares.hind + farShift, y: hipY },
       { index: 3, hind: false, far: true,
         x: xRear + legShares.fore - farShift, y: hipY },
       { index: 0, hind: true, far: false,
@@ -13660,49 +13675,42 @@ var ANIMAL_SIZES = {
       len: m.tail || 0, kind: m.tailKind || 'stub',
       root: [f.tailRoot.x, f.tailRoot.y + depth * 0.10]
     };
-    // THE BODY'S LOWER ENVELOPE: the minimum y of the trunk silhouette at each x.
-    // A limb is clipped to everything below this, so it can never show above the
-    // body's own edge - which is what `bellyYAt` got wrong at the rump, where the
-    // belly's clamped value (0.627) stands above the rear edge and cut the hind leg
-    // off along a flat horizontal line.
-    var lower = (function () {
-      var pts = animalTrunk(f, animalPose(f, null));
-      var buckets = {};
-      var step = 0.02;
-      for (var i = 0; i < pts.length; i++) {
-        var k = Math.round(pts[i][0] / step);
-        var y = pts[i][1];
-        if (buckets[k] === undefined || y < buckets[k]) buckets[k] = y;
+    // THE BODY'S LOWER ENVELOPE: the lowest y of the barrel at each x, sampled
+    // densely from the four edges themselves. The previous version bucketed the
+    // trunk's POINT LIST, which has ~50 points spread over the whole outline - most
+    // bins were empty and the lookup answered -Infinity across most of the body, so
+    // limbs were drawn against an edge that was not there.
+    var ENV_STEP = 0.005;
+    var envLo = xRear - 0.06, envHi = xFront + 0.06;
+    var envN = Math.ceil((envHi - envLo) / ENV_STEP) + 1;
+    var envY = [];
+    for (var ei = 0; ei < envN; ei++) envY.push(Infinity);
+    var edgeNames = ['top', 'belly', 'rear', 'front'];
+    for (var en = 0; en < edgeNames.length; en++) {
+      var edge = f.edges[edgeNames[en]];
+      // 240 samples per edge is far finer than the 0.005 grid step.
+      for (var es = 0; es <= 240; es++) {
+        var ep = onEdge(edge, es / 240);
+        var slot = Math.round((ep.x - envLo) / ENV_STEP);
+        if (slot < 0 || slot >= envN) continue;
+        if (ep.y < envY[slot]) envY[slot] = ep.y;
       }
-      // Fill every gap in the x span, so a lookup never lands between two samples.
-      var keys = [];
-      for (var kk in buckets) {
-        if (Object.prototype.hasOwnProperty.call(buckets, kk)) keys.push(Number(kk));
-      }
-      keys.sort(function (a, b) { return a - b; });
-      var lo = keys[0], hi = keys[keys.length - 1];
-      for (var kk2 = lo; kk2 <= hi; kk2++) {
-        if (buckets[kk2] === undefined) buckets[kk2] = null;
-      }
-      // A gap takes the lower of its neighbours: the body is solid between samples.
-      for (var pass = 0; pass < 2; pass++) {
-        for (var kk3 = lo + 1; kk3 < hi; kk3++) {
-          if (buckets[kk3] === null) {
-            var a2 = buckets[kk3 - 1], b2 = buckets[kk3 + 1];
-            if (a2 !== null && b2 !== null) buckets[kk3] = Math.min(a2, b2);
-          }
-        }
-      }
-      return { step: step, lo: lo, hi: hi, y: buckets };
-    })();
+    }
+    // A slot the edges did not reach takes its nearest filled neighbour, so a lookup
+    // never lands on a hole. Sweep both ways.
+    for (var fi = 1; fi < envN; fi++) {
+      if (envY[fi] === Infinity && envY[fi - 1] !== Infinity) envY[fi] = envY[fi - 1];
+    }
+    for (var ri = envN - 2; ri >= 0; ri--) {
+      if (envY[ri] === Infinity && envY[ri + 1] !== Infinity) envY[ri] = envY[ri + 1];
+    }
 
-    /* The body's lower edge at x. Outside the body it returns -Infinity: a limb
-       standing beyond the rump or the chest is NOT hidden by anything there. */
+    /* The body's lower edge at x, or -Infinity outside the body: a limb standing
+       beyond the rump or the chest is not hidden by anything there. */
     f.underYAt = function (x) {
-      var k = Math.round(x / lower.step);
-      if (k < lower.lo || k > lower.hi) return -Infinity;
-      var y = lower.y[k];
-      return y === null || y === undefined ? -Infinity : y;
+      var k = Math.round((x - envLo) / ENV_STEP);
+      if (k < 0 || k >= envN) return -Infinity;
+      return envY[k];
     };
 
     f.bellyY = bellyY;
@@ -14232,7 +14240,7 @@ var ANIMAL_SIZES = {
      `widths` is a share of the limb's top width at each joint, so the profile is read
      against the animal's own scale and cannot be a different shape at a different
      size. Returns a closed point list in the frame's units, y up, ground at 0. */
-  function animalLimbOutline(nodes, widths, width) {
+  function animalLimbOutline(nodes, widths, width, edgeAt) {
     var left = [], right = [];
     var per = 5;                      // samples between each pair of joints
 
@@ -14259,7 +14267,7 @@ var ANIMAL_SIZES = {
       }
     }
 
-    // The hoof end, and its round cap: a leg ends in a toe, not a cut edge.
+    // The hoof end.
     var last = nodes[nodes.length - 1], prev = nodes[nodes.length - 2];
     var ldx = last[0] - prev[0], ldy = last[1] - prev[1];
     var llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
@@ -14268,17 +14276,39 @@ var ANIMAL_SIZES = {
     left.push([last[0] + lnx * wLast, last[1] + lny * wLast]);
     right.push([last[0] - lnx * wLast, last[1] - lny * wLast]);
 
+    // The two top corners are MOVED onto the body's edge. The joint chain's own
+    // `topY` and the body's edge disagree by up to 0.15 of a body length at the rump,
+    // and leaving them apart made the path jump vertically - the stroke that ran up
+    // the flank from each hip.
+    if (edgeAt) {
+      var e0 = edgeAt(left[0][0]);
+      if (e0 !== -Infinity && e0 !== Infinity) left[0] = [left[0][0], e0];
+      var e1 = edgeAt(right[0][0]);
+      if (e1 !== -Infinity && e1 !== Infinity) right[0] = [right[0][0], e1];
+    }
+
+    // Down the left side, across the hoof (FLAT - a limb stands on the ground, and a
+    // round cap would push the ink below it), then up the right side.
     var outline = [];
     for (var a = 0; a < left.length; a++) outline.push(left[a]);
-    // The hoof end is FLAT, not a round cap. A limb stands on the ground: a
-    // semicircle here pushed the ink below y = 0 while the hoof mark stayed at y = 0,
-    // so every foot looked cut off above the ground with a stub beneath it.
     for (var b = right.length - 1; b >= 0; b--) outline.push(right[b]);
-    // And a round cap over the hip, so the haunch is round on top.
-    var first = nodes[0], second = nodes[1];
-    // The HIP end is FLAT. A round cap there is a dome sitting on the flank; clipped,
-    // its contour survives as an arch across the body. A limb's outline simply
-    // starts at the body's lower edge, and the body covers the join.
+    var sideCount = outline.length;
+
+    // And back along the BODY'S OWN LOWER EDGE between the two hip corners, so the
+    // run between them is the same curve the body is filled to.
+    var hipRight = outline[outline.length - 1];
+    var hipLeft = outline[0];
+    if (edgeAt) {
+      var lo = Math.min(hipLeft[0], hipRight[0]);
+      var hi = Math.max(hipLeft[0], hipRight[0]);
+      for (var s2 = 5; s2 >= 1; s2--) {
+        var tx = lo + (hi - lo) * (s2 / 6);
+        var ty = edgeAt(tx);
+        if (ty === -Infinity || ty === Infinity) ty = (hipLeft[1] + hipRight[1]) * 0.5;
+        outline.push([tx, ty]);
+      }
+    }
+    outline.sideCount = sideCount;
     return outline;
   }
 
@@ -14293,9 +14323,12 @@ var ANIMAL_SIZES = {
     // that started at the socket left a visible gap between itself and the body. The
     // limb is clipped at the belly line anyway, so reaching above it costs nothing
     // and guarantees the two touch at every species.
+    // EXACTLY on the body's lower edge - not above it. A limb 2% of a depth above the
+    // edge has its fill hidden (same colour) but its CONTOUR visible, and that dark
+    // line running up onto the flank is what read as a floating leg.
     var socketY = (hind ? f.legTop.hind : f.legTop.fore) - dip * 0.6;
     var bellyHere = f.bellyYAt(leg.x * (stretch === undefined ? 1 : stretch)) - dip * 0.6;
-    var topY = Math.max(socketY, bellyHere + f.row.depth * 0.02);
+    var topY = Math.min(socketY, bellyHere);
     // The limb stands under the body it belongs to: when the barrel stretches, the
     // socket moves with it and the limb goes with the socket.
     var hipX0 = leg.x * (stretch === undefined ? 1 : stretch);
@@ -14336,22 +14369,28 @@ var ANIMAL_SIZES = {
     // above the line the body is drawn to.
     var limbWidth = hind ? f.thighW : Math.max(f.legW * 2.6, wide * 1.5);
     var profile = hind ? ANIMAL_LIMB_PROFILE.hind : ANIMAL_LIMB_PROFILE.fore;
-    var limb = animalLimbOutline([a, b, c, d, e], profile, limbWidth);
+    var limb = animalLimbOutline([a, b, c, d, e], profile, limbWidth,
+      function (x) { return f.underYAt(x) - dip * 0.6; });
 
     // The limb is the COAT's own colour, so it belongs to the body it hangs from. What
     // separates it is a contour line, which is how an ink drawing puts one part in
     // front of another; a darker fill read as a shadow on the flank.
     g.fillStyle = leg.far ? ink : pal.fur;
-    traceRound(g, limb);
+    g.beginPath();
+    g.moveTo(limb[0][0], limb[0][1]);
+    for (var fi2 = 1; fi2 < limb.length; fi2++) g.lineTo(limb[fi2][0], limb[fi2][1]);
+    g.closePath();
     g.fill();
     if (!leg.far) {
       // OPEN path: the sides and the hoof get their line, the top (which lies on
       // the body's own edge) gets none.
+      // SIDES ONLY: the top run lies on the body's own edge, and a line along it
+      // would draw the belly a second time.
       g.strokeStyle = shadeHex(pal.fur, 0.78);
       g.lineWidth = Math.max(0.006, wide * 0.20);
       g.lineJoin = 'round';
       g.lineCap = 'round';
-      traceOpen(g, limb);
+      traceOpen(g, limb.slice(0, limb.sideCount || limb.length));
       g.stroke();
     }
 
