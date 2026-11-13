@@ -1686,7 +1686,7 @@
     if (carry >= R.carryMax) {
       if (clock - lastFullNote > 1.6) {
         lastFullNote = clock;
-        addFloater(hero.x, hero.y - 46, 'basket full', C.inkSoft);
+        addFloater(hero.x, hero.y - 46, T('basket full'), C.inkSoft);
       }
       return;
     }
@@ -1842,7 +1842,7 @@
     watered++;
     addParticles(s.x, s.y - 20, C.rosa, 14, 100);
     addParticles(s.x, s.y - 20, '#FFF3D0', 6, 60);
-    addFloater(s.x, s.y - 44, 'bloomed', C.turquoiseDeep);
+    addFloater(s.x, s.y - 44, T('bloomed'), C.turquoiseDeep);
     shake = 0.12;
     sfx.deliver();
     if (watered >= R.waterGoal) endGame(true);
@@ -1877,7 +1877,7 @@
     sfx.bee();
     addParticles(e.x, e.y, C.dust, 12, 150);
     addParticles(hero.x, hero.y, '#F2CE73', 8, 110);
-    addFloater(hero.x, hero.y - 54, 'a bee flew home', C.terracotta);
+    addFloater(hero.x, hero.y - 54, T('a bee flew home'), C.terracotta);
     var dx = e.x - hero.x, dy = e.y - hero.y;
     var d = Math.max(1, Math.sqrt(dx * dx + dy * dy));
     e.x += (dx / d) * 170;
@@ -2109,7 +2109,7 @@
       if (beeReturn <= 0) {
         bees++;
         beeReturn = 24;
-        addFloater(hive.x, hive.y - hive.r * 0.5, 'a bee is back', C.turquoiseDeep);
+        addFloater(hive.x, hive.y - hive.r * 0.5, T('a bee is back'), C.turquoiseDeep);
         addParticles(hive.x, hive.y + 10, '#F2CE73', 8, 90);
         sfx.pick();
       }
@@ -7641,6 +7641,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'bi {0}',
       'back': 'föregående',
       'next': 'nästa',
+      'it comes up': 'det kommer upp',
+      'it flowers': 'det blommar',
       'white': 'vit',
       'coral': 'korall',
       'rose': 'ros',
@@ -7924,6 +7926,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'زنبور {0}',
       'back': 'پیش',
       'next': 'بعد',
+      'it comes up': 'بالا می‌آید',
+      'it flowers': 'گل می‌دهد',
       'white': 'سفید',
       'coral': 'مرجانی',
       'rose': 'گلی',
@@ -8207,6 +8211,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'Biene {0}',
       'back': 'zurück',
       'next': 'weiter',
+      'it comes up': 'es kommt herauf',
+      'it flowers': 'es blüht',
       'white': 'weiß',
       'coral': 'koralle',
       'rose': 'rosé',
@@ -8490,6 +8496,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'abeille {0}',
       'back': 'précédent',
       'next': 'suivant',
+      'it comes up': 'cela monte',
+      'it flowers': 'cela fleurit',
       'white': 'blanc',
       'coral': 'corail',
     },
@@ -8772,6 +8780,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'abeja {0}',
       'back': 'atrás',
       'next': 'siguiente',
+      'it comes up': 'sube',
+      'it flowers': 'florece',
       'white': 'blanco',
       'rose': 'rosa',
     },
@@ -9054,6 +9064,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'arı {0}',
       'back': 'geri',
       'next': 'ileri',
+      'it comes up': 'yukarı çıkıyor',
+      'it flowers': 'çiçek açıyor',
       'white': 'beyaz',
       'coral': 'mercan',
       'rose': 'gül',
@@ -9337,6 +9349,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'نحلة {0}',
       'back': 'السابق',
       'next': 'التالي',
+      'it comes up': 'يطلع',
+      'it flowers': 'يزهر',
       'white': 'أبيض',
       'coral': 'مرجاني',
       'rose': 'وردي',
@@ -9620,6 +9634,8 @@ props: islandProps.map(function (p) {
       'bee {0}': '第 {0} 只蜂',
       'back': '上一页',
       'next': '下一页',
+      'it comes up': '它冒出来了',
+      'it flowers': '它开花了',
       'white': '白',
       'coral': '珊瑚',
       'rose': '玫瑰',
@@ -9903,6 +9919,8 @@ props: islandProps.map(function (p) {
       'bee {0}': 'zanbur {0}',
       'back': 'ghabli',
       'next': 'baadi',
+      'it comes up': 'bala miayad',
+      'it flowers': 'gol midahad',
       'white': 'sefid',
       'coral': 'marjani',
       'rose': 'goli',
@@ -10220,6 +10238,7 @@ props: islandProps.map(function (p) {
       'kanal, qanat'
     ],
   };
+
 
 
 
@@ -12049,7 +12068,7 @@ props: islandProps.map(function (p) {
       comb.capped = Math.max(0, comb.capped - 1);
       honeySave();
       teachWord('asal');
-      addFloater(cell.x, cell.y - 40, '+2 honey', C.saffron);
+      addFloater(cell.x, cell.y - 40, T('+2 honey'), C.saffron);
       sfx.deliver();
       return;
     }
@@ -21699,7 +21718,7 @@ var ANIMAL_SIZES = {
       donyaLine = clock;
       donyaMet = true;
       teachWord('khahar');
-      addFloater(p.x, p.y - 60, 'Donya, my sister', C.inkSoft);
+      addFloater(p.x, p.y - 60, T('Donya, my sister'), C.inkSoft);
       addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
       checkErrand();
       return;
@@ -21716,7 +21735,7 @@ var ANIMAL_SIZES = {
       boatRide.wake.length = 0;
       hero.vx = 0; hero.vy = 0;
       walkTarget = null;
-      addFloater(p.x, p.y - 50, 'she steps in', C.inkSoft);
+      addFloater(p.x, p.y - 50, T('she steps in'), C.inkSoft);
       addParticles(p.x, p.y + 6, '#E6F4F2', 8, 60);
       sfx.pick();
       return;
@@ -21729,7 +21748,7 @@ var ANIMAL_SIZES = {
       hero.y = world.h * 0.155 + 30;
       hero.vx = 0; hero.vy = 0;
       walkTarget = null;
-      addFloater(hero.x, hero.y - 40, 'she steps ashore', C.inkSoft);
+      addFloater(hero.x, hero.y - 40, T('she steps ashore'), C.inkSoft);
       addParticles(hero.x, hero.y + 6, '#F0E6C8', 6, 50);
       sfx.pick();
       return;
@@ -21749,12 +21768,12 @@ var ANIMAL_SIZES = {
       if (!bb) return;
       if (!bb.step) {
         if (garden.seeds <= 0) {
-          addFloater(p.x, p.y - 40, 'no seeds left', C.inkSoft);
+          addFloater(p.x, p.y - 40, T('no seeds left'), C.inkSoft);
           return;
         }
         garden.seeds--;
         bb.step = 1; bb.t = 0;
-        addFloater(p.x, p.y - 40, 'sown', C.turquoiseDeep);
+        addFloater(p.x, p.y - 40, T('sown'), C.turquoiseDeep);
         addParticles(p.x, p.y, '#8FA36A', 6, 40);
         showNotice(T('A seed in the ground'), T('tend it, and it grows'));
         sfx.pick();
@@ -21765,7 +21784,7 @@ var ANIMAL_SIZES = {
       if (bb.step < BED_STEPS) {
         bb.t = 0;
         bb.step++;
-        addFloater(p.x, p.y - 40, bb.step === 2 ? 'it comes up' : 'it flowers', C.turquoiseDeep);
+        addFloater(p.x, p.y - 40, bb.step === 2 ? T('it comes up') : T('it flowers'), C.turquoiseDeep);
         addParticles(p.x, p.y, '#FFF3D0', 7, 52);
         sfx.pick();
         gardenSave();
@@ -21777,7 +21796,7 @@ var ANIMAL_SIZES = {
       bb.step = 0; bb.t = 0;
       garden.seeds++;
       garden.harvested++;
-      addFloater(p.x, p.y - 44, 'harvested', C.saffron);
+      addFloater(p.x, p.y - 44, T('harvested'), C.saffron);
       addParticles(p.x, p.y, '#E8B73C', 9, 60);
       if (got.f) teachWord(got.f);
       showNotice(T('She gathers {0}', T(got.e || 'it')), T('and keeps a seed back'));
@@ -21793,7 +21812,7 @@ var ANIMAL_SIZES = {
         if (tooLargeToNet(p.sp)) {
           // Watched from where she stands: the look page, and nothing taken.
           teachWord(p.sp.f);
-          addFloater(p.x, p.y - 52, 'too big to net', C.inkSoft);
+          addFloater(p.x, p.y - 52, T('too big to net'), C.inkSoft);
           lookMemory = { sp: p.sp, where: sectionDef().name };
           enterLook(p.sp, lookKindOf(p.sp), sectionDef().name);
           return;
@@ -21802,7 +21821,7 @@ var ANIMAL_SIZES = {
         bagInit();
         bagAdd({ f: p.sp.f, e: p.sp.e, p: p.sp.p });
         teachWord(p.sp.f);
-        addFloater(p.x, p.y - 52, 'netted, and let go', C.turquoiseDeep);
+        addFloater(p.x, p.y - 52, T('netted, and let go'), C.turquoiseDeep);
         addParticles(p.x, p.y - 12, '#FFF3D0', 8, 62);
         showNotice(T('She meets the {0}', T(shortName(p.sp))), T('{0} in the bag', bagCount()));
         sfx.pick();
@@ -23184,7 +23203,7 @@ var ANIMAL_SIZES = {
       Math.round((prop ? prop.x : hero.x)) + ':' + Math.round((prop ? prop.y : hero.y));
     takenHere[key] = plainFinglish(sp.f);
     bagSave();
-    addFloater(hero.x, hero.y - 50, 'into the bag', C.turquoiseDeep);
+    addFloater(hero.x, hero.y - 50, T('into the bag'), C.turquoiseDeep);
     addParticles(hero.x, hero.y - 10, '#F2E7C8', 8, 58);
     showNotice(T('She keeps {0}', T(sp.e || sp.f)), T('{0} in the bag', bagCount()));
     propCache = {};
