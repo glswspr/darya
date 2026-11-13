@@ -4407,18 +4407,29 @@
       ctx.textBaseline = 'middle';
       ctx.fillText(T('page {0} of {1}', BOOK.page + 1, pages), 195, py + 20);
       if (BOOK.page > 0) {
-        alignText('left');
+        // "back" sits at the trailing end in a right-to-left page.
         ctx.fillStyle = C.turquoiseDeep;
         ctx.font = '600 13px ' + FONT_UI;
-        ctx.fillText(T('\u2039 back'), 48, py + 20);
-        addHit(30, py, 100, 40, 'bookpage', -1);
+        if (rtl()) {
+          ctx.textAlign = 'right';
+          ctx.fillText('\u203a ' + T('back'), 342, py + 20);
+        } else {
+          ctx.textAlign = 'left';
+          ctx.fillText(T('\u2039 back'), 48, py + 20);
+        }
+        addHit(rtl() ? 260 : 30, py, 100, 40, 'bookpage', -1);
       }
       if (BOOK.page < pages - 1) {
-        alignText('right');
         ctx.fillStyle = C.turquoiseDeep;
         ctx.font = '600 13px ' + FONT_UI;
-        ctx.fillText(T('on \u203a'), 342, py + 20);
-        addHit(260, py, 100, 40, 'bookpage', 1);
+        if (rtl()) {
+          ctx.textAlign = 'left';
+          ctx.fillText(T('next') + ' \u2039', 48, py + 20);
+        } else {
+          ctx.textAlign = 'right';
+          ctx.fillText(T('next') + ' \u203a', 342, py + 20);
+        }
+        addHit(rtl() ? 30 : 260, py, 100, 40, 'bookpage', 1);
       }
       ctx.textBaseline = 'alphabetic';
       alignText('left');
@@ -7628,6 +7639,8 @@ props: islandProps.map(function (p) {
       'honey': 'honung',
       'grow a {0} bloom': 'odla en {0} blomma',
       'bee {0}': 'bi {0}',
+      'back': 'föregående',
+      'next': 'nästa',
       'white': 'vit',
       'coral': 'korall',
       'rose': 'ros',
@@ -7909,6 +7922,8 @@ props: islandProps.map(function (p) {
       'honey': 'عسل',
       'grow a {0} bloom': 'یک شکوفه‌ی {0} برویان',
       'bee {0}': 'زنبور {0}',
+      'back': 'پیش',
+      'next': 'بعد',
       'white': 'سفید',
       'coral': 'مرجانی',
       'rose': 'گلی',
@@ -8190,6 +8205,8 @@ props: islandProps.map(function (p) {
       'honey': 'Honig',
       'grow a {0} bloom': 'zieh eine Blüte in {0}',
       'bee {0}': 'Biene {0}',
+      'back': 'zurück',
+      'next': 'weiter',
       'white': 'weiß',
       'coral': 'koralle',
       'rose': 'rosé',
@@ -8471,6 +8488,8 @@ props: islandProps.map(function (p) {
       'honey': 'miel',
       'grow a {0} bloom': 'fais fleurir une fleur {0}',
       'bee {0}': 'abeille {0}',
+      'back': 'précédent',
+      'next': 'suivant',
       'white': 'blanc',
       'coral': 'corail',
     },
@@ -8751,6 +8770,8 @@ props: islandProps.map(function (p) {
       'honey': 'miel',
       'grow a {0} bloom': 'cultiva una flor {0}',
       'bee {0}': 'abeja {0}',
+      'back': 'atrás',
+      'next': 'siguiente',
       'white': 'blanco',
       'rose': 'rosa',
     },
@@ -9031,6 +9052,8 @@ props: islandProps.map(function (p) {
       'honey': 'bal',
       'grow a {0} bloom': 'bir {0} çiçek yetiştir',
       'bee {0}': 'arı {0}',
+      'back': 'geri',
+      'next': 'ileri',
       'white': 'beyaz',
       'coral': 'mercan',
       'rose': 'gül',
@@ -9312,6 +9335,8 @@ props: islandProps.map(function (p) {
       'honey': 'عسل',
       'grow a {0} bloom': 'ازرع زهرة {0}',
       'bee {0}': 'نحلة {0}',
+      'back': 'السابق',
+      'next': 'التالي',
       'white': 'أبيض',
       'coral': 'مرجاني',
       'rose': 'وردي',
@@ -9593,6 +9618,8 @@ props: islandProps.map(function (p) {
       'honey': '蜂蜜',
       'grow a {0} bloom': '培育一朵{0}色的花',
       'bee {0}': '第 {0} 只蜂',
+      'back': '上一页',
+      'next': '下一页',
       'white': '白',
       'coral': '珊瑚',
       'rose': '玫瑰',
@@ -9874,6 +9901,8 @@ props: islandProps.map(function (p) {
       'honey': 'asal',
       'grow a {0} bloom': 'yek shokufe-ye {0} beruyan',
       'bee {0}': 'zanbur {0}',
+      'back': 'ghabli',
+      'next': 'baadi',
       'white': 'sefid',
       'coral': 'marjani',
       'rose': 'goli',
@@ -10191,6 +10220,7 @@ props: islandProps.map(function (p) {
       'kanal, qanat'
     ],
   };
+
 
 
 
