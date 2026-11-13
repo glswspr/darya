@@ -23452,9 +23452,10 @@ var ANIMAL_SIZES = {
     pointerId = e.pointerId;
     if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
 
-    // The book, when it is open, takes every tap: it is a sheet over the page.
+    // The book, when it is open, takes every tap: it is a sheet over the page, so
+    // its taps are read on the page and not in screen pixels.
     if (BOOK.open) {
-      bookTap(cssPoint(e));
+      bookTap(pagePoint(e));
       e.preventDefault();
       return;
     }
