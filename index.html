@@ -4104,11 +4104,11 @@
   var STORY = [
     { c: 'I \u00b7 the first morning', id: 'nectar', label: 'the meadow', w: 'asal',
       line: 'I walked out at first light, and the meadow gave up its nectar.' },
-    { id: 'water', label: 'the thirsty sprouts', w: 'ab',
+    { id: 'water', label: 'the thirsty sprouts', w: 'áb',
       line: 'The can stayed steady, and every sprout drank its fill.' },
     { id: 'fireflies', label: 'the fireflies', w: 'shab',
       line: 'At dusk I kept a few lights, for the dark path home.' },
-    { c: 'II \u00b7 the hive', id: 'comb', label: 'the comb', w: 'shane',
+    { c: 'II \u00b7 the hive', id: 'comb', label: 'the comb', w: 'sháne',
       line: 'Eight cells capped, before the honey thinned.' },
     { id: 'queen', label: 'the queen', w: 'malake',
       line: 'She was two cells away, and then none.' },
@@ -4116,19 +4116,19 @@
       line: 'White hid a colour. The cross gave it back.' },
     { id: 'hens', label: 'the henhouse', w: 'morgh',
       line: 'I paired the layers first, and the sitters after.' },
-    { id: 'kitchen', label: 'the kitchen', w: 'ash',
+    { id: 'kitchen', label: 'the kitchen', w: 'ásh',
       line: 'Two of rice to one of beans, and the pot knew the dish.' },
     { id: 'wagon', label: 'the wagon', w: 'charkh',
       line: 'The wheel was behind the crate the whole time.' },
     { c: 'IV \u00b7 the island', id: 'stream', label: 'the stream', w: 'cheshmeh',
       line: 'I held the can still, and the spring did the rest.' },
-    { id: 'lanterns', label: 'the lantern walk', w: 'cheragh',
+    { id: 'lanterns', label: 'the lantern walk', w: 'cherágh',
       line: 'She walked the dark path with a lamp ahead of her.' },
-    { id: 'beeline', label: 'the bee-line', w: 'rah',
+    { id: 'beeline', label: 'the bee-line', w: 'ráh',
       line: 'Three bearings agreed, and the wood gave up the colony.' },
-    { id: 'removal', label: 'the removal', w: 'duud',
+    { id: 'removal', label: 'the removal', w: 'dud',
       line: 'Six steps, and not one bee lost.' },
-    { c: 'V \u00b7 the wild', id: 'forest', label: 'the Hyrcanian forest', w: 'qarch',
+    { c: 'V \u00b7 the wild', id: 'forest', label: 'the Hyrcanian forest', w: 'qárch',
       line: 'Under the old trees the ground was soft, and full of things worth keeping.' },
     { id: 'steppe', label: 'the Zagros steppe', w: 'balut',
       line: 'The oaks stood far apart, and their acorns were everywhere beneath them.' },
@@ -4142,11 +4142,11 @@
       line: 'Out past the shallows the shells were bigger, and the boat knew the way back.' },
     { id: 'beach', label: 'the beach', w: 'chub',
       line: 'The tide left a line of shells, and a piece of wood worn smooth.' },
-    { c: 'VI \u00b7 the old stones', id: 'shrine', label: 'the shrine', w: 'bagh',
+    { c: 'VI \u00b7 the old stones', id: 'shrine', label: 'the shrine', w: 'bágh',
       line: 'The stone said: the garden is watered by the water from the channel.' },
-    { id: 'lake', label: 'the lake', w: 'mahi',
+    { id: 'lake', label: 'the lake', w: 'máhi',
       line: 'Three fish, and the lake kept its patience.' },
-    { id: 'sky', label: 'the stars', w: 'setare',
+    { id: 'sky', label: 'the stars', w: 'setáre',
       line: 'The Plough sat where the old chart said it would.' }
   ];
 
@@ -4199,7 +4199,13 @@
   }
 
   function storyWord(f) {
-    for (var i = 0; i < words.length; i++) if (words[i].f === f) return words[i];
+    var i, want = plainFinglish(f);
+    for (i = 0; i < words.length; i++) if (words[i].f === f) return words[i];
+    // The page and the word table are two spellings of one word, so the match is
+    // made on the form with the accents taken off - plainFinglish is what both
+    // teachWord and the lookup already use.
+    for (i = 0; i < words.length; i++) if (plainFinglish(words[i].f) === want) return words[i];
+    for (i = 0; i < learned.length; i++) if (plainFinglish(learned[i].f) === want) return learned[i];
     return { f: f, e: '', p: '' };
   }
 
@@ -4224,7 +4230,8 @@
 
      It is a sheet over the current screen, not a place, so a keeper who opens it
      in the middle of the comb round comes back to that round untouched. */
-  var BOOK = { open: false, leaf: 'pages', page: 0, tab: 'known', at: -9 };
+  var BOOK = { open: false, leaf: 'pages', page: 0, tab: 'known', at: -9,
+    pick: null, pickWord: null, turn: null };
 
   var WORD_PAGE = 9;    // word rows on a page
 
@@ -4237,6 +4244,9 @@
       if (!rows.length && BOOK.tab === 'known') BOOK.tab = 'rest';
       BOOK.page = 0;
     }
+    BOOK.pick = null;
+    BOOK.pickWord = null;
+    BOOK.turn = null;
     if (storyComplete()) teachWord('darya');
     hits = [];
   }
@@ -4283,9 +4293,30 @@
     if (!h) { closeBook(); return; }
     if (h.act === 'bookclose') { closeBook(); return; }
     if (h.act === 'bookpaper') { return; }
-    if (h.act === 'bookleaf') { BOOK.leaf = h.arg; BOOK.page = 0; return; }
-    if (h.act === 'booktab') { BOOK.tab = h.arg; BOOK.page = 0; return; }
-    if (h.act === 'bookpage') { BOOK.page = clamp(BOOK.page + h.arg, 0, bookPageCount() - 1); return; }
+    if (h.act === 'bookleaf') {
+      if (h.arg !== BOOK.leaf) {
+        var ORDER = ['pages', 'words', 'cover'];
+        bookTurn('leaf', ORDER.indexOf(h.arg) > ORDER.indexOf(BOOK.leaf) ? 1 : -1);
+      }
+      BOOK.leaf = h.arg; BOOK.page = 0; BOOK.pickWord = null; return;
+    }
+    if (h.act === 'booktab') { BOOK.tab = h.arg; BOOK.page = 0; BOOK.pickWord = null; return; }
+    // A tap on an entry turns the facing page to it. The index itself stays
+    // put: a list that jumps while you read it is a list you lose your place in.
+    if (h.act === 'bookpick') {
+      bookTurn('page', 1);          // photograph the page BEFORE it changes
+      if (BOOK.leaf === 'words') { BOOK.pickWord = Number(h.arg); BOOK.page = Math.floor(Number(h.arg) / WORD_PAGE); }
+      else BOOK.pick = h.arg;
+      return;
+    }
+    if (h.act === 'bookpage') {
+      var to = clamp(BOOK.page + h.arg, 0, bookPageCount() - 1);
+      if (to !== BOOK.page) {
+        bookTurn('page', h.arg > 0 ? 1 : -1);
+        BOOK.page = to; BOOK.pickWord = null;
+      }
+      return;
+    }
     if (h.act === 'lang') { setLanguage(h.arg); return; }
     if (h.act === 'soundtoggle') { muted = !muted; return; }
     if (h.act === 'wipe') { wipeIsland(); return; }
@@ -4311,70 +4342,267 @@
     showNotice(T('Start the island over'), T('The island, the words and the pages all go.'));
   }
 
-  /* ---- The rail: the leaves of the book ---------------------------------- */
-  /* Two leaves and the cover, on one rail under the header. The open leaf is
-     ink; the others are sand. The cover is the small mark at the right, because
-     the reader's own choices are not content and must not take a leaf's width. */
-  function bookLeafTabs() {
-    var leaves = [
-      { id: 'pages', label: T('the pages') },
-      { id: 'words', label: T('the words') }
-    ];
-    // A rail runs in the reading direction, so in a right-to-left page the first
-    // leaf is at the right and the rail grows leftward.
-    var dir = rtl() ? -1 : 1;
-    var x = rtl() ? 356 : 34;
-    for (var i = 0; i < leaves.length; i++) {
-      var on = BOOK.leaf === leaves[i].id;
-      ctx.font = '600 12px ' + FONT_UI;
-      var w = ctx.measureText(leaves[i].label).width + 28;
-      if (dir < 0) x -= w;
-      ctx.fillStyle = on ? 'rgba(74,147,172,0.16)' : 'rgba(247,244,238,0.94)';
-      roundRect(x, 104, w, 30, 15);
-      ctx.fill();
-      ctx.strokeStyle = on ? C.turquoiseDeep : 'rgba(216,204,184,0.9)';
-      ctx.lineWidth = on ? 1.4 : 1;
-      ctx.stroke();
-      ctx.fillStyle = on ? C.turquoiseDeep : C.inkSoft;
-      alignText('center');
-      ctx.textBaseline = 'middle';
-      ctx.fillText(leaves[i].label, x + w / 2, 119);
-      addHit(x, 104, w, 30, 'bookleaf', leaves[i].id);
-      x += dir * (w + 8);
-    }
+  /* ---- The spread ---------------------------------------------------------
+     The notebook opens as two facing pages, full bleed, with a fold between
+     them. The first page is the index of what she has written; the facing page
+     is the page itself, in her own hand. Tapping an entry turns the facing page
+     to it, which is what a book open on a table does.
 
-    var cw = 44;
-    var cx = rtl() ? 34 : 356 - cw;
-    ctx.fillStyle = BOOK.leaf === 'cover' ? C.ink : 'rgba(247,244,238,0.94)';
-    roundRect(cx, 104, cw, 30, 15);
-    ctx.fill();
-    ctx.strokeStyle = BOOK.leaf === 'cover' ? C.ink : 'rgba(216,204,184,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = BOOK.leaf === 'cover' ? C.paper : C.inkSoft;
-    alignText('center');
-    ctx.font = '600 13px ' + FONT_SERIF;
-    ctx.fillText('Aa', cx + cw / 2, 120);
-    addHit(cx, 104, cw, 30, 'bookleaf', 'cover');
-    ctx.textBaseline = 'alphabetic';
-    alignText('left');
+     A turn is drawn, not cut: the facing page foreshortens into the fold and the
+     page beneath is uncovered from the outer edge in. A change of leaf is a
+     different object, so the whole spread slides instead. */
+
+  var FOLD = 195;
+  var TURN_SECONDS = 0.36;
+
+  function bookGeo() {
+    return rtl()
+      ? { a: { x: 212, w: 150 }, b: { x: 34, w: 148 } }
+      : { a: { x: 26, w: 150 }, b: { x: 208, w: 148 } };
+  }
+  function colOpen(p) { return rtl() ? p.x + p.w : p.x; }
+  function colClose(p) { return rtl() ? p.x : p.x + p.w; }
+
+  function bookTitle() {
+    return BOOK.leaf === 'words' ? T('the words')
+      : BOOK.leaf === 'cover' ? T('the cover') : T('the notebook');
+  }
+  function bookCount() {
+    if (BOOK.leaf === 'words') return learned.length + ' / ' + words.length;
+    if (BOOK.leaf === 'cover') return '';
+    return storyPages() + ' / ' + STORY.length;
   }
 
-  /* ---- Leaf one: the pages she writes ------------------------------------ */
+  /* ---- The fore-edge: the book's tabs ------------------------------------ */
+  /* A notebook marks its sections with tabs cut into the fore-edge, and the way
+     to close it is the cover's own edge. Four strips down the outer margin -
+     close first, then the three leaves - so every leaf is one tap away and the
+     book never needs a second control in a corner of its own. */
+  function bookEdgeTabs() {
+    var near = rtl() ? 30 : 360;
+    var items = [
+      { id: 'close', label: '', h: 32, y: 20 },
+      { id: 'pages', label: T('the pages'), h: 74, y: 64 },
+      { id: 'words', label: T('the words'), h: 74, y: 145 },
+      { id: 'cover', label: T('the cover'), h: 74, y: 226 }
+    ];
+    var i, it, on, y;
+    for (i = 0; i < items.length; i++) {
+      it = items[i];
+      y = it.y;
+      on = it.id !== 'close' && BOOK.leaf === it.id;
+
+      ctx.beginPath();
+      if (rtl()) {
+        ctx.moveTo(-2, y);
+        ctx.lineTo(near - 10, y);
+        ctx.quadraticCurveTo(near, y + 10, near, y + 20);
+        ctx.lineTo(near, y + it.h - 20);
+        ctx.quadraticCurveTo(near, y + it.h - 10, near - 10, y + it.h);
+        ctx.lineTo(-2, y + it.h);
+      } else {
+        ctx.moveTo(392, y);
+        ctx.lineTo(near + 10, y);
+        ctx.quadraticCurveTo(near, y + 10, near, y + 20);
+        ctx.lineTo(near, y + it.h - 20);
+        ctx.quadraticCurveTo(near, y + it.h - 10, near + 10, y + it.h);
+        ctx.lineTo(392, y + it.h);
+      }
+      ctx.closePath();
+      ctx.fillStyle = on ? C.paper : 'rgba(233,222,203,0.96)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(42,35,32,0.14)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      if (on) {
+        // The open leaf's mark: a line down the tab's spine side, clear of its
+        // name, so the tab still reads as a tab and not as a struck-through word.
+        ctx.strokeStyle = C.terracotta;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(rtl() ? 24 : 366, y + 16);
+        ctx.lineTo(rtl() ? 24 : 366, y + it.h - 16);
+        ctx.stroke();
+      }
+
+      if (it.id === 'close') {
+        ctx.strokeStyle = C.inkSoft;
+        ctx.lineWidth = 1.4;
+        ctx.lineCap = 'round';
+        var mc = rtl() ? 14 : 375, my = y + it.h / 2;
+        ctx.beginPath();
+        ctx.moveTo(mc - 4, my - 4); ctx.lineTo(mc + 4, my + 4);
+        ctx.moveTo(mc + 4, my - 4); ctx.lineTo(mc - 4, my + 4);
+        ctx.stroke();
+        addHit(rtl() ? 0 : near, y, 30, it.h, 'bookclose');
+      } else {
+        ctx.save();
+        ctx.translate(rtl() ? 14 : 375, y + it.h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillStyle = on ? C.terracotta : C.inkSoft;
+        ctx.font = (on ? '600 10px ' : '500 10px ') + FONT_UI;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(it.label, 0, 0);
+        ctx.restore();
+        addHit(rtl() ? 0 : near, y, 30, it.h, 'bookleaf', it.id);
+      }
+      y += it.h + 7;
+    }
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+  /* ---- The paper -------------------------------------------------------- */
+  function bookPaper() {
+    ctx.fillStyle = C.paper;
+    ctx.fillRect(0, 0, 390, 844);
+
+    // Ruled lines, broken at the fold so the two pages read as two.
+    ctx.strokeStyle = 'rgba(42,35,32,0.045)';
+    ctx.lineWidth = 1;
+    for (var y = 104; y < 806; y += 21) {
+      ctx.beginPath();
+      ctx.moveTo(8, y);
+      ctx.lineTo(FOLD - 14, y);
+      ctx.moveTo(FOLD + 14, y);
+      ctx.lineTo(382, y);
+      ctx.stroke();
+    }
+
+    // The fold: each page curves down into it, so the paper darkens there.
+    var g = ctx.createLinearGradient(FOLD - 32, 0, FOLD + 32, 0);
+    g.addColorStop(0, 'rgba(42,35,32,0)');
+    g.addColorStop(0.42, 'rgba(42,35,32,0.10)');
+    g.addColorStop(0.5, 'rgba(42,35,32,0.16)');
+    g.addColorStop(0.58, 'rgba(42,35,32,0.10)');
+    g.addColorStop(1, 'rgba(42,35,32,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(FOLD - 32, 0, 64, 844);
+
+    // The stitching, one signature either side of the fold.
+    ctx.strokeStyle = 'rgba(122,104,80,0.30)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath();
+    ctx.moveTo(FOLD, 20);
+    ctx.lineTo(FOLD, 824);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = 'rgba(42,35,32,0.10)';
+    ctx.strokeRect(0.5, 0.5, 389, 843);
+  }
+
+  /* ---- The head: the leaf's name, and the spread's folio ---------------- */
+  function bookHead() {
+    var g = bookGeo();
+    alignText('left');
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = C.ink;
+    ctx.font = 'italic 600 18px ' + FONT_SERIF;
+    ctx.fillText(bookTitle(), colOpen(g.a), 52);
+
+    var count = bookCount();
+    if (count) {
+      alignText('right');
+      ctx.fillStyle = C.inkFaint;
+      ctx.font = '600 10px ' + FONT_UI;
+      ctx.fillText(count, colClose(g.b), 51);
+      alignText('left');
+    }
+
+    ctx.strokeStyle = 'rgba(42,35,32,0.09)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(colOpen(g.a), 66);
+    ctx.lineTo(colClose(g.a), 66);
+    ctx.moveTo(colOpen(g.b), 66);
+    ctx.lineTo(colClose(g.b), 66);
+    ctx.stroke();
+    ctx.textAlign = 'left';
+  }
+
+  /* ---- The foot --------------------------------------------------------- */
+  function bookFoot() {
+    var g = bookGeo();
+    var pages = bookPageCount();
+    ctx.textBaseline = 'middle';
+    ctx.font = 'italic 500 11px ' + FONT_SERIF;
+    ctx.fillStyle = C.inkFaint;
+    if (BOOK.leaf === 'words' && pages > 1) {
+      ctx.textAlign = rtl() ? 'right' : 'left';
+      ctx.font = '600 10px ' + FONT_UI;
+      ctx.fillText(T('page {0} of {1}', BOOK.page + 1, pages), colOpen(g.a), 806);
+
+      ctx.fillStyle = C.turquoiseDeep;
+      ctx.font = '600 11px ' + FONT_UI;
+      if (BOOK.page > 0) {
+        ctx.textAlign = 'right';
+        ctx.fillText('\u2039 ' + T('back'), colClose(g.a), 806);
+        addHit(colClose(g.a) - 90, 790, 90, 32, 'bookpage', -1);
+      }
+      if (BOOK.page < pages - 1) {
+        ctx.textAlign = rtl() ? 'left' : 'right';
+        ctx.fillText(T('next') + ' \u203a', colClose(g.b), 806);
+        addHit(colOpen(g.b), 790, 90, 32, 'bookpage', 1);
+      }
+    } else if (BOOK.leaf !== 'cover') {
+      ctx.textAlign = rtl() ? 'right' : 'left';
+      ctx.fillText(T('next: {0}', T(storyNext())), colOpen(g.a), 806);
+    }
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  /* ---- What the facing page shows --------------------------------------- */
+  /* One entry at a time, and the reader picks it from the index. Until they do,
+     it is the last page she wrote - the book falls open where she left it. */
+  function pickedPage() {
+    if (BOOK.pick) {
+      for (var i = 0; i < STORY.length; i++) if (STORY[i].id === BOOK.pick) return STORY[i];
+    }
+    var last = STORY[0];
+    for (var j = 0; j < STORY.length; j++) if (storyDone[STORY[j].id]) last = STORY[j];
+    return last;
+  }
+
+  function pickedWord(rows) {
+    if (!rows.length) return null;
+    var i = BOOK.pickWord;
+    if (i == null) i = BOOK.page * WORD_PAGE;
+    return rows[clamp(i, 0, rows.length - 1)];
+  }
+
+  function chapterOf(page) {
+    for (var i = 0; i < STORY.length; i++) {
+      if (STORY[i] === page) {
+        for (var j = i; j >= 0; j--) if (STORY[j].c) return STORY[j].c;
+      }
+    }
+    return 'the island is named';
+  }
+
+  /* ---- Leaf one, first page: the index of pages -------------------------- */
   function drawBookPages() {
+    var g = bookGeo();
+    var x = g.a.x, w = g.a.w;
+    var ax = colOpen(g.a), bx = colClose(g.a);
+
     if (storyComplete()) {
       drawNotebookEnding();
+      drawPageFace();
       return;
     }
 
-    var y = 168;
+    var picked = pickedPage();
+    var y = 92;
     var i, page;
-    // The list is measured before a line is drawn, so it always fits the page:
-    // this ledger grew to 23 entries and its last rows were drawn under the
-    // footer and off the sheet. The row height is the only free number, so the
-    // list tightens to fit instead of running over.
-    var rowGap = 28, doneGap = 40, chapterGap = 32;
-    var availTop = 168, availBottom = 754;
+    // The list is measured before a line is drawn so it always fits: this ledger
+    // grew to 23 entries, and its last rows were once drawn off the sheet. The
+    // row height is the only free number, so the list tightens instead of spilling.
+    var rowGap = 26, doneGap = 40, chapterGap = 28;
+    var availTop = 92, availBottom = 748;
     var need = 0;
     for (i = 0; i < STORY.length; i++) {
       if (STORY[i].c) need += chapterGap;
@@ -4386,346 +4614,590 @@
       doneGap = Math.floor(doneGap * squeeze);
       chapterGap = Math.floor(chapterGap * squeeze);
     }
-    var left = rtl() ? 356 : 34;
+
+    // The word column is measured before the story is wrapped: a long word
+    // ("cheshmeh", "morghdani") is wider than the fixed 44px gutter this list
+    // used to reserve, so in a language whose words run long it drew straight
+    // through the story beside it. One measure decides both columns.
+    var wordW = 0;
+    ctx.font = 'italic 600 11px ' + FONT_SERIF;
+    for (i = 0; i < STORY.length; i++) {
+      if (!storyDone[STORY[i].id]) continue;
+      wordW = Math.max(wordW, ctx.measureText(storyWord(STORY[i].w).f).width);
+    }
+    var storyW = Math.max(80, w - Math.min(wordW, 96) - 12);
+
     for (i = 0; i < STORY.length; i++) {
       page = STORY[i];
       if (page.c) {
-        y += Math.round(chapterGap * 0.44);
+        y += Math.round(chapterGap * 0.46);
         ctx.fillStyle = C.inkFaint;
-        ctx.font = '600 9px ' + FONT_UI;
+        ctx.font = '600 7.5px ' + FONT_UI;
         alignText('left');
-        ctx.fillText(T(page.c).toUpperCase(), left, y);
-        y += Math.round(chapterGap * 0.56);
+        ctx.fillText(T(page.c).toUpperCase(), ax, y);
+        y += Math.round(chapterGap * 0.54);
       }
-      var done = storyDone[page.id];
-      if (done) {
-        ctx.fillStyle = C.ink;
-        ctx.font = '500 11.5px ' + FONT_UI;
-        var linesN = wrapText(T(page.line), 262, '500 11.5px ' + FONT_UI);
-        for (var l = 0; l < Math.min(2, linesN.length); l++) {
-          ctx.fillText(linesN[l], left, y + l * 14);
+      if (storyDone[page.id]) {
+        if (picked === page) {
+          ctx.fillStyle = 'rgba(224,163,42,0.16)';
+          ctx.fillRect(x - 6, y - 11, w + 12, doneGap - 10);
         }
-        var w = storyWord(page.w);
+        ctx.fillStyle = C.ink;
+        ctx.font = '500 10px ' + FONT_UI;
+        var linesN = wrapText(T(page.line), storyW, '500 10px ' + FONT_UI);
+        var shown = Math.min(2, linesN.length);
+        for (var l = 0; l < shown; l++) ctx.fillText(linesN[l], ax, y + l * 12);
         alignText('right');
         ctx.fillStyle = C.turquoiseDeep;
-        ctx.font = 'italic 600 13px ' + FONT_SERIF;
-        ctx.fillText(w.f, rtl() ? 34 : 356, y);
+        ctx.font = 'italic 600 11px ' + FONT_SERIF;
+        ctx.fillText(storyWord(page.w).f, bx, y + 9);
         alignText('left');
-        y += Math.min(2, linesN.length) * 14 + Math.max(6, doneGap - 28);
+        addHit(x - 6, y - 11, w + 12, doneGap - 10, 'bookpick', page.id);
+        y += shown * 12 + Math.max(3, doneGap - 25);
       } else {
-        ctx.fillStyle = 'rgba(42,35,32,0.26)';
-        ctx.font = 'italic 400 11.5px ' + FONT_UI;
-        ctx.fillText(T(page.label), left, y);
-        ctx.strokeStyle = 'rgba(42,35,32,0.12)';
+        ctx.fillStyle = 'rgba(42,35,32,0.28)';
+        ctx.font = 'italic 400 10px ' + FONT_UI;
+        ctx.fillText(T(page.label), ax, y);
+        ctx.strokeStyle = 'rgba(42,35,32,0.09)';
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(34, y + 12);
-        ctx.lineTo(356, y + 12);
+        ctx.moveTo(x, y + 8);
+        ctx.lineTo(x + w, y + 8);
         ctx.stroke();
         y += rowGap;
       }
     }
 
-    alignText('center');
     ctx.fillStyle = C.inkFaint;
-    ctx.font = '400 10.5px ' + FONT_UI;
-    ctx.fillText(T('next: {0}', T(storyNext())), 195, 790);
+    ctx.font = 'italic 400 9px ' + FONT_SERIF;
     alignText('left');
+    ctx.fillText(T('tap a page to read it'), ax, 768);
+    alignText('left');
+
+    drawPageFace();
   }
 
-  /* ---- Leaf two: the words she learned ---------------------------------- */
+  /* ---- Leaf one, facing page: the page in her own hand ------------------ */
+  function drawPageFace() {
+    var g = bookGeo();
+    var x = g.b.x, w = g.b.w;
+    var ax = colOpen(g.b), bx = colClose(g.b);
+
+    var page = pickedPage();
+    var done = !!storyDone[page.id];
+    var wd = storyWord(page.w);
+
+    ctx.fillStyle = C.inkFaint;
+    ctx.font = '600 7.5px ' + FONT_UI;
+    alignText('left');
+    ctx.fillText(T(chapterOf(page)).toUpperCase(), ax, 100);
+    ctx.strokeStyle = 'rgba(42,35,32,0.09)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 108);
+    ctx.lineTo(x + w, 108);
+    ctx.stroke();
+
+    if (done) {
+      var lines = wrapText(T(page.line), w, 'italic 500 12.5px ' + FONT_SERIF);
+      ctx.fillStyle = C.ink;
+      ctx.font = 'italic 500 12.5px ' + FONT_SERIF;
+      for (var i = 0; i < Math.min(6, lines.length); i++) {
+        ctx.fillText(lines[i], ax, 136 + i * 20);
+      }
+    } else {
+      ctx.fillStyle = 'rgba(42,35,32,0.32)';
+      ctx.font = 'italic 500 12.5px ' + FONT_SERIF;
+      var nl = wrapText(T(page.label), w, 'italic 500 12.5px ' + FONT_SERIF);
+      for (var n = 0; n < nl.length; n++) ctx.fillText(nl[n], ax, 136 + n * 20);
+      ctx.strokeStyle = 'rgba(42,35,32,0.11)';
+      ctx.beginPath();
+      ctx.moveTo(x, 158);
+      ctx.lineTo(x + w, 158);
+      ctx.stroke();
+    }
+
+    // The word the page gave her, and the sprig she pressed beside it.
+    ctx.fillStyle = C.turquoiseDeep;
+    ctx.font = 'italic 600 25px ' + FONT_SERIF;
+    ctx.fillText(wd.f, ax, 330);
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = '400 14px ' + FONT_SERIF;
+    alignText('right');
+    ctx.fillText(wd.p || '', bx, 330);
+    alignText('left');
+
+    ctx.fillStyle = 'rgba(226,211,160,0.55)';
+    ctx.save();
+    ctx.translate(x + w / 2 - 46, 372);
+    ctx.rotate(-0.13);
+    ctx.fillRect(0, 0, 50, 11);
+    ctx.restore();
+    drawSprig(x + w / 2, 668, 3.6, '#7c8454', -7);
+  }
+
+  /* A pressed sprig: a stem, three leaves and a bud, in a dried green. */
+  function drawSprig(cx, cy, s, tint, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot * Math.PI / 180);
+    ctx.scale(s, s);
+    ctx.strokeStyle = tint;
+    ctx.fillStyle = tint;
+    ctx.lineWidth = 1.15;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-2.5, -15, 2.5, -28, 0, -44);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.50; leafShape(0, -9, -16, -24);
+    ctx.globalAlpha = 0.38; leafShape(0, -20, 16, -35);
+    ctx.globalAlpha = 0.46; leafShape(0, -32, -12, -45);
+    ctx.globalAlpha = 0.62;
+    ctx.beginPath(); ctx.arc(0, -46, 2.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(2.6, -49, 1.5, 0, TAU); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  /* One leaf of the sprig: from the stem to a point, bent outward. */
+  function leafShape(x0, y0, x1, y1) {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(x0 + (x1 - x0) * 0.55, y0 + (y1 - y0) * 0.35, x1, y1);
+    ctx.quadraticCurveTo(x0 + (x1 - x0) * 0.75, y0 + (y1 - y0) * 0.95, x0, y0);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  /* ---- Leaf two, first page: the words she learned --------------------- */
   function drawBookWords() {
-    // The two lists: what she knows, and what is still to learn.
+    var g = bookGeo();
+    var x = g.a.x, w = g.a.w;
+    var ax = colOpen(g.a), bx = colClose(g.a);
+    ctx.textBaseline = 'alphabetic';
+
     var tabs = [
       { id: 'known', label: T('She knows') },
       { id: 'rest', label: T('Still to learn') }
     ];
-    var tdir = rtl() ? -1 : 1;
-    var tx = rtl() ? 356 : 34;
+    var tx = rtl() ? x + w : x;
     for (var t = 0; t < tabs.length; t++) {
       var on = BOOK.tab === tabs[t].id;
-      ctx.font = '600 12px ' + FONT_UI;
-      var tw = ctx.measureText(tabs[t].label).width + 28;
-      if (tdir < 0) tx -= tw;
-      ctx.fillStyle = on ? 'rgba(74,147,172,0.16)' : 'rgba(247,244,238,0.94)';
-      roundRect(tx, 152, tw, 28, 14);
+      ctx.font = '600 10px ' + FONT_UI;
+      var tw = ctx.measureText(tabs[t].label).width + 20;
+      if (rtl()) tx -= tw;
+      ctx.fillStyle = on ? 'rgba(224,163,42,0.18)' : 'rgba(247,244,238,0.9)';
+      roundRect(tx, 78, tw, 21, 10.5);
       ctx.fill();
-      ctx.strokeStyle = on ? C.turquoiseDeep : 'rgba(216,204,184,0.9)';
-      ctx.lineWidth = on ? 1.4 : 1;
+      ctx.strokeStyle = on ? C.saffron : 'rgba(42,35,32,0.12)';
+      ctx.lineWidth = on ? 1.3 : 1;
       ctx.stroke();
-      ctx.fillStyle = on ? C.turquoiseDeep : C.inkSoft;
+      ctx.fillStyle = on ? C.ink : C.inkSoft;
       alignText('center');
       ctx.textBaseline = 'middle';
-      ctx.fillText(tabs[t].label, tx + tw / 2, 166);
-      addHit(tx, 152, tw, 28, 'booktab', tabs[t].id);
-      tx += tdir * (tw + 8);
+      ctx.fillText(tabs[t].label, tx + tw / 2, 88.5);
+      addHit(tx, 78, tw, 21, 'booktab', tabs[t].id);
+      tx += rtl() ? -(tw + 6) : (tw + 6);
     }
     alignText('left');
     ctx.textBaseline = 'alphabetic';
 
     var rows = bookRows();
     var start = BOOK.page * WORD_PAGE;
-    var y = 212;
+    var pick = pickedWord(rows);
 
     if (!rows.length) {
       ctx.fillStyle = C.inkFaint;
-      ctx.font = 'italic 400 12px ' + FONT_UI;
-      alignText('center');
-      ctx.fillText(BOOK.tab === 'known'
+      ctx.font = 'italic 400 11px ' + FONT_UI;
+      var empty = wrapText(BOOK.tab === 'known'
         ? T('Nothing yet. Read a stone, meet a person.')
-        : T('Every word on the island is known.'), 195, 430);
-      alignText('left');
+        : T('Every word on the island is known.'), w, 'italic 400 11px ' + FONT_UI);
+      for (var e = 0; e < empty.length; e++) ctx.fillText(empty[e], ax, 300 + e * 16);
     }
 
     // A row shows the word three ways, and the three ways are the point:
-    //   the Finglish she reads    - what the island teaches, never translated
-    //   the Persian script         - its other reading, never translated either
-    //   the gloss, in HER language - the only part the language choice changed
-    // So the reader sees, on one line, which half of the game follows the
-    // language setting and which half does not.
+    //   the Finglish she reads     - what the island teaches, never translated
+    //   the Persian script          - its other reading, never translated either
+    //   the gloss, in HER language  - the only part the language choice changed
+    var y = 124;
     for (var r = start; r < Math.min(rows.length, start + WORD_PAGE); r++) {
-      var w = rows[r];
-      if (r % 2 === 0) {
+      var wr = rows[r];
+      if (wr === pick) {
+        ctx.fillStyle = 'rgba(224,163,42,0.18)';
+        ctx.fillRect(x - 6, y - 13, w + 12, 42);
+      } else if (r % 2 === 0) {
         ctx.fillStyle = 'rgba(216,204,184,0.16)';
-        ctx.fillRect(30, y - 16, 330, 46);
+        ctx.fillRect(x - 6, y - 13, w + 12, 42);
       }
-      var nearEdge = rtl() ? 352 : 38;
-      var farEdge = rtl() ? 38 : 352;
       alignText('left');
-      ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = C.ink;
-      ctx.font = 'italic 600 17px ' + FONT_SERIF;
-      ctx.fillText(w.f, nearEdge, y + 2);
+      ctx.font = 'italic 600 15px ' + FONT_SERIF;
+      ctx.fillText(wr.f, ax, y + 3);
       ctx.fillStyle = C.inkSoft;
-      ctx.font = '400 11.5px ' + FONT_UI;
-      // In Persian the gloss IS the script beside it, so drawing both puts the same
-      // word on the row twice. A row shows a reading only where it adds one.
-      var gloss = glossOf(w);
-      if (gloss !== (w.p || '')) ctx.fillText(gloss, nearEdge, y + 18);
+      ctx.font = '400 10px ' + FONT_UI;
+      var gloss = glossOf(wr);
+      // In Finglish the gloss IS the word, and the word is already printed
+      // above it: show one, not the same string twice.
+      if (gloss !== (wr.p || '') && gloss.toLowerCase() !== wr.f.toLowerCase()) {
+        ctx.fillText(gloss, ax, y + 18);
+      }
       alignText('right');
       ctx.fillStyle = C.turquoiseDeep;
-      ctx.font = '400 17px ' + FONT_SERIF;
-      ctx.fillText(w.p || '', farEdge, y + 8);
+      ctx.font = '400 15px ' + FONT_SERIF;
+      ctx.fillText(wr.p || '', bx, y + 7);
       alignText('left');
-      y += 46;
+      addHit(x - 6, y - 13, w + 12, 44, 'bookpick', String(r));
+      y += 44;
     }
 
-    // The page's own controls: only when there are pages either side.
-    var pages = bookPageCount();
-    if (pages > 1) {
-      var py = 738;
-      ctx.fillStyle = 'rgba(247,244,238,0.94)';
-      roundRect(30, py, 330, 40, 20);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(216,204,184,0.9)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = C.inkSoft;
-      ctx.font = '600 12px ' + FONT_UI;
-      alignText('center');
-      ctx.textBaseline = 'middle';
-      ctx.fillText(T('page {0} of {1}', BOOK.page + 1, pages), 195, py + 20);
-      if (BOOK.page > 0) {
-        // "back" sits at the trailing end in a right-to-left page.
-        ctx.fillStyle = C.turquoiseDeep;
-        ctx.font = '600 13px ' + FONT_UI;
-        if (rtl()) {
-          ctx.textAlign = 'right';
-          ctx.fillText('\u203a ' + T('back'), 342, py + 20);
-        } else {
-          ctx.textAlign = 'left';
-          ctx.fillText(T('\u2039 back'), 48, py + 20);
-        }
-        addHit(rtl() ? 260 : 30, py, 100, 40, 'bookpage', -1);
-      }
-      if (BOOK.page < pages - 1) {
-        ctx.fillStyle = C.turquoiseDeep;
-        ctx.font = '600 13px ' + FONT_UI;
-        if (rtl()) {
-          ctx.textAlign = 'left';
-          ctx.fillText(T('next') + ' \u2039', 48, py + 20);
-        } else {
-          ctx.textAlign = 'right';
-          ctx.fillText(T('next') + ' \u203a', 342, py + 20);
-        }
-        addHit(rtl() ? 30 : 260, py, 100, 40, 'bookpage', 1);
-      }
-      ctx.textBaseline = 'alphabetic';
-      alignText('left');
-    }
+    drawWordFace(rows);
   }
 
-  /* ---- Leaf three: inside the cover -------------------------------------- */
+  /* ---- Leaf two, facing page: the open word ---------------------------- */
+  function drawWordFace(rows) {
+    var g = bookGeo();
+    var x = g.b.x, w = g.b.w;
+    var ax = colOpen(g.b), bx = colClose(g.b);
+
+    var wr = pickedWord(rows);
+    if (!wr) { drawSprig(x + w / 2, 640, 3.6, '#8a8a58', 8); return; }
+    var gloss = glossOf(wr);
+
+    ctx.fillStyle = C.inkFaint;
+    ctx.font = '600 7.5px ' + FONT_UI;
+    alignText('left');
+    ctx.fillText(T('A NEW WORD').toUpperCase(), ax, 100);
+    ctx.strokeStyle = 'rgba(42,35,32,0.09)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 108);
+    ctx.lineTo(x + w, 108);
+    ctx.stroke();
+
+    ctx.fillStyle = C.ink;
+    ctx.font = 'italic 600 27px ' + FONT_SERIF;
+    ctx.fillText(wr.f, ax, 196);
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = '400 11px ' + FONT_UI;
+    // In Finglish the gloss IS the word, so it is not printed under it again:
+    // "zanbur" over "zanbur" reads like a mistake.
+    if (gloss.toLowerCase() !== wr.f.toLowerCase()) {
+      var gl = wrapText(gloss, w, '400 11px ' + FONT_UI);
+      for (var i = 0; i < Math.min(2, gl.length); i++) ctx.fillText(gl[i], ax, 220 + i * 15);
+    }
+
+    ctx.fillStyle = C.turquoiseDeep;
+    ctx.font = '400 24px ' + FONT_SERIF;
+    alignText('right');
+    ctx.fillText(wr.p || '', bx, 196);
+    alignText('left');
+
+    ctx.fillStyle = 'rgba(226,211,160,0.55)';
+    ctx.save();
+    ctx.translate(x + w / 2 - 42, 350);
+    ctx.rotate(0.1);
+    ctx.fillRect(0, 0, 46, 10);
+    ctx.restore();
+    drawSprig(x + w / 2, 652, 3.7, '#7c8454', -6);
+  }
+
+  /* ---- Leaf three: inside the cover ------------------------------------ */
   function drawBookCover() {
+    var g = bookGeo();
+    var ax = colOpen(g.a), bx = colClose(g.b);
     alignText('left');
     ctx.textBaseline = 'alphabetic';
 
-    // The language, as a list rather than a toggle. A toggle says "two states of
-    // one thing" and is read as a property; a list says "choose the instrument",
-    // and every option is written in its own name, so nothing needs a caption.
     ctx.fillStyle = C.inkFaint;
-    ctx.font = '600 9px ' + FONT_UI;
-    var langHead = T('Language').toUpperCase();
+    ctx.font = '600 8.5px ' + FONT_UI;
     // A letter-spaced heading is impossible in Persian and Arabic and wrong in
-    // Chinese; spacedText now decides that for every caller, so it is called the
-    // same way in every language.
+    // Chinese; spacedText decides that for every caller.
     ctx.textAlign = 'center';
-    spacedText(langHead, 195, 150, 2);
+    spacedText(T('Language').toUpperCase(), (colOpen(g.a) + colClose(g.a)) / 2, 96, 2);
 
-    var colW = 160, rowH = 38, x0 = 35, y0 = 164;
-    var cols = 2;
+    var colW = 152, rowH = 33, y0 = 114;
+    var colStep = colW + 10;
+    var x0 = rtl() ? 376 - colW - colStep : 14;
     for (var i = 0; i < LANGS.length; i++) {
       var lg = LANGS[i];
-      var cx = x0 + (i % cols) * (colW + 8);
-      var cy = y0 + Math.floor(i / cols) * rowH;
+      var cx = x0 + (i % 2) * colStep;
+      var cy = y0 + Math.floor(i / 2) * rowH;
       var active = LANG === lg.id;
-      ctx.fillStyle = active ? 'rgba(74,147,172,0.16)' : 'rgba(247,244,238,0.94)';
+      ctx.fillStyle = active ? 'rgba(224,163,42,0.18)' : 'rgba(247,244,238,0.9)';
       roundRect(cx, cy, colW, rowH - 6, 8);
       ctx.fill();
-      ctx.strokeStyle = active ? C.turquoiseDeep : 'rgba(216,204,184,0.9)';
+      ctx.strokeStyle = active ? C.saffron : 'rgba(42,35,32,0.12)';
       ctx.lineWidth = active ? 1.4 : 1;
       ctx.stroke();
-      ctx.fillStyle = active ? C.turquoiseDeep : C.inkSoft;
+      ctx.fillStyle = active ? C.ink : C.inkSoft;
       // Each name is written in its OWN script, so it is aligned by its own
       // direction and not by the page's: "Svenska" reads from the left even on a
       // Persian page, and "فارسی" from the right even on an English one.
-      ctx.font = (lg.dir === 'rtl' ? '500 14px ' : '600 12px ') + FONT_UI;
+      ctx.font = (lg.dir === 'rtl' ? '500 13px ' : '600 11.5px ') + FONT_UI;
       ctx.textAlign = lg.dir === 'rtl' ? 'right' : 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(lg.native, lg.dir === 'rtl' ? cx + colW - 12 : cx + 12, cy + (rowH - 6) / 2);
+      ctx.fillText(lg.native, lg.dir === 'rtl' ? cx + colW - 11 : cx + 11, cy + (rowH - 6) / 2);
       ctx.textAlign = 'left';
       addHit(cx, cy, colW, rowH - 6, 'lang', lg.id);
     }
     ctx.textBaseline = 'alphabetic';
 
-    // What the choice did, said once, under the list.
+    // The note under the language grid is one paragraph on the whole page, not a
+    // column of it: it wrapped at the page width but anchored at the grid's
+    // column x, so in Persian and Arabic - where the anchor is the RIGHT margin -
+    // every line ran 250px off the left edge. Wrap to the margins, anchor to the
+    // margin the script starts at.
     var noteLines = wrapText(T('The page is written in this language; the words keep their own two readings.'),
-      310, 'italic 400 11.5px ' + FONT_SERIF);
+      342, 'italic 400 11px ' + FONT_SERIF);
     ctx.fillStyle = C.inkFaint;
-    ctx.font = 'italic 400 11.5px ' + FONT_SERIF;
+    ctx.font = 'italic 400 11px ' + FONT_SERIF;
     alignText('left');
-    var margin = rtl() ? 356 : 35;
-    for (var n = 0; n < noteLines.length; n++) {
-      ctx.fillText(noteLines[n], margin, 400 + n * 18);
-    }
+    var noteX = rtl() ? 366 : 24;
+    for (var n = 0; n < noteLines.length; n++) ctx.fillText(noteLines[n], noteX, 336 + n * 16);
 
     // Sound: one row, two states, and it says which is on.
-    var sy = 470;
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    var sy = 392;
+    ctx.strokeStyle = 'rgba(42,35,32,0.12)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(34, sy);
-    ctx.lineTo(356, sy);
+    ctx.moveTo(22, sy);
+    ctx.lineTo(368, sy);
     ctx.stroke();
     ctx.fillStyle = C.inkSoft;
-    ctx.font = '500 13px ' + FONT_UI;
+    ctx.font = '500 12.5px ' + FONT_UI;
     alignText('left');
-    ctx.fillText(T('Sound'), rtl() ? 356 : 35, sy + 26);
-    var w2 = 62;
-    // The control block sits at the row's far end: the right in a left-to-right
-    // page, the left in a right-to-left one, so it never lands on its label.
-    var blockX = rtl() ? 34 : 356 - w2 * 2 - 8;
-    ctx.fillStyle = !muted ? 'rgba(74,147,172,0.16)' : 'rgba(247,244,238,0.94)';
-    roundRect(blockX, sy + 10, w2, 28, 14);
+    ctx.fillText(T('Sound'), rtl() ? 368 : 22, sy + 26);
+    var w2 = 58;
+    var blockX = rtl() ? 22 : 368 - w2 * 2 - 8;
+    ctx.fillStyle = !muted ? 'rgba(224,163,42,0.20)' : 'rgba(247,244,238,0.9)';
+    roundRect(blockX, sy + 10, w2, 26, 13);
     ctx.fill();
-    ctx.strokeStyle = !muted ? C.turquoiseDeep : 'rgba(216,204,184,0.9)';
+    ctx.strokeStyle = !muted ? C.saffron : 'rgba(42,35,32,0.12)';
     ctx.stroke();
-    ctx.fillStyle = !muted ? C.turquoiseDeep : C.inkSoft;
+    ctx.fillStyle = !muted ? C.ink : C.inkSoft;
     alignText('center');
     ctx.textBaseline = 'middle';
-    ctx.fillText(T('on'), blockX + w2 / 2, sy + 25);
-    ctx.fillStyle = muted ? 'rgba(74,147,172,0.16)' : 'rgba(247,244,238,0.94)';
-    roundRect(blockX + w2 + 8, sy + 10, w2, 28, 14);
+    ctx.fillText(T('on'), blockX + w2 / 2, sy + 23);
+    ctx.fillStyle = muted ? 'rgba(224,163,42,0.20)' : 'rgba(247,244,238,0.9)';
+    roundRect(blockX + w2 + 8, sy + 10, w2, 26, 13);
     ctx.fill();
-    ctx.strokeStyle = muted ? C.turquoiseDeep : 'rgba(216,204,184,0.9)';
+    ctx.strokeStyle = muted ? C.saffron : 'rgba(42,35,32,0.12)';
     ctx.stroke();
-    ctx.fillStyle = muted ? C.turquoiseDeep : C.inkSoft;
-    ctx.fillText(T('off'), blockX + w2 + 8 + w2 / 2, sy + 25);
-    addHit(blockX, sy + 10, w2 * 2 + 8, 28, 'soundtoggle');
+    ctx.fillStyle = muted ? C.ink : C.inkSoft;
+    ctx.fillText(T('off'), blockX + w2 + 8 + w2 / 2, sy + 23);
+    addHit(blockX, sy + 10, w2 * 2 + 8, 26, 'soundtoggle');
     ctx.textBaseline = 'alphabetic';
 
     // Starting over: the last row, and it says what it takes.
-    var wy = 556;
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    var wy = 462;
+    ctx.strokeStyle = 'rgba(42,35,32,0.12)';
     ctx.beginPath();
-    ctx.moveTo(34, wy);
-    ctx.lineTo(356, wy);
+    ctx.moveTo(22, wy);
+    ctx.lineTo(368, wy);
     ctx.stroke();
     ctx.fillStyle = C.inkSoft;
-    ctx.font = '500 13px ' + FONT_UI;
+    ctx.font = '500 12.5px ' + FONT_UI;
     alignText('left');
-    ctx.fillText(T('Start the island over'), rtl() ? 356 : 35, wy + 26);
-    var goneLines = wrapText(T('The island, the words and the pages all go.'), 230, 'italic 400 11px ' + FONT_SERIF);
+    ctx.fillText(T('Start the island over'), rtl() ? 368 : 22, wy + 26);
+    var goneLines = wrapText(T('The island, the words and the pages all go.'), 240, 'italic 400 10.5px ' + FONT_SERIF);
     ctx.fillStyle = C.inkFaint;
-    ctx.font = 'italic 400 11px ' + FONT_SERIF;
-    var wipeMargin = rtl() ? 356 : 35;
-    for (var g = 0; g < goneLines.length; g++) {
-      ctx.fillText(goneLines[g], wipeMargin, wy + 44 + g * 15);
+    ctx.font = 'italic 400 10.5px ' + FONT_SERIF;
+    for (var gi = 0; gi < goneLines.length; gi++) {
+      ctx.fillText(goneLines[gi], rtl() ? 368 : 22, wy + 44 + gi * 14);
     }
-    var wW = 74;
-    var wipeX = rtl() ? 34 : 356 - wW;
+    var wW = 70;
+    var wipeX = rtl() ? 22 : 368 - wW;
     ctx.fillStyle = 'rgba(226,120,90,0.14)';
-    roundRect(wipeX, wy + 10, wW, 30, 15);
+    roundRect(wipeX, wy + 10, wW, 28, 14);
     ctx.fill();
     ctx.strokeStyle = 'rgba(226,120,90,0.6)';
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = C.terracotta;
     alignText('center');
-    ctx.font = '600 15px ' + FONT_UI;
+    ctx.font = '600 14px ' + FONT_UI;
     ctx.textBaseline = 'middle';
-    ctx.fillText('\u21ba', wipeX + wW / 2, wy + 25);
-    addHit(wipeX, wy + 10, wW, 30, 'wipe');
+    ctx.fillText('\u21ba', wipeX + wW / 2, wy + 24);
+    addHit(wipeX, wy + 10, wW, 28, 'wipe');
     ctx.textBaseline = 'alphabetic';
     alignText('left');
   }
 
-  /* The book's one chrome: the sheet, its hairline, the header with its count,
-   * and the tap that closes it. No leaf carries its own header, back or border. */
-  function drawBook(cssW, cssH) {
-    hits = [];
-    ctx.fillStyle = 'rgba(26,22,18,0.34)';
-    ctx.fillRect(0, 0, cssW, cssH);
+  /* ---- The spread, whole ------------------------------------------------ */
+  /* One place decides what a leaf shows, so no leaf draws its own frame and a
+     turn never has to know what it is turning. */
+  /* A turning sheet carries paper and a page, nothing else: the tabs, the head
+     and the foot belong to the book, not to the sheet, so they stay still while
+     a page turns under them. */
+  var sheetOnly = false;
 
-    pageBegin(cssW, cssH);
-    ctx.fillStyle = C.plaster;
-    ctx.fillRect(0, 0, 390, 844);
-    ctx.strokeStyle = 'rgba(42,35,32,0.16)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(18, 18, 354, 808);
-    // The sheet itself, as a dead region: taps here do nothing. Registered
-    // before every control, so a control always wins over it.
-    addHit(18, 18, 354, 808, 'bookpaper');
-
-    var title = BOOK.leaf === 'words' ? T('the words')
-      : BOOK.leaf === 'cover' ? T('Inside the cover') : T('The notebook');
-    var count = BOOK.leaf === 'words' ? (learned.length + ' / ' + words.length)
-      : BOOK.leaf === 'cover' ? '' : (storyPages() + ' / ' + STORY.length);
-    placeHeader(title);
-    if (count) countChip(count, 262, 58, 116);
-
-    bookLeafTabs();
+  function drawBookSpread() {
+    bookPaper();
+    if (!sheetOnly) { bookHead(); bookEdgeTabs(); }
     if (BOOK.leaf === 'cover') drawBookCover();
     else if (BOOK.leaf === 'words') drawBookWords();
     else drawBookPages();
+    if (!sheetOnly) bookFoot();
+    ctx.textAlign = 'left';
+  }
 
-    // The way out, in the same corner a place's is: one tap closes the book.
-    var cw = 92, ch = 30;
-    var closeX = rtl() ? 34 : 390 - 34 - cw;
-    ctx.fillStyle = 'rgba(247,244,238,0.94)';
-    roundRect(closeX, 794, cw, ch, 15);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = '600 12px ' + FONT_UI;
-    alignText('center');
-    ctx.textBaseline = 'middle';
-    ctx.fillText(T('close'), closeX + cw / 2, 809);
-    addHit(closeX, 794, cw, ch, 'bookclose');
-    ctx.textBaseline = 'alphabetic';
-    alignText('left');
+  /* The book's one frame: the dimmed screen behind, the spread, and the sheet
+     still turning over it. */
+  function drawBook(cssW, cssH) {
+    hits = [];
+    ctx.fillStyle = 'rgba(26,22,18,0.36)';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    pageBegin(cssW, cssH);
+    drawBookSpread();
+    // The sheet, as a dead region: a tap on blank paper does nothing. Registered
+    // first, so a control always wins over it.
+    hits.unshift({ x: 0, y: 0, w: 390, h: 844, act: 'bookpaper' });
+
+    var t = bookTurnT();
+    if (t < 1) bookTurnPaint(t);
     pageEnd();
+    ctx.textAlign = 'left';
+  }
+
+  /* ---- The turn --------------------------------------------------------- */
+  /* A page turn has to show the page that is leaving, foreshortened, on top of the
+     page that has arrived. There is no way to draw "the page as it was" from the
+     current state, so the spread is photographed into a sheet BEFORE the state
+     changes, and the sheet is what turns. One 390x844 canvas, drawn once per turn,
+     which is far cheaper than drawing the whole book twice every frame. */
+  var sheetCanvas = null, sheetCtx = null;
+
+  function capSheet(from) {
+    if (!sheetCanvas) {
+      sheetCanvas = document.createElement('canvas');
+      sheetCanvas.width = 390;
+      sheetCanvas.height = 844;
+      sheetCtx = sheetCanvas.getContext('2d');
+    }
+    var live = ctx;
+    var leaf = BOOK.leaf, page = BOOK.page, tab = BOOK.tab;
+    var pick = BOOK.pick, pickWord = BOOK.pickWord;
+    BOOK.leaf = from.leaf; BOOK.page = from.page; BOOK.tab = from.tab;
+    BOOK.pick = from.pick; BOOK.pickWord = from.pickWord;
+
+    ctx = sheetCtx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, 390, 844);
+    sheetOnly = true;
+    drawBookSpread();
+    sheetOnly = false;
+
+    ctx = live;
+    BOOK.leaf = leaf; BOOK.page = page; BOOK.tab = tab;
+    BOOK.pick = pick; BOOK.pickWord = pickWord;
+    return sheetCanvas;
+  }
+
+  function bookTurn(kind, dir) {
+    BOOK.turn = { at: clock, kind: kind, dir: dir,
+      sheet: capSheet({ leaf: BOOK.leaf, page: BOOK.page, tab: BOOK.tab,
+        pick: BOOK.pick, pickWord: BOOK.pickWord }) };
+  }
+
+  function bookTurnT() {
+    if (!BOOK.turn) return 1;
+    var t = (clock - BOOK.turn.at) / TURN_SECONDS;
+    if (t >= 1) { BOOK.turn = null; return 1; }
+    return t < 0 ? 0 : t;
+  }
+
+  /* Two motions, because there are two different things.
+
+     A page turn is a page turning: the departing sheet foreshortens into the fold,
+     so its own content compresses toward the spine and the page beneath is
+     uncovered from the outer edge in. Showing the compressed page - not a band of
+     shadow sliding across blank paper - is the whole point of the photograph.
+
+     A leaf change is a different object, not the next page: the whole spread
+     slides, and a shadow marks the seam. */
+  function bookTurnPaint(t) {
+    var e = 1 - Math.pow(1 - t, 3);          // fast off the page, slow arrival
+    var turn = BOOK.turn;
+    if (!turn) return;
+
+    if (turn.kind === 'leaf') {
+      var dx = 390 * e;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, -4, 390, 852);
+      ctx.clip();
+      ctx.translate(-turn.dir * dx, 0);
+      ctx.drawImage(turn.sheet, 0, 0);
+      ctx.restore();
+
+      var seam = turn.dir > 0 ? 390 - dx : dx;
+      var g = ctx.createLinearGradient(seam, 0, seam - turn.dir * 44, 0);
+      g.addColorStop(0, 'rgba(26,22,18,0.32)');
+      g.addColorStop(0.5, 'rgba(26,22,18,0.12)');
+      g.addColorStop(1, 'rgba(26,22,18,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(turn.dir > 0 ? seam - 44 : seam, 0, 44, 844);
+      ctx.strokeStyle = 'rgba(42,35,32,0.20)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(seam, 0);
+      ctx.lineTo(seam, 844);
+      ctx.stroke();
+      bookHead();
+      bookEdgeTabs();
+      bookFoot();
+      ctx.textAlign = 'left';
+      return;
+    }
+
+    // The departing sheet, hinged at the fold, closing over the arriving page.
+    // Only the facing page of the photograph is taken: scaling the whole spread
+    // about the fold would compress the left page against the fold too, and its
+    // ghost would show through under the turning sheet.
+    var open = Math.max(0.012, 1 - e);
+    var edge = FOLD + (390 - FOLD) * open;
+    var pageW = 390 - FOLD;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(FOLD, -4, pageW + 4, 852);
+    ctx.clip();
+    ctx.translate(FOLD, 0);
+    ctx.scale(open, 1);
+    ctx.translate(-FOLD, 0);
+    ctx.drawImage(turn.sheet, FOLD, 0, pageW, 844, FOLD, 0, pageW, 844);
+    ctx.restore();
+
+    // Its shadow on the page it is uncovering: deepest at the fold.
+    var g2 = ctx.createLinearGradient(FOLD, 0, Math.min(390, FOLD + 82), 0);
+    g2.addColorStop(0, 'rgba(26,22,18,' + (0.34 * (1 - e * 0.4)).toFixed(3) + ')');
+    g2.addColorStop(0.5, 'rgba(26,22,18,' + (0.11 * (1 - e)).toFixed(3) + ')');
+    g2.addColorStop(1, 'rgba(26,22,18,0)');
+    ctx.fillStyle = g2;
+    ctx.fillRect(FOLD, 0, Math.min(82, 390 - FOLD), 844);
+
+    // The turning sheet's edge, and the light along its back.
+    if (edge < 388) {
+      ctx.strokeStyle = 'rgba(42,35,32,0.26)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(edge, 0);
+      ctx.lineTo(edge, 844);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,252,244,0.75)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(edge + 2.8, 0);
+      ctx.lineTo(edge + 2.8, 844);
+      ctx.stroke();
+    }
+    // The book's own furniture is redrawn last, in place, so a turning page can
+    // never carry the tabs or the header with it.
+    bookHead();
+    bookEdgeTabs();
+    bookFoot();
     ctx.textAlign = 'left';
   }
 
@@ -4915,34 +5387,34 @@
     if (paused) {
       ctx.fillStyle = 'rgba(30,26,22,0.45)';
       ctx.fillRect(0, 0, cssW, cssH);
-      drawPaperCard(cssW, cssH, 'Paused', 'The island waits.', [
-        'tap to keep walking'
+      drawPaperCard(cssW, cssH, T('Paused'), T('The island waits.'), [
+        T('tap to keep walking')
       ], null);
       return;
     }
     if (phase === 'won') {
-      drawPaperCard(cssW, cssH, 'The day is done', 'A good day on the island.', [
-        nectar + ' nectar carried home',
-        watered + ' of ' + R.waterGoal + ' sprouts watered',
-        caught + ' fireflies caught',
+      drawPaperCard(cssW, cssH, T('The day is done'), T('A good day on the island.'), [
+        T('{0} nectar carried home', nectar),
+        T('{0} of {1} sprouts watered', watered, R.waterGoal),
+        T('{0} fireflies caught', caught),
         wordsLine()
-      ], 'Tap for the island', storyPage(dayMode === 'water' ? 'water' : (dayMode === 'fireflies' ? 'fireflies' : 'nectar')));
+      ], T('Tap for the island'), storyPage(dayMode === 'water' ? 'water' : (dayMode === 'fireflies' ? 'fireflies' : 'nectar')));
       return;
     }
     if (phase === 'lost') {
-      var why = bees <= 0 ? 'The last bee flew home.' : 'Dusk came before the day was done.';
-      drawPaperCard(cssW, cssH, 'The day ends', why, [
-        nectar + ' of ' + R.goal + ' nectar',
-        watered + ' of ' + R.waterGoal + ' sprouts watered',
-        caught + ' of ' + R.catchGoal + ' fireflies caught',
+      var why = T(bees <= 0 ? 'The last bee flew home.' : 'Dusk came before the day was done.');
+      drawPaperCard(cssW, cssH, T('The day ends'), why, [
+        T('{0} of {1} nectar', nectar, R.goal),
+        T('{0} of {1} sprouts watered', watered, R.waterGoal),
+        T('{0} of {1} fireflies caught', caught, R.catchGoal),
         wordsLine()
-      ], 'Tap for the island');
+      ], T('Tap for the island'));
     }
   }
 
   function wordsLine() {
     var n = learned.length;
-    return n + (n === 1 ? ' word learned' : ' words learned');
+    return T(n === 1 ? '1 word learned' : '{0} words learned', n);
   }
 
   function drawTitle(cssW, cssH) {
@@ -4996,8 +5468,10 @@
     // The keeper speaks first, so the island reads as a story and not a menu.
     ctx.textAlign = 'center';
     ctx.fillStyle = C.inkSoft;
-    ctx.font = 'italic 500 11.5px ' + FONT_SERIF;
-    ctx.fillText(T('I keep the island, and write down what it teaches me.'), cssW / 2, cssH * 0.104);
+    var said = fitLine(T('I keep the island, and write down what it teaches me.'),
+      cssW - 44, FONT_SERIF, 500, 'italic', 11.5, 8.5);
+    ctx.font = said.font;
+    ctx.fillText(said.text, cssW / 2, cssH * 0.104);
     ctx.textAlign = 'left';
 
     // The hive, and one way in.
@@ -5416,7 +5890,7 @@
     ctx.textBaseline = 'middle';
     ctx.fillStyle = C.inkSoft;
     ctx.font = '600 10px ' + FONT_UI;
-    ctx.fillText(def.label, x + w / 2, y + 54);
+    ctx.fillText(T(def.label), x + w / 2, y + 54);
 
     if (storyDone[id]) {
       ctx.strokeStyle = C.turquoise;
@@ -5806,7 +6280,7 @@
       ctx.fillStyle = C.ink;
       ctx.font = 'italic 500 ' + Math.round(13 * s) + 'px ' + FONT_SERIF;
       var pdfont = 'italic 500 ' + Math.round(13 * s) + 'px ' + FONT_SERIF;
-      var pageLines = wrapText(page.line, w - 56 * s, pdfont);
+      var pageLines = wrapText(T(page.line), w - 56 * s, pdfont);
       for (var pl = 0; pl < Math.min(2, pageLines.length); pl++) {
         ctx.fillText(pageLines[pl], cssW / 2, y + h - (92 - pl * 17) * s);
       }
@@ -6725,6 +7199,104 @@
     };
   };
   window.__enterPlace = function (id) { enterPlace(id); return scene; };
+  /* Every place the game can be in, so a driver can visit all of them. */
+  window.__places = function () {
+    var out = [], k;
+    for (k in PLACES) if (PLACES.hasOwnProperty(k)) out.push(k);
+    return out;
+  };
+  window.__scene = function () { return scene + '/' + stage + '/' + phase; };
+  /* The translator itself, so a tool can ask what a stored English line becomes
+     in the current language without having to catch the frame that draws it. */
+  window.__t = function (line) { return T(String(line)); };
+  /* The page transform, so a test can ask where a run of text landed instead of
+     reconstructing the matrix and being wrong about it. */
+  window.__page = function (x, y) {
+    return { x: pageTX + x * pageK, y: pageTY + y * pageK };
+  };
+  /* Every line the interface has drawn in a language that has no translation for
+     it. This is the whole inventory of the problem: a line not in this list is a
+     line the table knows. */
+  window.__untranslated = function (sorted) {
+    var out = [], k;
+    for (k in UNTRANSLATED) if (UNTRANSLATED.hasOwnProperty(k)) out.push(k);
+    out.sort();
+    return sorted ? out.join('\n') : out;
+  };
+  window.__resetUntranslated = function () { UNTRANSLATED = {}; return 'cleared'; };
+  /* Every string that is a place name or a thing's verb, so a language check can
+     ask the table about them even when no screen happens to be drawing one. */
+  window.__labels = function () {
+    var out = [], k, i;
+    for (k in PLACES) if (PLACES.hasOwnProperty(k)) out.push(PLACES[k].label);
+    for (i = 0; i < REGIONS.length; i++) { out.push(REGIONS[i].label); out.push(REGIONS[i].verb); }
+    for (i = 0; i < REMOVAL_STEPS.length; i++) out.push(REMOVAL_STEPS[i]);
+    for (i = 0; i < REMOVAL_HINTS.length; i++) out.push(REMOVAL_HINTS[i]);
+    for (i = 0; i < POT_ITEMS.length; i++) out.push(POT_ITEMS[i]);
+    for (k in HEN_AIMS) if (HEN_AIMS.hasOwnProperty(k)) { out.push(HEN_AIMS[k].label); out.push(HEN_AIMS[k].line); }
+    for (i = 0; i < POT_DISHES.length; i++) { out.push(POT_DISHES[i].name); out.push(POT_DISHES[i].riddle); }
+    for (i = 0; i < OUTFITS.length; i++) out.push(OUTFITS[i].name);
+    out.push('a strange stew');
+    // The island's own verbs: the chip that names what she can touch. They only
+    // exist while a prop is in reach, so they are read from the list instead.
+    var props = buildProps();
+    for (i = 0; i < props.length; i++) if (props[i].verb) out.push(props[i].verb);
+    return out;
+  };
+  /* The title screen, so a driver can photograph it. */
+  window.__title = function () {
+    phase = 'title'; scene = 'island'; stage = 'gather';
+    BOOK.open = false; paused = false;
+    render();
+    return phase;
+  };
+  /* Every message the game keeps, so a driver can list what is still English. */
+  window.__sayables = function () {
+    var out = [];
+    var fields = [shrine, lake, comb, queen, glass, hens, kitchen, wagon, stream,
+      lanterns, beeline, removal, sky];
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      if (!f) continue;
+      if (typeof f.msg === 'string' && f.msg) out.push(f.msg);
+      if (typeof f.hint === 'string' && f.hint) out.push(f.hint);
+      if (typeof f.cooked === 'string' && f.cooked) out.push(f.cooked);
+    }
+    return out;
+  };
+  /* Console probes for the book: read a leaf, pick an entry, hold a turn still. */
+  window.__book = function (leaf, page, tab) {
+    openBook(leaf || 'pages');
+    if (page != null) BOOK.page = page;
+    if (tab) BOOK.tab = tab;
+    BOOK.turn = null;
+    return BOOK.leaf + ' ' + BOOK.page + ' ' + BOOK.tab;
+  };
+  window.__bookTap = function (act, arg) {
+    var list = window.__hits();
+    for (var hi = 0; hi < list.length; hi++) {
+      if (list[hi].act === act && (arg === undefined || String(list[hi].arg) === String(arg))) {
+        bookTap({ x: list[hi].x + list[hi].w / 2, y: list[hi].y + list[hi].h / 2 });
+        return 'tapped ' + act + ' ' + (arg === undefined ? '' : arg);
+      }
+    }
+    return 'no hit ' + act;
+  };
+  window.__write = function (ids) {
+    for (var wi = 0; wi < ids.length; wi++) storyMark(ids[wi]);
+    return storyPages() + ' / ' + STORY.length;
+  };
+  window.__hold = function (on) { paused = !!on; return paused; };
+  window.__lang = function (id) {
+    if (id) setLanguage(id);
+    return LANG;
+  };
+  window.__draw = function () { render(); return 'drawn'; };
+  window.__turnAt = function (t) {    if (!BOOK.turn) return 'no turn';
+    BOOK.turn.at = clock - t * TURN_SECONDS;
+    render();
+    return t;
+  };
   /* What the last frame registered as tappable, and where the page thinks a
      screen point falls. Two probes, so a dead tap can be seen instead of guessed. */
   window.__hits = function () {
@@ -6996,7 +7568,7 @@
     // 4b. The book has one entry point and every leaf is a leaf of it. The word
     // book used to be a separate place; two objects for one kind of record is
     // exactly the redundancy this book was built to remove.
-    var bookSrc = String(drawBook);
+    var bookSrc = String(drawBookSpread);
     if (bookSrc.indexOf("drawBookPages") < 0) fail("book", "has no pages leaf");
     if (bookSrc.indexOf("drawBookWords") < 0) fail("book", "has no words leaf");
     if (bookSrc.indexOf("drawBookCover") < 0) fail("book", "has no cover leaf");
@@ -7311,6 +7883,35 @@ props: islandProps.map(function (p) {
     return lines;
   }
 
+  /* One line, in one place, in a language whose sentence may be longer than the
+     room. German and Finglish ran off both edges of the title page, which is the
+     one screen a player sees before anything else. The size comes down until the
+     sentence fits, and never below the size at which it stops being readable:
+     past that the line is cut with an ellipsis instead of spilling.
+
+     Returns the size it used, so a caller that draws a second line below can keep
+     the spacing honest. */
+  function fitLine(text, maxWidth, family, weight, style, maxPx, minPx) {
+    var px = maxPx;
+    var font = function (n) {
+      return (style ? style + ' ' : '') + (weight ? weight + ' ' : '') + n + 'px ' + family;
+    };
+    ctx.font = font(px);
+    while (px > minPx && ctx.measureText(text).width > maxWidth) {
+      px -= 0.5;
+      ctx.font = font(px);
+    }
+    if (ctx.measureText(text).width > maxWidth) {
+      // Still too wide at the floor: cut it rather than let it run off the page.
+      var cut = text;
+      while (cut.length > 1 && ctx.measureText(cut + '\u2026').width > maxWidth) {
+        cut = cut.slice(0, -1);
+      }
+      text = cut.replace(/[\s,;:.\u060c]+$/, '') + '\u2026';
+    }
+    return { text: text, px: px, font: font(px) };
+  }
+
   /* The chrome every place shares: a way home, and the place's name. */
   /* The place's own name, for the tab at the foot of the page. */
   var placeTitle = '';
@@ -7452,9 +8053,15 @@ props: islandProps.map(function (p) {
   /* A line in the chosen language. {0} {1} {2} are filled from the arguments, so
      a composed line ("page 2 of 5") stays one sentence in every language and its
      parts can be reordered by the translator. */
+  var UNTRANSLATED = {};
   function T(line, a, b, c) {
     var table = TRANSLATIONS[LANG];
-    var out = (table && table[line]) || line;
+    var out = table && table[line];
+    if (out === undefined) {
+      out = line;
+      if (LANG !== 'en' && line) UNTRANSLATED[line] = 1;
+    }
+    else if (typeof out !== 'string') out = line;
     if (a !== undefined) out = out.split('{0}').join(String(a));
     if (b !== undefined) out = out.split('{1}').join(String(b));
     if (c !== undefined) out = out.split('{2}').join(String(c));
@@ -7968,6 +8575,139 @@ props: islandProps.map(function (p) {
       'white': 'vit',
       'coral': 'korall',
       'rose': 'ros',
+      'tap a page to read it': 'tryck på en sida för att läsa den',
+      '12 cells': '12 celler',
+      'Bag': 'Väskan',
+      'Bee-line': 'Bilinjen',
+      'Close look': 'Nära håll',
+      'Comb': 'Kammen',
+      'Greenhouse': 'Växthuset',
+      'Hens': 'Hönorna',
+      'Hyrcanian forest': 'Hyrcaniska skogen',
+      'Kavir desert': 'Kaviröknen',
+      'Kitchen': 'Köket',
+      'Lake': 'Sjön',
+      'Lanterns': 'Lyktorna',
+      'Paused': 'Pausad',
+      'Queen': 'Drottningen',
+      'Removal': 'Flytten',
+      'Shrine': 'Helgedomen',
+      'Stream': 'Bäcken',
+      'The island waits.': 'Ön väntar.',
+      'The {0} is watered': '{0} vattnas',
+      'Wagon': 'Kärran',
+      'Zagros steppe': 'Zagrosstäppen',
+      'a clutch is wanted: pair the two best sitters': 'en kull önskas: para de två bästa ruvarna',
+      'a strange stew': 'en underlig gryta',
+      'alpine meadow': 'alpängen',
+      'ash': 'ash',
+      'beans': 'bönor',
+      'brood': 'yngel',
+      'by the {0} from': 'av {0} från',
+      'cage': 'bura',
+      'cage the queen': 'bura in drottningen',
+      'cut': 'skär',
+      'cut while the knife is in the green': 'skär medan kniven är i det gröna',
+      'eggs': 'ägg',
+      'evacuate': 'utrym',
+      'greens': 'grönt',
+      'hardy': 'härdig',
+      'her own clothes': 'hennes egna kläder',
+      'layers': 'värpare',
+      'look at the entrance': 'titta på ingången',
+      'nothing here': 'ingenting här',
+      'nothing yet': 'ingenting än',
+      'queen': 'drottning',
+      'rice': 'ris',
+      'rice twice the beans, and greens to match the beans': 'ris dubbelt mot bönorna, och grönt som bönorna',
+      'row out past the shallows': 'ro ut förbi grunden',
+      'saffron': 'saffran',
+      'sitters': 'ruvare',
+      'smoke': 'rök',
+      'summer stew': 'sommargryta',
+      'survey': 'undersök',
+      'tap the cluster until they follow': 'tryck på klungan tills de följer',
+      'tap the water to cast': 'tryck på vattnet för att kasta',
+      'tap to go back': 'tryck för att gå tillbaka',
+      'tap to keep walking': 'tryck för att fortsätta gå',
+      'the acorns lie under the oaks': 'ollonen ligger under ekarna',
+      'the bank keeps what the water leaves': 'stranden behåller det vattnet lämnar',
+      'the bee suit': 'bidräkten',
+      'the deepest, shadowed face': 'den djupaste, skuggade sidan',
+      'the family wants eggs: pair the two best layers': 'familjen vill ha ägg: para de två bästa värparna',
+      'the festival dress': 'festklänningen',
+      'the fisher\'s smock': 'fiskarens skjorta',
+      'the flowers have gone to seed': 'blommorna har gått i frö',
+      'the house': 'huset',
+      'the mountain cloak': 'bergskappan',
+      'the old trees keep the ground soft': 'de gamla träden håller marken mjuk',
+      'the orchard coat': 'fruktträdgårdskappan',
+      'the sand gives up what it buried': 'sanden ger upp det den begravt',
+      'the sprouts': 'plantorna',
+      'the tide line is where things gather': 'tidvattnets linje är där saker samlas',
+      'the walk': 'vandringen',
+      'the weaver\'s apron': 'väverskans förkläde',
+      'the {0}.': '{0}.',
+      'tomato': 'tomat',
+      'tomato twice the beans, and one pinch of saffron': 'tomat dubbelt mot bönorna, och en nypa saffran',
+      'two soft puffs': 'två mjuka puffar',
+      '{0} of {1} pairs · {2} chicks': '{0} av {1} par · {2} kycklingar',
+      'next \\u00b7 {0}': 'nästa · {0}',
+      'found': 'hittad',
+      'A clutch in the straw': 'En kull i halmen',
+      'A good day on the island.': 'En god dag på ön.',
+      'A wheel and a handle, found in the yard.': 'Ett hjul och ett handtag, funna på gården.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kakoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Saffran',
+      'Donya\'s dress': 'Donyas klänning',
+      'Donya, my sister': 'Donya, min syster',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'Åtta celler förseglade med vax, och inte ett bi stört.',
+      'Settled in the box': 'Installerade i lådan',
+      'She carried the spring back to the beds.': 'Hon bar källan tillbaka till bäddarna.',
+      'She reached the gate': 'Hon nådde grinden',
+      'She was carried gently to the middle frames.': 'Hon bars försiktigt till mittersta ramarna.',
+      'Surveyed, smoked, cut, caged and carried out.': 'Undersökt, rökt, skuren, burig och utburen.',
+      'Tap for the island': 'Tryck för ön',
+      'The can is full': 'Vattkannan är full',
+      'The cart rolls again': 'Kärran rullar igen',
+      'The colony is found': 'Samhället är funnet',
+      'The colony scatters': 'Samhället skingras',
+      'The comb is capped': 'Kammen är täckt',
+      'The day ends': 'Dagen slutar',
+      'The day is done': 'Dagen är gjord',
+      'The greenhouse keeps the seed.': 'Växthuset behåller fröet.',
+      'The pot knows': 'Grytan vet',
+      'The queen is found': 'Drottningen är funnen',
+      'Three bearings, one line, one hollow tree.': 'Tre bäringar, en linje, ett ihåligt träd.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'För mycket rörelse, och de lämnar för träden. Inget är skadat.',
+      'Two colours from white': 'Två färger ur vitt',
+      'Two dishes by their ratios, and a strange stew on the way.': 'Två rätter efter sina förhållanden, och en underlig gryta på vägen.',
+      'Two pairs, chosen by their numbers.': 'Två par, valda efter sina siffror.',
+      'reel': 'veva in',
+      '{0} fireflies caught': '{0} eldflugor fångade',
+      '{0} nectar carried home': '{0} nektar buret hem',
+      '{0} of {1} fireflies caught': '{0} av {1} eldflugor fångade',
+      '{0} of {1} lamps were lit as she passed.': '{0} av {1} lampor tändes när hon gick förbi.',
+      '{0} of {1} nectar': '{0} av {1} nektar',
+      '{0} of {1} sprouts watered': '{0} av {1} plantor vattnade',
+      'next \\u00b7 {0}': 'nästa · {0}',
+      'draw water': 'hämta vatten',
+      'greet Donya': 'hälsa på Donya',
+      'hear storyteller out': 'hör berättaren till slut',
+      'look at the clover': 'titta på klövern',
+      'look at the geranium': 'titta på pelargonen',
+      'look at the grass': 'titta på gräset',
+      'look at the persian rose': 'titta på den persiska rosen',
+      'net the ginger cat': 'fånga den röda katten i nät',
+      'net the hedgehog': 'fånga igelkotten i nät',
+      'net the house sparrow': 'fånga gråsparven i nät',
+      'net the songbird': 'fånga sångfågeln i nät',
+      'net the starling': 'fånga staren i nät',
+      'net the swallow': 'fånga svalan i nät',
+      'net the tabby cat': 'fånga den strimmiga katten i nät',
+      'read the stone': 'läs stenen',
     },
     fa: {
       'THE KEEPER\'S ISLAND': 'جزیره‌ی نگهبان',
@@ -8253,6 +8993,139 @@ props: islandProps.map(function (p) {
       'white': 'سفید',
       'coral': 'مرجانی',
       'rose': 'گلی',
+      'tap a page to read it': 'برای خواندن یک صفحه، روی آن بزن',
+      '12 cells': '۱۲ خانه',
+      'Bag': 'کیف',
+      'Bee-line': 'خط زنبور',
+      'Close look': 'نگاه نزدیک',
+      'Comb': 'شان',
+      'Greenhouse': 'گلخانه',
+      'Hens': 'مرغ‌ها',
+      'Hyrcanian forest': 'جنگل هیرکانی',
+      'Kavir desert': 'کویر',
+      'Kitchen': 'آشپزخانه',
+      'Lake': 'دریاچه',
+      'Lanterns': 'فانوس‌ها',
+      'Paused': 'مکث',
+      'Queen': 'ملکه',
+      'Removal': 'کوچ دادن',
+      'Shrine': 'زیارتگاه',
+      'Stream': 'جویبار',
+      'The island waits.': 'جزیره منتظر است.',
+      'The {0} is watered': '{0} آبیاری می‌شود',
+      'Wagon': 'ارابه',
+      'Zagros steppe': 'استپ زاگرس',
+      'a clutch is wanted: pair the two best sitters': 'یک جوجه‌کشی لازم است: دو بهترین کرچ را جفت کن',
+      'a strange stew': 'آشی عجیب',
+      'alpine meadow': 'چمنزار آلپی',
+      'ash': 'آش',
+      'beans': 'لوبیا',
+      'brood': 'نوزاد',
+      'by the {0} from': 'با {0} از',
+      'cage': 'قفس',
+      'cage the queen': 'ملکه را در قفس بگذار',
+      'cut': 'برش',
+      'cut while the knife is in the green': 'وقتی تیغه در سبزی، ببر',
+      'eggs': 'تخم',
+      'evacuate': 'تخلیه',
+      'greens': 'سبزی',
+      'hardy': 'سرسخت',
+      'her own clothes': 'لباس خودش',
+      'layers': 'تخم‌گذار',
+      'look at the entrance': 'به ورودی نگاه کن',
+      'nothing here': 'چیزی اینجا نیست',
+      'nothing yet': 'هنوز چیزی نیست',
+      'queen': 'ملکه',
+      'rice': 'برنج',
+      'rice twice the beans, and greens to match the beans': 'برنج دو برابر لوبیا، و سبزی به اندازه لوبیا',
+      'row out past the shallows': 'از کم‌آب بیرون برو',
+      'saffron': 'زعفران',
+      'sitters': 'کرچ',
+      'smoke': 'دود',
+      'summer stew': 'آش تابستانی',
+      'survey': 'بررسی',
+      'tap the cluster until they follow': 'روی خوشه بزن تا دنبال کنند',
+      'tap the water to cast': 'برای انداختن قلاب روی آب بزن',
+      'tap to go back': 'برای بازگشت بزن',
+      'tap to keep walking': 'برای ادامه راه بزن',
+      'the acorns lie under the oaks': 'بلوط‌ها زیر درختان بلوط افتاده‌اند',
+      'the bank keeps what the water leaves': 'کرانه آنچه آب می‌گذارد نگه می‌دارد',
+      'the bee suit': 'لباس زنبورداری',
+      'the deepest, shadowed face': 'ژرف‌ترین روی سایه‌دار',
+      'the family wants eggs: pair the two best layers': 'خانواده تخم می‌خواهد: دو بهترین تخم‌گذار را جفت کن',
+      'the festival dress': 'لباس جشن',
+      'the fisher\'s smock': 'پیراهن ماهیگیر',
+      'the flowers have gone to seed': 'گل‌ها تخم بسته‌اند',
+      'the house': 'خانه',
+      'the mountain cloak': 'شنل کوهستان',
+      'the old trees keep the ground soft': 'درختان کهن زمین را نرم نگه می‌دارند',
+      'the orchard coat': 'پالتوی باغ',
+      'the sand gives up what it buried': 'شن آنچه را دفن کرده پس می‌دهد',
+      'the sprouts': 'جوانه‌ها',
+      'the tide line is where things gather': 'خط جزر جای گرد آمدن چیزهاست',
+      'the walk': 'راه‌پیمایی',
+      'the weaver\'s apron': 'پیش‌بند بافنده',
+      'the {0}.': '{0}.',
+      'tomato': 'گوجه',
+      'tomato twice the beans, and one pinch of saffron': 'گوجه دو برابر لوبیا، و یک پیمانه زعفران',
+      'two soft puffs': 'دو پف نرم',
+      '{0} of {1} pairs · {2} chicks': '{0} از {1} جفت · {2} جوجه',
+      'next \\u00b7 {0}': 'بعدی · {0}',
+      'found': 'یافته شد',
+      'A clutch in the straw': 'یک جوجه‌کشی در کاه',
+      'A good day on the island.': 'روز خوبی در جزیره.',
+      'A wheel and a handle, found in the yard.': 'یک چرخ و یک دسته، در حیاط پیدا شد.',
+      'Barfi': 'برفی',
+      'Kakoli': 'کاکلی',
+      'Pesteh': 'پسته',
+      'Saffron': 'زعفران',
+      'Donya\'s dress': 'لباس دنیا',
+      'Donya, my sister': 'دنیا، خواهرم',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'هشت خانه با موم پوشیده شد، و هیچ زنبوری آشفته نشد.',
+      'Settled in the box': 'در جعبه جا گرفتند',
+      'She carried the spring back to the beds.': 'چشمه را به کرت‌ها برد.',
+      'She reached the gate': 'به دروازه رسید',
+      'She was carried gently to the middle frames.': 'او آرام به قاب‌های میانی برده شد.',
+      'Surveyed, smoked, cut, caged and carried out.': 'بررسی، دود، برش، قفس و بیرون بردن.',
+      'Tap for the island': 'برای جزیره بزن',
+      'The can is full': 'آب‌پاش پر شد',
+      'The cart rolls again': 'ارابه دوباره می‌غلتد',
+      'The colony is found': 'کلنی پیدا شد',
+      'The colony scatters': 'کلنی پراکنده شد',
+      'The comb is capped': 'شان پوشیده شد',
+      'The day ends': 'روز تمام شد',
+      'The day is done': 'روز به پایان رسید',
+      'The greenhouse keeps the seed.': 'گلخانه تخم را نگه می‌دارد.',
+      'The pot knows': 'دیگ می‌داند',
+      'The queen is found': 'ملکه پیدا شد',
+      'Three bearings, one line, one hollow tree.': 'سه جهت، یک خط، یک درخت توخالی.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'آشفتگی بیش از اندازه، و به درختان رفتند. چیزی آسیب ندید.',
+      'Two colours from white': 'دو رنگ از سفید',
+      'Two dishes by their ratios, and a strange stew on the way.': 'دو خوراک به نسبت‌هایشان، و یک آش عجیب در راه.',
+      'Two pairs, chosen by their numbers.': 'دو جفت، بر پایهٔ عددهایشان.',
+      'reel': 'بکش',
+      '{0} fireflies caught': '{0} کرم شب‌تاب گرفته شد',
+      '{0} nectar carried home': '{0} شهد به خانه برده شد',
+      '{0} of {1} fireflies caught': '{0} از {1} کرم شب‌تاب',
+      '{0} of {1} lamps were lit as she passed.': '{0} از {1} فانوس در گذر او روشن شد.',
+      '{0} of {1} nectar': '{0} از {1} شهد',
+      '{0} of {1} sprouts watered': '{0} از {1} جوانه آبیاری شد',
+      'next \\u00b7 {0}': 'بعدی · {0}',
+      'draw water': 'آب بکش',
+      'greet Donya': 'به دنیا سلام کن',
+      'hear storyteller out': 'قصه‌گو را تا آخر بشنو',
+      'look at the clover': 'به شبدر نگاه کن',
+      'look at the geranium': 'به شمعدانی نگاه کن',
+      'look at the grass': 'به علف نگاه کن',
+      'look at the persian rose': 'به گل محمدی نگاه کن',
+      'net the ginger cat': 'گربه زنجبیلی را با تور بگیر',
+      'net the hedgehog': 'جوجه‌تیغی را با تور بگیر',
+      'net the house sparrow': 'گنجشک خانگی را با تور بگیر',
+      'net the songbird': 'پرنده آوازخوان را با تور بگیر',
+      'net the starling': 'سار را با تور بگیر',
+      'net the swallow': 'پرستو را با تور بگیر',
+      'net the tabby cat': 'گربه راه‌راه را با تور بگیر',
+      'read the stone': 'سنگ را بخوان',
     },
     de: {
       'THE KEEPER\'S ISLAND': 'DIE INSEL DER HÜTERIN',
@@ -8538,6 +9411,139 @@ props: islandProps.map(function (p) {
       'white': 'weiß',
       'coral': 'koralle',
       'rose': 'rosé',
+      'tap a page to read it': 'tippe auf eine Seite, um sie zu lesen',
+      '12 cells': '12 Zellen',
+      'Bag': 'Tasche',
+      'Bee-line': 'Bienenlinie',
+      'Close look': 'Nahansicht',
+      'Comb': 'Wabe',
+      'Greenhouse': 'Gewächshaus',
+      'Hens': 'Hühner',
+      'Hyrcanian forest': 'Hyrcanischer Wald',
+      'Kavir desert': 'Kavir-Wüste',
+      'Kitchen': 'Küche',
+      'Lake': 'See',
+      'Lanterns': 'Laternen',
+      'Paused': 'Pause',
+      'Queen': 'Königin',
+      'Removal': 'Umsiedeln',
+      'Shrine': 'Schrein',
+      'Stream': 'Bach',
+      'The island waits.': 'Die Insel wartet.',
+      'The {0} is watered': '{0} wird bewässert',
+      'Wagon': 'Wagen',
+      'Zagros steppe': 'Zagros-Steppe',
+      'a clutch is wanted: pair the two best sitters': 'ein Gelege wird gebraucht: paare die zwei besten Brüterinnen',
+      'a strange stew': 'ein seltsamer Eintopf',
+      'alpine meadow': 'Almwiese',
+      'ash': 'Ash',
+      'beans': 'Bohnen',
+      'brood': 'Brut',
+      'by the {0} from': 'vom {0} aus',
+      'cage': 'Käfig',
+      'cage the queen': 'die Königin einkäfigen',
+      'cut': 'schneiden',
+      'cut while the knife is in the green': 'schneide, solange das Messer im Grünen ist',
+      'eggs': 'Eier',
+      'evacuate': 'räumen',
+      'greens': 'Grünzeug',
+      'hardy': 'wetterfest',
+      'her own clothes': 'ihre eigenen Kleider',
+      'layers': 'Legehennen',
+      'look at the entrance': 'sieh den Eingang an',
+      'nothing here': 'nichts hier',
+      'nothing yet': 'noch nichts',
+      'queen': 'Königin',
+      'rice': 'Reis',
+      'rice twice the beans, and greens to match the beans': 'Reis doppelt so viel wie Bohnen, und Grünzeug so viel wie Bohnen',
+      'row out past the shallows': 'rudere hinaus über die Untiefen',
+      'saffron': 'Safran',
+      'sitters': 'Brüterinnen',
+      'smoke': 'Rauch',
+      'summer stew': 'Sommereintopf',
+      'survey': 'erkunden',
+      'tap the cluster until they follow': 'tippe den Klumpen, bis sie folgen',
+      'tap the water to cast': 'tippe aufs Wasser, um auszuwerfen',
+      'tap to go back': 'tippe, um zurückzugehen',
+      'tap to keep walking': 'tippe, um weiterzugehen',
+      'the acorns lie under the oaks': 'die Eicheln liegen unter den Eichen',
+      'the bank keeps what the water leaves': 'das Ufer behält, was das Wasser zurücklässt',
+      'the bee suit': 'der Bienenschutzanzug',
+      'the deepest, shadowed face': 'die tiefste, beschattete Seite',
+      'the family wants eggs: pair the two best layers': 'die Familie will Eier: paare die zwei besten Legehennen',
+      'the festival dress': 'das Festkleid',
+      'the fisher\'s smock': 'das Kittelhemd des Fischers',
+      'the flowers have gone to seed': 'die Blumen sind verblüht und tragen Samen',
+      'the house': 'das Haus',
+      'the mountain cloak': 'der Bergumhang',
+      'the old trees keep the ground soft': 'die alten Bäume halten den Boden weich',
+      'the orchard coat': 'der Obstgartenmantel',
+      'the sand gives up what it buried': 'der Sand gibt heraus, was er begraben hat',
+      'the sprouts': 'die Sprösslinge',
+      'the tide line is where things gather': 'die Tideline ist, wo sich Dinge sammeln',
+      'the walk': 'der Weg',
+      'the weaver\'s apron': 'die Schürze der Weberin',
+      'the {0}.': '{0}.',
+      'tomato': 'Tomate',
+      'tomato twice the beans, and one pinch of saffron': 'Tomate doppelt so viel wie Bohnen, und eine Prise Safran',
+      'two soft puffs': 'zwei sanfte Stöße',
+      '{0} of {1} pairs · {2} chicks': '{0} von {1} Paaren · {2} Küken',
+      'next \\u00b7 {0}': 'als Nächstes · {0}',
+      'found': 'gefunden',
+      'A clutch in the straw': 'Ein Gelege im Stroh',
+      'A good day on the island.': 'Ein guter Tag auf der Insel.',
+      'A wheel and a handle, found in the yard.': 'Ein Rad und eine Deichsel, im Hof gefunden.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kakoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Safran',
+      'Donya\'s dress': 'Donyas Kleid',
+      'Donya, my sister': 'Donya, meine Schwester',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'Acht Zellen mit Wachs versiegelt, und keine Biene gestört.',
+      'Settled in the box': 'In der Kiste eingezogen',
+      'She carried the spring back to the beds.': 'Sie trug die Quelle zurück zu den Beeten.',
+      'She reached the gate': 'Sie erreichte das Tor',
+      'She was carried gently to the middle frames.': 'Sie wurde sanft zu den mittleren Waben gebracht.',
+      'Surveyed, smoked, cut, caged and carried out.': 'Erkundet, geräuchert, geschnitten, eingekäfigt und hinausgetragen.',
+      'Tap for the island': 'Tippe für die Insel',
+      'The can is full': 'Die Kanne ist voll',
+      'The cart rolls again': 'Der Wagen rollt wieder',
+      'The colony is found': 'Das Volk ist gefunden',
+      'The colony scatters': 'Das Volk zerstreut sich',
+      'The comb is capped': 'Die Wabe ist verdeckelt',
+      'The day ends': 'Der Tag endet',
+      'The day is done': 'Der Tag ist getan',
+      'The greenhouse keeps the seed.': 'Das Gewächshaus behält den Samen.',
+      'The pot knows': 'Der Topf weiß es',
+      'The queen is found': 'Die Königin ist gefunden',
+      'Three bearings, one line, one hollow tree.': 'Drei Peilungen, eine Linie, ein hohler Baum.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'Zu viel Unruhe, und sie ziehen zu den Bäumen. Nichts ist verletzt.',
+      'Two colours from white': 'Zwei Farben aus Weiß',
+      'Two dishes by their ratios, and a strange stew on the way.': 'Zwei Gerichte nach ihren Verhältnissen, und ein seltsamer Eintopf unterwegs.',
+      'Two pairs, chosen by their numbers.': 'Zwei Paare, nach ihren Zahlen gewählt.',
+      'reel': 'einholen',
+      '{0} fireflies caught': '{0} Glühwürmchen gefangen',
+      '{0} nectar carried home': '{0} Nektar nach Hause getragen',
+      '{0} of {1} fireflies caught': '{0} von {1} Glühwürmchen gefangen',
+      '{0} of {1} lamps were lit as she passed.': '{0} von {1} Laternen wurden entzündet, als sie vorbeiging.',
+      '{0} of {1} nectar': '{0} von {1} Nektar',
+      '{0} of {1} sprouts watered': '{0} von {1} Sprösslingen gegossen',
+      'next \\u00b7 {0}': 'als Nächstes · {0}',
+      'draw water': 'Wasser holen',
+      'greet Donya': 'Donya begrüßen',
+      'hear storyteller out': 'dem Erzähler zuhören',
+      'look at the clover': 'den Klee ansehen',
+      'look at the geranium': 'die Geranie ansehen',
+      'look at the grass': 'das Gras ansehen',
+      'look at the persian rose': 'die persische Rose ansehen',
+      'net the ginger cat': 'die rote Katze mit dem Netz fangen',
+      'net the hedgehog': 'den Igel mit dem Netz fangen',
+      'net the house sparrow': 'den Haussperling mit dem Netz fangen',
+      'net the songbird': 'den Singvogel mit dem Netz fangen',
+      'net the starling': 'den Star mit dem Netz fangen',
+      'net the swallow': 'die Schwalbe mit dem Netz fangen',
+      'net the tabby cat': 'die getigerte Katze mit dem Netz fangen',
+      'read the stone': 'den Stein lesen',
     },
     fr: {
       'THE KEEPER\'S ISLAND': 'L\'ÎLE DE LA GARDIENNE',
@@ -8822,6 +9828,139 @@ props: islandProps.map(function (p) {
       'it flowers': 'cela fleurit',
       'white': 'blanc',
       'coral': 'corail',
+      'tap a page to read it': 'touchez une page pour la lire',
+      '12 cells': '12 alvéoles',
+      'Bag': 'Sac',
+      'Bee-line': 'Ligne d\'abeilles',
+      'Close look': 'De près',
+      'Comb': 'Rayon',
+      'Greenhouse': 'Serre',
+      'Hens': 'Poules',
+      'Hyrcanian forest': 'Forêt hyrcanienne',
+      'Kavir desert': 'Désert du Kavir',
+      'Kitchen': 'Cuisine',
+      'Lake': 'Lac',
+      'Lanterns': 'Lanternes',
+      'Paused': 'En pause',
+      'Queen': 'Reine',
+      'Removal': 'Transférer',
+      'Shrine': 'Sanctuaire',
+      'Stream': 'Ruisseau',
+      'The island waits.': 'L\'île attend.',
+      'The {0} is watered': '{0} est arrosé',
+      'Wagon': 'Chariot',
+      'Zagros steppe': 'Steppe du Zagros',
+      'a clutch is wanted: pair the two best sitters': 'une couvée est voulue : accouplez les deux meilleures couveuses',
+      'a strange stew': 'un ragoût étrange',
+      'alpine meadow': 'prairie alpine',
+      'ash': 'ash',
+      'beans': 'haricots',
+      'brood': 'couvain',
+      'by the {0} from': 'par {0} depuis',
+      'cage': 'cage',
+      'cage the queen': 'mettre la reine en cage',
+      'cut': 'couper',
+      'cut while the knife is in the green': 'coupez pendant que la lame est dans le vert',
+      'eggs': 'œufs',
+      'evacuate': 'évacuer',
+      'greens': 'verdure',
+      'hardy': 'rustique',
+      'her own clothes': 'ses propres habits',
+      'layers': 'pondeuses',
+      'look at the entrance': 'regardez l\'entrée',
+      'nothing here': 'rien ici',
+      'nothing yet': 'rien encore',
+      'queen': 'reine',
+      'rice': 'riz',
+      'rice twice the beans, and greens to match the beans': 'riz deux fois les haricots, et verdure autant que les haricots',
+      'row out past the shallows': 'ramez au-delà des hauts-fonds',
+      'saffron': 'safran',
+      'sitters': 'couveuses',
+      'smoke': 'fumée',
+      'summer stew': 'ragoût d\'été',
+      'survey': 'examiner',
+      'tap the cluster until they follow': 'touchez l\'amas jusqu\'à ce qu\'ils suivent',
+      'tap the water to cast': 'touchez l\'eau pour lancer',
+      'tap to go back': 'touchez pour revenir',
+      'tap to keep walking': 'touchez pour continuer',
+      'the acorns lie under the oaks': 'les glands sont sous les chênes',
+      'the bank keeps what the water leaves': 'la rive garde ce que l\'eau laisse',
+      'the bee suit': 'la combinaison d\'apiculteur',
+      'the deepest, shadowed face': 'la face la plus profonde, à l\'ombre',
+      'the family wants eggs: pair the two best layers': 'la famille veut des œufs : accouplez les deux meilleures pondeuses',
+      'the festival dress': 'la robe de fête',
+      'the fisher\'s smock': 'la blouse du pêcheur',
+      'the flowers have gone to seed': 'les fleurs sont montées en graine',
+      'the house': 'la maison',
+      'the mountain cloak': 'la cape de montagne',
+      'the old trees keep the ground soft': 'les vieux arbres gardent la terre molle',
+      'the orchard coat': 'le manteau du verger',
+      'the sand gives up what it buried': 'le sable rend ce qu\'il a enseveli',
+      'the sprouts': 'les pousses',
+      'the tide line is where things gather': 'la laisse de mer est là où les choses s\'assemblent',
+      'the walk': 'la marche',
+      'the weaver\'s apron': 'le tablier de la tisserande',
+      'the {0}.': '{0}.',
+      'tomato': 'tomate',
+      'tomato twice the beans, and one pinch of saffron': 'tomate deux fois les haricots, et une pincée de safran',
+      'two soft puffs': 'deux bouffées douces',
+      '{0} of {1} pairs · {2} chicks': '{0} sur {1} couples · {2} poussins',
+      'next \\u00b7 {0}': 'ensuite · {0}',
+      'found': 'trouvée',
+      'A clutch in the straw': 'Une couvée dans la paille',
+      'A good day on the island.': 'Une bonne journée sur l\'île.',
+      'A wheel and a handle, found in the yard.': 'Une roue et un mancheron, trouvés dans la cour.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kakoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Safran',
+      'Donya\'s dress': 'la robe de Donya',
+      'Donya, my sister': 'Donya, ma sœur',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'Huit alvéoles scellées de cire, sans déranger une abeille.',
+      'Settled in the box': 'Installées dans la boîte',
+      'She carried the spring back to the beds.': 'Elle rapporta la source aux planches.',
+      'She reached the gate': 'Elle atteignit la porte',
+      'She was carried gently to the middle frames.': 'Elle fut portée doucement vers les cadres du milieu.',
+      'Surveyed, smoked, cut, caged and carried out.': 'Examinée, enfumée, coupée, mise en cage et emportée.',
+      'Tap for the island': 'Touchez pour l\'île',
+      'The can is full': 'L\'arrosoir est plein',
+      'The cart rolls again': 'Le chariot roule de nouveau',
+      'The colony is found': 'La colonie est trouvée',
+      'The colony scatters': 'La colonie se disperse',
+      'The comb is capped': 'Le rayon est operculé',
+      'The day ends': 'La journée s\'achève',
+      'The day is done': 'La journée est faite',
+      'The greenhouse keeps the seed.': 'La serre garde la graine.',
+      'The pot knows': 'La marmite sait',
+      'The queen is found': 'La reine est trouvée',
+      'Three bearings, one line, one hollow tree.': 'Trois relèvements, une ligne, un arbre creux.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'Trop de remous, et elles partent vers les arbres. Rien n\'est blessé.',
+      'Two colours from white': 'Deux couleurs du blanc',
+      'Two dishes by their ratios, and a strange stew on the way.': 'Deux plats selon leurs proportions, et un ragoût étrange en chemin.',
+      'Two pairs, chosen by their numbers.': 'Deux couples, choisis par leurs nombres.',
+      'reel': 'ramener',
+      '{0} fireflies caught': '{0} lucioles attrapées',
+      '{0} nectar carried home': '{0} nectar rapporté à la maison',
+      '{0} of {1} fireflies caught': '{0} lucioles sur {1} attrapées',
+      '{0} of {1} lamps were lit as she passed.': '{0} lanternes sur {1} s\'allumèrent à son passage.',
+      '{0} of {1} nectar': '{0} nectar sur {1}',
+      '{0} of {1} sprouts watered': '{0} pousses arrosées sur {1}',
+      'next \\u00b7 {0}': 'ensuite · {0}',
+      'draw water': 'puiser de l\'eau',
+      'greet Donya': 'saluer Donya',
+      'hear storyteller out': 'écouter le conteur',
+      'look at the clover': 'regarder le trèfle',
+      'look at the geranium': 'regarder le géranium',
+      'look at the grass': 'regarder l\'herbe',
+      'look at the persian rose': 'regarder la rose persane',
+      'net the ginger cat': 'attraper le chat roux au filet',
+      'net the hedgehog': 'attraper le hérisson au filet',
+      'net the house sparrow': 'attraper le moineau au filet',
+      'net the songbird': 'attraper l\'oiseau chanteur au filet',
+      'net the starling': 'attraper l\'étourneau au filet',
+      'net the swallow': 'attraper l\'hirondelle au filet',
+      'net the tabby cat': 'attraper le chat tigré au filet',
+      'read the stone': 'lire la pierre',
     },
     es: {
       'THE KEEPER\'S ISLAND': 'LA ISLA DE LA GUARDIANA',
@@ -9106,6 +10245,140 @@ props: islandProps.map(function (p) {
       'it flowers': 'florece',
       'white': 'blanco',
       'rose': 'rosa',
+      'coral': 'coral',
+      'tap a page to read it': 'toca una página para leerla',
+      '12 cells': '12 celdas',
+      'Bag': 'Bolsa',
+      'Bee-line': 'Línea de abejas',
+      'Close look': 'De cerca',
+      'Comb': 'Panal',
+      'Greenhouse': 'Invernadero',
+      'Hens': 'Gallinas',
+      'Hyrcanian forest': 'Bosque hircano',
+      'Kavir desert': 'Desierto de Kavir',
+      'Kitchen': 'Cocina',
+      'Lake': 'Lago',
+      'Lanterns': 'Faroles',
+      'Paused': 'En pausa',
+      'Queen': 'Reina',
+      'Removal': 'Traslado',
+      'Shrine': 'Santuario',
+      'Stream': 'Arroyo',
+      'The island waits.': 'La isla espera.',
+      'The {0} is watered': '{0} se riega',
+      'Wagon': 'Carro',
+      'Zagros steppe': 'Estepa del Zagros',
+      'a clutch is wanted: pair the two best sitters': 'se quiere una nidada: empareja las dos mejores cluecas',
+      'a strange stew': 'un guiso extraño',
+      'alpine meadow': 'pradera alpina',
+      'ash': 'ash',
+      'beans': 'judías',
+      'brood': 'cría',
+      'by the {0} from': 'por {0} desde',
+      'cage': 'jaula',
+      'cage the queen': 'encerrar a la reina',
+      'cut': 'cortar',
+      'cut while the knife is in the green': 'corta mientras la hoja está en lo verde',
+      'eggs': 'huevos',
+      'evacuate': 'evacuar',
+      'greens': 'verduras',
+      'hardy': 'resistente',
+      'her own clothes': 'su propia ropa',
+      'layers': 'ponedoras',
+      'look at the entrance': 'mira la entrada',
+      'nothing here': 'nada aquí',
+      'nothing yet': 'nada todavía',
+      'queen': 'reina',
+      'rice': 'arroz',
+      'rice twice the beans, and greens to match the beans': 'arroz el doble que las judías, y verduras como las judías',
+      'row out past the shallows': 'rema más allá de los bajos',
+      'saffron': 'azafrán',
+      'sitters': 'cluecas',
+      'smoke': 'humo',
+      'summer stew': 'guiso de verano',
+      'survey': 'explorar',
+      'tap the cluster until they follow': 'toca el racimo hasta que sigan',
+      'tap the water to cast': 'toca el agua para lanzar',
+      'tap to go back': 'toca para volver',
+      'tap to keep walking': 'toca para seguir',
+      'the acorns lie under the oaks': 'las bellotas yacen bajo los robles',
+      'the bank keeps what the water leaves': 'la orilla guarda lo que el agua deja',
+      'the bee suit': 'el traje de abeja',
+      'the deepest, shadowed face': 'la cara más profunda, en sombra',
+      'the family wants eggs: pair the two best layers': 'la familia quiere huevos: empareja las dos mejores ponedoras',
+      'the festival dress': 'el vestido de fiesta',
+      'the fisher\'s smock': 'la bata del pescador',
+      'the flowers have gone to seed': 'las flores han granado',
+      'the house': 'la casa',
+      'the mountain cloak': 'la capa de montaña',
+      'the old trees keep the ground soft': 'los árboles viejos mantienen blanda la tierra',
+      'the orchard coat': 'el abrigo del huerto',
+      'the sand gives up what it buried': 'la arena entrega lo que enterró',
+      'the sprouts': 'los brotes',
+      'the tide line is where things gather': 'la línea de marea es donde se juntan las cosas',
+      'the walk': 'el paseo',
+      'the weaver\'s apron': 'el delantal de la tejedora',
+      'the {0}.': '{0}.',
+      'tomato': 'tomate',
+      'tomato twice the beans, and one pinch of saffron': 'tomate el doble que las judías, y una pizca de azafrán',
+      'two soft puffs': 'dos soplos suaves',
+      '{0} of {1} pairs · {2} chicks': '{0} de {1} parejas · {2} pollitos',
+      'next \\u00b7 {0}': 'después · {0}',
+      'found': 'encontrada',
+      'A clutch in the straw': 'Una nidada en la paja',
+      'A good day on the island.': 'Un buen día en la isla.',
+      'A wheel and a handle, found in the yard.': 'Una rueda y un mango, hallados en el patio.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kakoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Azafrán',
+      'Donya\'s dress': 'el vestido de Donya',
+      'Donya, my sister': 'Donya, mi hermana',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'Ocho celdas selladas con cera, y ninguna abeja molestada.',
+      'Settled in the box': 'Instaladas en la caja',
+      'She carried the spring back to the beds.': 'Llevó el manantial a los bancales.',
+      'She reached the gate': 'Llegó a la puerta',
+      'She was carried gently to the middle frames.': 'La llevaron con cuidado a los cuadros del centro.',
+      'Surveyed, smoked, cut, caged and carried out.': 'Explorada, ahumada, cortada, enjaulada y sacada.',
+      'Tap for the island': 'Toca para la isla',
+      'The can is full': 'La regadera está llena',
+      'The cart rolls again': 'El carro vuelve a rodar',
+      'The colony is found': 'La colonia está encontrada',
+      'The colony scatters': 'La colonia se dispersa',
+      'The comb is capped': 'El panal está operculado',
+      'The day ends': 'El día termina',
+      'The day is done': 'El día está hecho',
+      'The greenhouse keeps the seed.': 'El invernadero guarda la semilla.',
+      'The pot knows': 'La olla sabe',
+      'The queen is found': 'La reina está encontrada',
+      'Three bearings, one line, one hollow tree.': 'Tres rumbos, una línea, un árbol hueco.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'Demasiado revuelo, y se marchan a los árboles. Nada está herido.',
+      'Two colours from white': 'Dos colores del blanco',
+      'Two dishes by their ratios, and a strange stew on the way.': 'Dos platos por sus proporciones, y un guiso extraño de camino.',
+      'Two pairs, chosen by their numbers.': 'Dos parejas, elegidas por sus números.',
+      'reel': 'recoger',
+      '{0} fireflies caught': '{0} luciérnagas atrapadas',
+      '{0} nectar carried home': '{0} néctar llevado a casa',
+      '{0} of {1} fireflies caught': '{0} de {1} luciérnagas',
+      '{0} of {1} lamps were lit as she passed.': '{0} de {1} faroles se encendieron a su paso.',
+      '{0} of {1} nectar': '{0} de {1} néctar',
+      '{0} of {1} sprouts watered': '{0} de {1} brotes regados',
+      'next \\u00b7 {0}': 'después · {0}',
+      'draw water': 'sacar agua',
+      'greet Donya': 'saludar a Donya',
+      'hear storyteller out': 'escuchar al narrador',
+      'look at the clover': 'mirar el trébol',
+      'look at the geranium': 'mirar el geranio',
+      'look at the grass': 'mirar la hierba',
+      'look at the persian rose': 'mirar la rosa persa',
+      'net the ginger cat': 'atrapar al gato naranja con la red',
+      'net the hedgehog': 'atrapar al erizo con la red',
+      'net the house sparrow': 'atrapar al gorrión con la red',
+      'net the songbird': 'atrapar al pájaro cantor con la red',
+      'net the starling': 'atrapar al estornino con la red',
+      'net the swallow': 'atrapar a la golondrina con la red',
+      'net the tabby cat': 'atrapar al gato atigrado con la red',
+      'read the stone': 'leer la piedra',
     },
     tr: {
       'THE KEEPER\'S ISLAND': 'BEKÇİNİN ADASI',
@@ -9391,6 +10664,139 @@ props: islandProps.map(function (p) {
       'white': 'beyaz',
       'coral': 'mercan',
       'rose': 'gül',
+      'tap a page to read it': 'bir sayfayı okumak için dokun',
+      '12 cells': '12 göz',
+      'Bag': 'Çanta',
+      'Bee-line': 'Arı hattı',
+      'Close look': 'Yakından',
+      'Comb': 'Petek',
+      'Greenhouse': 'Sera',
+      'Hens': 'Tavuklar',
+      'Hyrcanian forest': 'Hyrkania ormanı',
+      'Kavir desert': 'Kavir çölü',
+      'Kitchen': 'Mutfak',
+      'Lake': 'Göl',
+      'Lanterns': 'Fenerler',
+      'Paused': 'Duraklatıldı',
+      'Queen': 'Kraliçe',
+      'Removal': 'Taşıma',
+      'Shrine': 'Tapınak',
+      'Stream': 'Dere',
+      'The island waits.': 'Ada bekliyor.',
+      'The {0} is watered': '{0} sulanır',
+      'Wagon': 'Araba',
+      'Zagros steppe': 'Zagros bozkırı',
+      'a clutch is wanted: pair the two best sitters': 'bir kuluçka isteniyor: en iyi iki kuluçkacıyı eşleştir',
+      'a strange stew': 'tuhaf bir yahni',
+      'alpine meadow': 'alp çayırı',
+      'ash': 'ash',
+      'beans': 'fasulye',
+      'brood': 'kuluçka',
+      'by the {0} from': '{0} ile',
+      'cage': 'kafes',
+      'cage the queen': 'kraliçeyi kafese koy',
+      'cut': 'kes',
+      'cut while the knife is in the green': 'bıçak yeşildeyken kes',
+      'eggs': 'yumurta',
+      'evacuate': 'boşalt',
+      'greens': 'yeşillik',
+      'hardy': 'dayanıklı',
+      'her own clothes': 'kendi giysileri',
+      'layers': 'yumurtacılar',
+      'look at the entrance': 'girişe bak',
+      'nothing here': 'burada bir şey yok',
+      'nothing yet': 'henüz bir şey yok',
+      'queen': 'kraliçe',
+      'rice': 'pirinç',
+      'rice twice the beans, and greens to match the beans': 'pirinç fasulyenin iki katı, yeşillik fasulye kadar',
+      'row out past the shallows': 'sığlığın ötesine kürek çek',
+      'saffron': 'safran',
+      'sitters': 'kuluçkacılar',
+      'smoke': 'duman',
+      'summer stew': 'yaz yahnisi',
+      'survey': 'incele',
+      'tap the cluster until they follow': 'takip edene kadar kümeye dokun',
+      'tap the water to cast': 'atmak için suya dokun',
+      'tap to go back': 'dönmek için dokun',
+      'tap to keep walking': 'yürümeye devam için dokun',
+      'the acorns lie under the oaks': 'meşe palamutları meşelerin altında',
+      'the bank keeps what the water leaves': 'kıyı, suyun bıraktığını tutar',
+      'the bee suit': 'arı elbisesi',
+      'the deepest, shadowed face': 'en derin, gölgeli yüz',
+      'the family wants eggs: pair the two best layers': 'aile yumurta istiyor: en iyi iki yumurtacıyı eşleştir',
+      'the festival dress': 'bayram elbisesi',
+      'the fisher\'s smock': 'balıkçının gömleği',
+      'the flowers have gone to seed': 'çiçekler tohuma durdu',
+      'the house': 'ev',
+      'the mountain cloak': 'dağ pelerini',
+      'the old trees keep the ground soft': 'yaşlı ağaçlar toprağı yumuşak tutar',
+      'the orchard coat': 'bahçe paltosu',
+      'the sand gives up what it buried': 'kum, gömdüğünü geri verir',
+      'the sprouts': 'filizler',
+      'the tide line is where things gather': 'gelgit çizgisi, şeylerin toplandığı yer',
+      'the walk': 'yürüyüş',
+      'the weaver\'s apron': 'dokumacının önlüğü',
+      'the {0}.': '{0}.',
+      'tomato': 'domates',
+      'tomato twice the beans, and one pinch of saffron': 'domates fasulyenin iki katı, bir tutam safran',
+      'two soft puffs': 'iki yumuşak üfleme',
+      '{0} of {1} pairs · {2} chicks': '{1} çiftten {0} · {2} civciv',
+      'next \\u00b7 {0}': 'sırada · {0}',
+      'found': 'bulundu',
+      'A clutch in the straw': 'Samanın içinde bir kuluçka',
+      'A good day on the island.': 'Adada iyi bir gün.',
+      'A wheel and a handle, found in the yard.': 'Bir tekerlek ve bir sap, avluda bulundu.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kakoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Safran',
+      'Donya\'s dress': 'Donya\'nın elbisesi',
+      'Donya, my sister': 'Donya, kız kardeşim',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'Sekiz göz mumla kapatıldı, tek arı rahatsız olmadı.',
+      'Settled in the box': 'Kutuya yerleşti',
+      'She carried the spring back to the beds.': 'Pınarı yeniden tarhlara taşıdı.',
+      'She reached the gate': 'Kapıya ulaştı',
+      'She was carried gently to the middle frames.': 'Yavaşça orta çerçevelere taşındı.',
+      'Surveyed, smoked, cut, caged and carried out.': 'İncelendi, tütsülendi, kesildi, kafeslendi ve taşındı.',
+      'Tap for the island': 'Ada için dokun',
+      'The can is full': 'Sulama kabı doldu',
+      'The cart rolls again': 'Araba yeniden yürüyor',
+      'The colony is found': 'Koloni bulundu',
+      'The colony scatters': 'Koloni dağıldı',
+      'The comb is capped': 'Petek kapatıldı',
+      'The day ends': 'Gün bitti',
+      'The day is done': 'Gün tamam',
+      'The greenhouse keeps the seed.': 'Sera tohumu saklıyor.',
+      'The pot knows': 'Tencere biliyor',
+      'The queen is found': 'Kraliçe bulundu',
+      'Three bearings, one line, one hollow tree.': 'Üç yön, bir hat, bir kovuk ağaç.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'Fazla karıştırma, ağaçlara gittiler. Hiçbir şey incinmedi.',
+      'Two colours from white': 'Beyazdan iki renk',
+      'Two dishes by their ratios, and a strange stew on the way.': 'Oranlarına göre iki yemek, yolda tuhaf bir yahni.',
+      'Two pairs, chosen by their numbers.': 'İki çift, sayılarına göre seçildi.',
+      'reel': 'çek',
+      '{0} fireflies caught': '{0} ateşböceği yakalandı',
+      '{0} nectar carried home': '{0} nektar eve taşındı',
+      '{0} of {1} fireflies caught': '{1} ateşböceğinden {0} tanesi',
+      '{0} of {1} lamps were lit as she passed.': 'Geçerken {1} fenerden {0} tanesi yandı.',
+      '{0} of {1} nectar': '{1} nektardan {0} tanesi',
+      '{0} of {1} sprouts watered': '{1} filizden {0} tanesi sulandı',
+      'next \\u00b7 {0}': 'sırada · {0}',
+      'draw water': 'su çek',
+      'greet Donya': 'Donya\'yı selamla',
+      'hear storyteller out': 'hikâyeciyi dinle',
+      'look at the clover': 'yoncaya bak',
+      'look at the geranium': 'sardunyaya bak',
+      'look at the grass': 'otlara bak',
+      'look at the persian rose': 'İran gülüne bak',
+      'net the ginger cat': 'zencefil rengi kediyi kepçeyle al',
+      'net the hedgehog': 'kirpiyi kepçeyle al',
+      'net the house sparrow': 'serçeyi kepçeyle al',
+      'net the songbird': 'ötücü kuşu kepçeyle al',
+      'net the starling': 'sığırcığı kepçeyle al',
+      'net the swallow': 'kırlangıcı kepçeyle al',
+      'net the tabby cat': 'tekir kediyi kepçeyle al',
+      'read the stone': 'taşı oku',
     },
     ar: {
       'THE KEEPER\'S ISLAND': 'جزيرة الحارسة',
@@ -9676,6 +11082,139 @@ props: islandProps.map(function (p) {
       'white': 'أبيض',
       'coral': 'مرجاني',
       'rose': 'وردي',
+      'tap a page to read it': 'اضغط على صفحة لقراءتها',
+      '12 cells': '١٢ خلية',
+      'Bag': 'الحقيبة',
+      'Bee-line': 'خط النحل',
+      'Close look': 'نظرة قريبة',
+      'Comb': 'الشمع',
+      'Greenhouse': 'الدفيئة',
+      'Hens': 'الدجاج',
+      'Hyrcanian forest': 'غابة هيركانيا',
+      'Kavir desert': 'صحراء كوير',
+      'Kitchen': 'المطبخ',
+      'Lake': 'البحيرة',
+      'Lanterns': 'الفوانيس',
+      'Paused': 'إيقاف مؤقت',
+      'Queen': 'الملكة',
+      'Removal': 'النقل',
+      'Shrine': 'المقام',
+      'Stream': 'الجدول',
+      'The island waits.': 'الجزيرة تنتظر.',
+      'The {0} is watered': '{0} يُسقى',
+      'Wagon': 'العربة',
+      'Zagros steppe': 'سهوب زاغروس',
+      'a clutch is wanted: pair the two best sitters': 'يراد حضنة: زاوج أفضل حضّانتين',
+      'a strange stew': 'طبيخ غريب',
+      'alpine meadow': 'مرج جبلي',
+      'ash': 'آش',
+      'beans': 'فاصولياء',
+      'brood': 'الحضنة',
+      'by the {0} from': 'بـ{0} من',
+      'cage': 'قفص',
+      'cage the queen': 'ضع الملكة في القفص',
+      'cut': 'قطع',
+      'cut while the knife is in the green': 'اقطع بينما النصل في الأخضر',
+      'eggs': 'بيض',
+      'evacuate': 'إخلاء',
+      'greens': 'خضار',
+      'hardy': 'متينة',
+      'her own clothes': 'ثيابها',
+      'layers': 'بيّاضات',
+      'look at the entrance': 'انظر إلى المدخل',
+      'nothing here': 'لا شيء هنا',
+      'nothing yet': 'لا شيء بعد',
+      'queen': 'الملكة',
+      'rice': 'أرز',
+      'rice twice the beans, and greens to match the beans': 'الأرز ضعف الفاصولياء، والخضار بقدر الفاصولياء',
+      'row out past the shallows': 'جدف خارج الضحضاح',
+      'saffron': 'زعفران',
+      'sitters': 'حاضنات',
+      'smoke': 'دخان',
+      'summer stew': 'طبيخ الصيف',
+      'survey': 'استطلاع',
+      'tap the cluster until they follow': 'اضغط على العنقود حتى يتبعوا',
+      'tap the water to cast': 'اضغط على الماء لترمي',
+      'tap to go back': 'اضغط للعودة',
+      'tap to keep walking': 'اضغط لمتابعة المشي',
+      'the acorns lie under the oaks': 'البلوط تحت أشجار البلوط',
+      'the bank keeps what the water leaves': 'الضفة تحتفظ بما يتركه الماء',
+      'the bee suit': 'بدلة النحل',
+      'the deepest, shadowed face': 'أعمق وجه مظلل',
+      'the family wants eggs: pair the two best layers': 'العائلة تريد بيضًا: زاوج أفضل بيّاضتين',
+      'the festival dress': 'ثوب العيد',
+      'the fisher\'s smock': 'قميص الصياد',
+      'the flowers have gone to seed': 'الأزهار أزهرت بذرًا',
+      'the house': 'البيت',
+      'the mountain cloak': 'عباءة الجبل',
+      'the old trees keep the ground soft': 'الأشجار العتيقة تُبقي الأرض ناعمة',
+      'the orchard coat': 'معطف البستان',
+      'the sand gives up what it buried': 'الرمل يُخرج ما دفنه',
+      'the sprouts': 'الشتلات',
+      'the tide line is where things gather': 'خط المد حيث تتجمع الأشياء',
+      'the walk': 'المشية',
+      'the weaver\'s apron': 'مريول الحائكة',
+      'the {0}.': '{0}.',
+      'tomato': 'بندورة',
+      'tomato twice the beans, and one pinch of saffron': 'البندورة ضعف الفاصولياء، ورشة زعفران',
+      'two soft puffs': 'نفختان هادئتان',
+      '{0} of {1} pairs · {2} chicks': '{0} من {1} زوج · {2} كتكوت',
+      'next \\u00b7 {0}': 'التالي · {0}',
+      'found': 'وُجدت',
+      'A clutch in the straw': 'حضنة في القش',
+      'A good day on the island.': 'يوم طيب على الجزيرة.',
+      'A wheel and a handle, found in the yard.': 'عجلة ومقبض، وُجدا في الساحة.',
+      'Barfi': 'برفي',
+      'Kakoli': 'كاكولي',
+      'Pesteh': 'بسته',
+      'Saffron': 'زعفران',
+      'Donya\'s dress': 'ثوب دنيا',
+      'Donya, my sister': 'دنيا، أختي',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'ثماني خلايا خُتمت بالشمع، ولم تُزعج نحلة.',
+      'Settled in the box': 'استقرت في الصندوق',
+      'She carried the spring back to the beds.': 'حملت النبع عائدةً إلى الأحواض.',
+      'She reached the gate': 'وصلت إلى البوابة',
+      'She was carried gently to the middle frames.': 'حُملت برفق إلى الأقراص الوسطى.',
+      'Surveyed, smoked, cut, caged and carried out.': 'استُطلعت، دُخّنت، قُطعت، حُبست ونُقلت.',
+      'Tap for the island': 'اضغط إلى الجزيرة',
+      'The can is full': 'المرشّة ممتلئة',
+      'The cart rolls again': 'العربة تدور من جديد',
+      'The colony is found': 'وُجدت الخلية',
+      'The colony scatters': 'تفرّقت الخلية',
+      'The comb is capped': 'خُتم الشمع',
+      'The day ends': 'ينتهي النهار',
+      'The day is done': 'تمّ النهار',
+      'The greenhouse keeps the seed.': 'الدفيئة تحفظ البذرة.',
+      'The pot knows': 'القدر يعرف',
+      'The queen is found': 'وُجدت الملكة',
+      'Three bearings, one line, one hollow tree.': 'ثلاثة اتجاهات، خط واحد، شجرة جوفاء.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'إثارة أكثر من اللازم، فذهبت إلى الأشجار. لا شيء أُصيب.',
+      'Two colours from white': 'لونان من الأبيض',
+      'Two dishes by their ratios, and a strange stew on the way.': 'طبقان بنسبهما، وطبيخ غريب في الطريق.',
+      'Two pairs, chosen by their numbers.': 'زوجان، اختيرا بأرقامهما.',
+      'reel': 'اسحب',
+      '{0} fireflies caught': '{0} حباحب أُمسك',
+      '{0} nectar carried home': '{0} رحيق حُمل إلى البيت',
+      '{0} of {1} fireflies caught': '{0} من {1} حباحب',
+      '{0} of {1} lamps were lit as she passed.': '{0} من {1} فانوسًا أُضيء وهي تمر.',
+      '{0} of {1} nectar': '{0} من {1} رحيق',
+      '{0} of {1} sprouts watered': '{0} من {1} شتلة سُقيت',
+      'next \\u00b7 {0}': 'التالي · {0}',
+      'draw water': 'اسحب الماء',
+      'greet Donya': 'سلّم على دنيا',
+      'hear storyteller out': 'استمع إلى الحكواتي',
+      'look at the clover': 'انظر إلى البرسيم',
+      'look at the geranium': 'انظر إلى إبرة الراعي',
+      'look at the grass': 'انظر إلى العشب',
+      'look at the persian rose': 'انظر إلى الورد الفارسي',
+      'net the ginger cat': 'امسك القط الزنجبيلي بالشبكة',
+      'net the hedgehog': 'امسك القنفذ بالشبكة',
+      'net the house sparrow': 'امسك العصفور الدوري بالشبكة',
+      'net the songbird': 'امسك الطائر المغني بالشبكة',
+      'net the starling': 'امسك الزرزور بالشبكة',
+      'net the swallow': 'امسك السنونو بالشبكة',
+      'net the tabby cat': 'امسك القط العتابي بالشبكة',
+      'read the stone': 'اقرأ الحجر',
     },
     zh: {
       'THE KEEPER\'S ISLAND': '守岛人的岛',
@@ -9961,291 +11500,557 @@ props: islandProps.map(function (p) {
       'white': '白',
       'coral': '珊瑚',
       'rose': '玫瑰',
+      'tap a page to read it': '点按一页即可阅读',
+      '12 cells': '12 个巢房',
+      'Bag': '背包',
+      'Bee-line': '蜂线',
+      'Close look': '细看',
+      'Comb': '蜂巢',
+      'Greenhouse': '温室',
+      'Hens': '母鸡',
+      'Hyrcanian forest': '希尔卡尼亚森林',
+      'Kavir desert': '卡维尔沙漠',
+      'Kitchen': '厨房',
+      'Lake': '湖',
+      'Lanterns': '灯笼',
+      'Paused': '已暂停',
+      'Queen': '蜂王',
+      'Removal': '搬迁',
+      'Shrine': '圣石',
+      'Stream': '溪流',
+      'The island waits.': '岛在等待。',
+      'The {0} is watered': '{0}得到浇灌',
+      'Wagon': '板车',
+      'Zagros steppe': '扎格罗斯草原',
+      'a clutch is wanted: pair the two best sitters': '需要一窝雏：配对最会孵的两只',
+      'a strange stew': '一锅怪汤',
+      'alpine meadow': '高山草甸',
+      'ash': '阿什汤',
+      'beans': '豆子',
+      'brood': '子脾',
+      'by the {0} from': '由{0}来自',
+      'cage': '笼子',
+      'cage the queen': '把蜂王罩住',
+      'cut': '切下',
+      'cut while the knife is in the green': '趁刀在绿处时切下',
+      'eggs': '蛋',
+      'evacuate': '清空',
+      'greens': '青菜',
+      'hardy': '耐寒',
+      'her own clothes': '她自己的衣裳',
+      'layers': '下蛋的',
+      'look at the entrance': '查看入口',
+      'nothing here': '这里没有',
+      'nothing yet': '还没有',
+      'queen': '蜂王',
+      'rice': '米',
+      'rice twice the beans, and greens to match the beans': '米是豆子的两倍，青菜与豆子同量',
+      'row out past the shallows': '划出浅滩',
+      'saffron': '藏红花',
+      'sitters': '会孵的',
+      'smoke': '烟',
+      'summer stew': '夏日炖菜',
+      'survey': '察看',
+      'tap the cluster until they follow': '点蜂团，直到它们跟上',
+      'tap the water to cast': '点水面抛竿',
+      'tap to go back': '点按返回',
+      'tap to keep walking': '点按继续走',
+      'the acorns lie under the oaks': '橡子落在橡树下',
+      'the bank keeps what the water leaves': '河岸留着水留下的东西',
+      'the bee suit': '防蜂服',
+      'the deepest, shadowed face': '最深、背光的一面',
+      'the family wants eggs: pair the two best layers': '家里要蛋：配对最会下蛋的两只',
+      'the festival dress': '节日的裙子',
+      'the fisher\'s smock': '渔夫的罩衫',
+      'the flowers have gone to seed': '花已结籽',
+      'the house': '屋子',
+      'the mountain cloak': '山间斗篷',
+      'the old trees keep the ground soft': '老树让土地松软',
+      'the orchard coat': '果园外套',
+      'the sand gives up what it buried': '沙子交出它埋下的东西',
+      'the sprouts': '幼苗',
+      'the tide line is where things gather': '潮线是东西聚起的地方',
+      'the walk': '行走',
+      'the weaver\'s apron': '织工的围裙',
+      'the {0}.': '{0}。',
+      'tomato': '番茄',
+      'tomato twice the beans, and one pinch of saffron': '番茄是豆子的两倍，一撮藏红花',
+      'two soft puffs': '两下轻烟',
+      '{0} of {1} pairs · {2} chicks': '{1} 对中 {0} 对 · {2} 只雏',
+      'next \\u00b7 {0}': '接着 · {0}',
+      'found': '已找到',
+      'A clutch in the straw': '稻草里的一窝',
+      'A good day on the island.': '岛上愉快的一天。',
+      'A wheel and a handle, found in the yard.': '一个轮子和一个把手，在院子里找到。',
+      'Barfi': '巴尔菲',
+      'Kakoli': '卡科莉',
+      'Pesteh': '皮斯特',
+      'Saffron': '藏红花',
+      'Donya\'s dress': '多妮娅的裙子',
+      'Donya, my sister': '多妮娅，我妹妹',
+      'Eight cells sealed with wax, and not a bee disturbed.': '封了八个巢房，没有惊动一只蜂。',
+      'Settled in the box': '安顿在箱里',
+      'She carried the spring back to the beds.': '她把泉水带回了苗床。',
+      'She reached the gate': '她到了门口',
+      'She was carried gently to the middle frames.': '她被轻轻送到中间的巢框。',
+      'Surveyed, smoked, cut, caged and carried out.': '察看过、熏过、切下、入笼、搬出。',
+      'Tap for the island': '点按回到岛上',
+      'The can is full': '水壶满了',
+      'The cart rolls again': '板车又能走了',
+      'The colony is found': '找到蜂群了',
+      'The colony scatters': '蜂群散了',
+      'The comb is capped': '蜂巢封盖了',
+      'The day ends': '一天结束了',
+      'The day is done': '一天过完了',
+      'The greenhouse keeps the seed.': '温室收下了种子。',
+      'The pot knows': '锅知道',
+      'The queen is found': '找到蜂王了',
+      'Three bearings, one line, one hollow tree.': '三个方位，一条线，一棵空心树。',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': '惊扰太多，它们飞回树上。没有伤到任何一只。',
+      'Two colours from white': '从白里开出两色',
+      'Two dishes by their ratios, and a strange stew on the way.': '按比例做两道菜，还有一锅怪汤在路上。',
+      'Two pairs, chosen by their numbers.': '两对，按它们的数字选出。',
+      'reel': '收线',
+      '{0} fireflies caught': '捉到 {0} 只萤火虫',
+      '{0} nectar carried home': '把 {0} 份花蜜带回了家',
+      '{0} of {1} fireflies caught': '{1} 只萤火虫中捉到 {0} 只',
+      '{0} of {1} lamps were lit as she passed.': '她经过时点亮了 {1} 盏灯中的 {0} 盏。',
+      '{0} of {1} nectar': '{1} 份花蜜中的 {0} 份',
+      '{0} of {1} sprouts watered': '{1} 株幼苗中浇了 {0} 株',
+      'next \\u00b7 {0}': '接着 · {0}',
+      'draw water': '打水',
+      'greet Donya': '和多妮娅打招呼',
+      'hear storyteller out': '听完说书人的话',
+      'look at the clover': '看三叶草',
+      'look at the geranium': '看天竺葵',
+      'look at the grass': '看草',
+      'look at the persian rose': '看波斯玫瑰',
+      'net the ginger cat': '用网兜住姜黄猫',
+      'net the hedgehog': '用网兜住刺猬',
+      'net the house sparrow': '用网兜住家雀',
+      'net the songbird': '用网兜住鸣鸟',
+      'net the starling': '用网兜住椋鸟',
+      'net the swallow': '用网兜住燕子',
+      'net the tabby cat': '用网兜住虎斑猫',
+      'read the stone': '读那块石头',
     },
     fi: {
-      'THE KEEPER\'S ISLAND': 'Jazire-ye negahban',
-      'I keep the island, and write down what it teaches me.': 'Man az jazire negahdari mikonam va har che yadam midahad ra minevisam.',
+      'THE KEEPER\'S ISLAND': 'Jazire-ye negahbán',
+      'I keep the island, and write down what it teaches me.': 'man az jazire negahdári mikonam va har che yádam midahad rá minevisam.',
       'Start': 'Shoru',
       'best: {0} nectar': 'behtarin: {0} shahed',
       'the island': 'jazire',
-      'the notebook': 'daftar-e yaddasht',
-      'the pages': 'safe-ha',
-      'the words': 'vazhe-ha',
+      'the notebook': 'daftar-e yáddásht',
+      'the pages': 'safe-há',
+      'the words': 'vázhe-há',
       'the cover': 'jeld',
       'close': 'bastan',
-      'The notebook': 'Daftar-e yaddasht',
+      'The notebook': 'Daftar-e yáddásht',
       'next: {0}': 'baadi: {0}',
       'nothing written yet': 'hanooz chizi neveshte nashode',
-      'the island is named': 'jazire nam gerefte ast',
-      'THE LAST PAGE': 'Akharin safe',
-      'The meadow, the hive, the yard, the island and the old stones: every one of them has a word now, and I have written them all down.': 'Chamanzar, kandu, hiayat, jazire va sang-ha-ye kohan: hame-ye anha aknun yek vazhe darand va man hame ra neveshte-am.',
-      'It means the sea. It was the name of this place before it was mine, and the keeper before me wrote it here, on the page after the last one.': 'Yaani darya. Nam-e in makan bood pish az anke az man bashad, va negahban-e pish az man an ra inja nevesht, dar safe-ye pas az akharin safe.',
-      'THE KEEPER OF DARYA': 'Negahban-e Darya',
-      'tap to close the book': 'baraye bastan-e daftar bezan',
+      'the island is named': 'jazire nám gerefte ast',
+      'THE LAST PAGE': 'Ákharin safe',
+      'The meadow, the hive, the yard, the island and the old stones: every one of them has a word now, and I have written them all down.': 'Chamanzár, kandu, hiayát, jazire va sang-há-ye kohan: hame-ye ánhá aknun yek vázhe dárand va man hame rá neveshte-am.',
+      'It means the sea. It was the name of this place before it was mine, and the keeper before me wrote it here, on the page after the last one.': 'Yáni daryá. Nám-e in makán bood pish az ánke az man báshad, va negahbán-e pish az man án rá injá nevesht, dar safe-ye pas az ákharin safe.',
+      'THE KEEPER OF DARYA': 'Negahbán-e Daryá',
+      'tap to close the book': 'baráye bastan-e daftar bezan',
       'The map': 'Naghshe',
       'tap a place you have walked to': 'ru-ye jaei ke rafte-i bezan',
       'walk further, and the map fills in': 'bishtar beru, naghshe por mishavad',
-      'back to the island': 'bazgasht be jazire',
+      'back to the island': 'bázgasht be jazire',
       'The bag': 'Kif',
-      'Nothing yet.': 'Hanooz chizi nist.',
-      'A shell, a feather, a fossil - what the island leaves.': 'Yek sodf, yek par, yek fosil - anche jazire ja migozarad.',
-      'She knows': 'Midanad',
-      'Still to learn': 'Mande ta yad begirad',
-      'Nothing yet. Read a stone, meet a person.': 'Hanooz chizi nist. Sangi ra bekhan, kasi ra bebin.',
-      'Every word on the island is known.': 'Har vazhe-ye jazire daneste shode ast.',
+      'Nothing yet.': 'hanooz chizi nist.',
+      'A shell, a feather, a fossil - what the island leaves.': 'yek sodf, yek par, yek fosil - ánche jazire já migozárad.',
+      'She knows': 'Midánad',
+      'Still to learn': 'Mánde tá yád begirad',
+      'Nothing yet. Read a stone, meet a person.': 'hanooz chizi nist. sangi rá bekhán, kasi rá bebin.',
+      'Every word on the island is known.': 'har vázhe-ye jazire daneste shode ast.',
       'page {0} of {1}': 'safe-ye {0} az {1}',
       '‹ back': '‹ pish',
       'on ›': 'baad ›',
-      '{0} of {1} words': '{0} az {1} vazhe',
-      'Language': 'Zaban',
-      'The page is written in this language; the words keep their own two readings.': 'Safe be in zaban neveshte mishavad; vazhe-ha do khanesh-e khod ra negah midarand.',
-      'Inside the cover': 'Dakhel-e jeld',
-      'Sound': 'Seda',
-      'off': 'khamush',
+      '{0} of {1} words': '{0} az {1} vázhe',
+      'Language': 'Zabán',
+      'The page is written in this language; the words keep their own two readings.': 'safe be in zabán neveshte mishavad; vázhe-há do khanesh-e khod rá negah midárand.',
+      'Inside the cover': 'Dákhel-e jeld',
+      'Sound': 'Sedá',
+      'off': 'khámush',
       'on': 'roshan',
-      'Start the island over': 'Az no aghaz kardan-e jazire',
-      'The island, the words and the pages all go.': 'Jazire, vazhe-ha va safe-ha hame mironand.',
-      'The sky': 'Aseman',
+      'Start the island over': 'az no ágház kardan-e jazire',
+      'The island, the words and the pages all go.': 'Jazire, vázhe-há va safe-há hame mironand.',
+      'The sky': 'Ásemán',
       'the sun is {0}': 'khorshid {0} ast',
-      'The island lies under this light, and its shadows know the hour.': 'Jazire zir-e in nur ast va saye-hayash saat ra mishenasand.',
-      'the stars are out': 'setare-ha birunand',
-      'look for the stars tonight': 'emshab setare-ha ra bejoo',
+      'The island lies under this light, and its shadows know the hour.': 'Jazire zir-e in nur ast va sáye-háyash sá\'at rá mishenásand.',
+      'the stars are out': 'setáre-há birunand',
+      'look for the stars tonight': 'emshab setáre-há rá bejoo',
       'Gather nectar': 'Shahed jam kon',
-      'carry it home to the hive': 'an ra be kandu bebar',
-      'The sprouts are thirsty': 'Javane-ha teshne-and',
-      'hold on a sprout to pour': 'ru-ye javane negah dar ta ab berizi',
-      'The fireflies are out': 'Kerm-ha-ye shabtab birunand',
-      'tap a light to keep it': 'ru-ye yek nur bezan ta bemanad',
-      'Midday: the sprouts are thirsty': 'Nimruz: javane-ha teshne-and',
-      'Dusk: the fireflies are out': 'Ghoroob: kerm-ha-ye shabtab birunand',
-      'The notebook is full': 'Daftar por shode ast',
-      'every errand the island had': 'har kar-e jazire',
-      'Errand done: {0}': 'Kar anjam shod: {0}',
+      'carry it home to the hive': 'án rá be kandu bebar',
+      'The sprouts are thirsty': 'Javáne-há teshne-and',
+      'hold on a sprout to pour': 'ru-ye javáne negah dar tá áb berizi',
+      'The fireflies are out': 'Kerm-há-ye shab-táb birunand',
+      'tap a light to keep it': 'ru-ye yek nur bezan tá bemánad',
+      'Midday: the sprouts are thirsty': 'Nimruz: javáne-há teshne-and',
+      'Dusk: the fireflies are out': 'Ghoroob: kerm-há-ye shab-táb birunand',
+      'The notebook is full': 'daftar por shode ast',
+      'every errand the island had': 'har kár-e jazire',
+      'Errand done: {0}': 'Kár anjám shod: {0}',
       'next · {0}': 'baadi · {0}',
-      'She keeps {0}': '{0} ra negah midarad',
+      'She keeps {0}': '{0} rá negah midárad',
       '{0} in the bag': '{0} dar kif',
-      'A seed in the ground': 'Dane-i dar khak',
-      'tend it, and it grows': 'az an negahdari kon ta beruyad',
+      'A seed in the ground': 'Dáne-i dar khák',
+      'tend it, and it grows': 'az án negahdári kon tá beruyad',
       'She gathers {0}': '{0} jam mikonad',
-      'and keeps a seed back': 'va dane-i negah midarad',
-      'She meets the {0}': 'ba {0} ashna mishavad',
-      'just up': 'taze bala',
-      'rising': 'bala miayad',
+      'and keeps a seed back': 'va dáne-i negah midárad',
+      'She meets the {0}': 'bá {0} áshná mishavad',
+      'just up': 'táze bálá',
+      'rising': 'bálá miáyad',
       'high': 'boland',
-      'sinking': 'paeen miravad',
-      'going down': 'dar hale ghoroob',
-      'down': 'paeen',
+      'sinking': 'páeen miravad',
+      'going down': 'dar hále ghoroob',
+      'down': 'páeen',
       'night': 'shab',
       'first light': 'sepide',
-      'morning': 'bamdad',
+      'morning': 'bámdád',
       'midday': 'nimruz',
       'afternoon': 'asr',
-      'the golden hour': 'saat-e talaei',
+      'the golden hour': 'sá\'at-e talái',
       'dusk': 'ghoroob',
-      'tap to walk': 'baraye raftan bezan',
-      'go in': 'boru dakhel',
+      'tap to walk': 'baráye raftan bezan',
+      'go in': 'boru dákhel',
       'the book is full': 'daftar por ast',
       'keep it': 'negahash dar',
-      'set it aside': 'kenarash begzar',
-      'I · the first morning': 'I · nokhostin bamdad',
+      'set it aside': 'kenárash begzár',
+      'I · the first morning': 'I · nokhostin bámdád',
       'II · the hive': 'II · kandu',
-      'III · the yard': 'III · hiayat',
+      'III · the yard': 'III · hiayát',
       'IV · the island': 'IV · jazire',
-      'V · the wild': 'V · biaban',
-      'VI · the old stones': 'VI · sang-ha-ye kohan',
+      'V · the wild': 'V · biábán',
+      'VI · the old stones': 'VI · sang-há-ye kohan',
       'the snowline': 'khatt-e barf',
-      'the wind gap': 'gardane-ye bad',
+      'the wind gap': 'gardane-ye bád',
       'the far steppe': 'dasht-e dur',
       'the old wood': 'jangal-e kohan',
-      'the high pastures': 'marghzar-e boland',
-      'the open steppe': 'dasht-e baz',
+      'the high pastures': 'marghzár-e boland',
+      'the open steppe': 'dasht-e báz',
       'the first sand': 'nokhostin rig',
-      'the far dunes': 'tape-ha-ye rigi-ye dur',
+      'the far dunes': 'tape-há-ye rigi-ye dur',
       'the deep woods': 'jangal-e anbuh',
-      'the upper stream': 'rud-e bala',
+      'the upper stream': 'rud-e bálá',
       'the wood edge': 'labe-ye jangal',
-      'the apiary': 'zanbursetan',
+      'the apiary': 'zanbursetán',
       'the dry meadow': 'chaman-e khoshk',
-      'the dunes': 'tape-ha-ye rigi',
-      'the salt flat': 'shurezar',
+      'the dunes': 'tape-há-ye rigi',
+      'the salt flat': 'shurezár',
       'the forest edge': 'kenare-ye jangal',
-      'the greenhouse': 'gelkhane',
-      'the kitchen garden': 'bagh-e ashpazkhane',
-      'the yard': 'hiayat',
-      'the orchard': 'bagh-e mive',
-      'the meadow': 'chamanzar',
+      'the greenhouse': 'gelkháne',
+      'the kitchen garden': 'bágh-e áshpazkháne',
+      'the yard': 'hiayát',
+      'the orchard': 'bágh-e mive',
+      'the meadow': 'chamanzár',
       'the river': 'rud',
-      'the henhouse': 'morghdani',
+      'the henhouse': 'morghdáni',
       'the stream': 'juy',
-      'the pond': 'abgir',
-      'the water meadow': 'chaman-e abdar',
+      'the pond': 'ábgir',
+      'the water meadow': 'chaman-e ábdár',
       'the river bend': 'pich-e rud',
-      'the river mouth': 'dahane-ye rud',
-      'the shore': 'sahel',
-      'the strand': 'sahel-e shani',
-      'the sea': 'darya',
-      'the open water': 'ab-e baz',
-      'the river mouth bay': 'khalij-e dahane-ye rud',
-      'inside the house': 'dakhel-e khane',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Ba nokhostin roshnai birun raftam va chamanzar shahedash ra dad.',
-      'The can stayed steady, and every sprout drank its fill.': 'Abpash ostovar mand va har javane sir nushid.',
-      'At dusk I kept a few lights, for the dark path home.': 'Dar ghoroob chand cheragh negah dashtam, baraye rah-e tarik-e khane.',
-      'Eight cells capped, before the honey thinned.': 'Hasht khane baste shod, pish az anke asal raghigh shavad.',
-      'She was two cells away, and then none.': 'Do khane dur-tar bood va baad hich.',
-      'White hid a colour. The cross gave it back.': 'Sefidi rangi ra penhan karde bood. Peyvand an ra bazgardand.',
-      'I paired the layers first, and the sitters after.': 'Nokhost morgh-e tokhmo-gozar ra joft kardam va baad morgh-e khabide ra.',
-      'Two of rice to one of beans, and the pot knew the dish.': 'Do paymane berenj be yek paymane lubiya, va digh ghaza ra shenakht.',
-      'The wheel was behind the crate the whole time.': 'Charkh tamam-e moddat posht-e jo be bood.',
-      'I held the can still, and the spring did the rest.': 'Abpash ra bi-harekat negah dashtam va cheshme baghi-ye-ash ra kard.',
-      'She walked the dark path with a lamp ahead of her.': 'U rah-e tarik ra ba fanusi pish-e ro raft.',
-      'Three bearings agreed, and the wood gave up the colony.': 'Se jahat ba ham khandand va jangal jamiyat ra dad.',
-      'Six steps, and not one bee lost.': 'Shesh gam, va yek zanbur ham gom nashod.',
-      'Under the old trees the ground was soft, and full of things worth keeping.': 'Zir-e derakhtan-e kohan zamin narm bood va por az chiz-hayi ke arzesh-e negah dashtan dashtand.',
-      'The oaks stood far apart, and their acorns were everywhere beneath them.': 'Bolut-ha dur az ham istade boodand va bolut-hayeshan zir-e-shan hame-ja bood.',
-      'Up high the flowers opened late, and every seed worth keeping was small.': 'Dar bolandi gol-ha dir baz shodand va har dane-i ke arzesh dasht kuchak bood.',
-      'The sand held a fossil and a crust of salt: the sea that used to be here.': 'Rig yek fosil va yek puste namak dasht: daryayi ke zaman-i inja bood.',
-      'The river carried a feather down from somewhere I have not walked yet.': 'Rud pari ra az jaei avard ke hanooz narafte-am.',
-      'Out past the shallows the shells were bigger, and the boat knew the way back.': 'An su-ye kam-ab, sodf-ha bozorg-tar boodand va ghayegh rah-e bargasht ra midanest.',
-      'The tide left a line of shells, and a piece of wood worn smooth.': 'Jazr-o-madd khatti az sodf gozasht va teke-i chub ke saf sayide shode bood.',
-      'The stone said: the garden is watered by the water from the channel.': 'Sang goft: bagh ba ab-e juy ab mikhorad.',
-      'Three fish, and the lake kept its patience.': 'Se mahi, va abgir shekibai-ye-ash ra negah dasht.',
-      'The Plough sat where the old chart said it would.': 'Khoshe-ye Parvin ham-an-ja bood ke naghshe-ye kohan migoft.',
-      'read three of the carved stones': 'se sang-e kande-kari ra bekhan',
-      'go to any carved stone and read it': 'be har sang-e kande-kari beru va bekhanash',
-      'greet Donya at the well': 'dar chah be Donya salam kon',
-      'she waits in the yard, by the well': 'u dar hiayat, kenar-e chah montazer ast',
-      'walk out to the apiary and open a hive': 'be zanbursetan beru va kandu-i ra baz kon',
-      'go north out of the yard, past the wood edge': 'az hiayat be shomal beru, az labe-ye jangal begzar',
-      'find the greenhouse and cross two seeds': 'gelkhane ra peyda kon va do dane ra peyvand bezan',
-      'go west along the lane, to the greenhouse': 'dar rah be gharb beru, ta gelkhane',
-      'carry the can to the stream and fill it': 'abpash ra be juy bebar va por kon',
+      'the river mouth': 'daháne-ye rud',
+      'the shore': 'sáhel',
+      'the strand': 'sáhel-e shani',
+      'the sea': 'daryá',
+      'the open water': 'áb-e báz',
+      'the river mouth bay': 'khalij-e daháne-ye rud',
+      'inside the house': 'dákhel-e kháne',
+      'I walked out at first light, and the meadow gave up its nectar.': 'Bá nokhostin roshnai birun raftam va chamanzár shahedash rá dád.',
+      'The can stayed steady, and every sprout drank its fill.': 'Ábpásh ostovár mánd va har javáne sir nushid.',
+      'At dusk I kept a few lights, for the dark path home.': 'dar ghoroob chand cherágh negah dáshtam, baráye ráh-e tarik-e kháne.',
+      'Eight cells capped, before the honey thinned.': 'Hasht kháne baste shod, pish az ánke asal raghigh shavad.',
+      'She was two cells away, and then none.': 'do kháne dur-tar bood va baad hich.',
+      'White hid a colour. The cross gave it back.': 'Sefidi rangi rá penhán karde bood. Peyvand án rá bázgardánd.',
+      'I paired the layers first, and the sitters after.': 'Nokhost morgh-e tokhmo-gozár rá joft kardam va baad morgh-e khabide rá.',
+      'Two of rice to one of beans, and the pot knew the dish.': 'do paymáne berenj be yek paymáne lubiyá, va digh ghazá rá shenakht.',
+      'The wheel was behind the crate the whole time.': 'charkh tamám-e moddat posht-e jo be bood.',
+      'I held the can still, and the spring did the rest.': 'Ábpásh rá bi-harekat negah dáshtam va cheshme baghi-ye-ásh rá kard.',
+      'She walked the dark path with a lamp ahead of her.': 'U ráh-e tarik rá bá fanusi pish-e ro raft.',
+      'Three bearings agreed, and the wood gave up the colony.': 'se jahat bá ham khándand va jangal jamiyat rá dád.',
+      'Six steps, and not one bee lost.': 'Shesh gám, va yek zanbur ham gom nashod.',
+      'Under the old trees the ground was soft, and full of things worth keeping.': 'Zir-e derakhtán-e kohan zamin narm bood va por az chiz-háyi ke arzesh-e negah dáshtan dáshtand.',
+      'The oaks stood far apart, and their acorns were everywhere beneath them.': 'Bolut-há dur az ham istáde boodand va bolut-háyeshán zir-e-shán hame-já bood.',
+      'Up high the flowers opened late, and every seed worth keeping was small.': 'dar bolandi gol-há dir báz shodand va har dáne-i ke arzesh dasht kuchak bood.',
+      'The sand held a fossil and a crust of salt: the sea that used to be here.': 'Rig yek fosil va yek puste namak dasht: daryáyi ke zamán-i injá bood.',
+      'The river carried a feather down from somewhere I have not walked yet.': 'Rud pari rá az jaei ávard ke hanooz narafte-am.',
+      'Out past the shallows the shells were bigger, and the boat knew the way back.': 'Án su-ye kam-áb, sodf-há bozorg-tar boodand va ghayegh ráh-e bargasht rá midanest.',
+      'The tide left a line of shells, and a piece of wood worn smooth.': 'Jazr-o-madd khatti az sodf gozasht va teke-i chub ke sáf sayide shode bood.',
+      'The stone said: the garden is watered by the water from the channel.': 'sang goft: bágh bá áb-e juy áb mikhorad.',
+      'Three fish, and the lake kept its patience.': 'se máhi, va ábgir shekibai-ye-ásh rá negah dasht.',
+      'The Plough sat where the old chart said it would.': 'Khoshe-ye Parvin ham-án-já bood ke naghshe-ye kohan migoft.',
+      'read three of the carved stones': 'se sang-e kande-kári rá bekhán',
+      'go to any carved stone and read it': 'be har sang-e kande-kári beru va bekhánash',
+      'greet Donya at the well': 'dar cháh be Donyá salám kon',
+      'she waits in the yard, by the well': 'u dar hiayát, kenar-e cháh montazer ast',
+      'walk out to the apiary and open a hive': 'be zanbursetán beru va kandu-i rá báz kon',
+      'go north out of the yard, past the wood edge': 'az hiayát be shomál beru, az labe-ye jangal begzár',
+      'find the greenhouse and cross two seeds': 'gelkháne rá peydá kon va do dáne rá peyvand bezan',
+      'go west along the lane, to the greenhouse': 'dar ráh be gharb beru, tá gelkháne',
+      'carry the can to the stream and fill it': 'ábpásh rá be juy bebar va por kon',
       'go south-west, to where the ground turns wet': 'be jonub-e gharb beru, jaei ke zamin tar mishavad',
-      'walk the four ways out of the yard': 'chahar rah-e birun az hiayat ra beru',
-      'step out of the yard by each of its four edges': 'az har yek az chahar labe-ye hiayat birun beru',
-      'climb to the high pastures': 'be marghzar-e boland bala beru',
-      'go north from the apiary, and north again': 'az zanbursetan be shomal beru, va baz ham shomal',
-      'reach the shore and the sea': 'be sahel va darya beres',
-      'go south past the pond, to the shore and the sea': 'az abgir be jonub beru, ta sahel va darya',
-      'hear the storyteller out in the yard': 'be ghesse-gu dar hiayat gush kon',
-      'he sits in the yard, by the well': 'u dar hiayat, kenar-e chah minechinad',
-      'sit with the weaver in the garden': 'ba bafande dar bagh beneshin',
-      'go east from the yard, into the garden': 'az hiayat be shargh beru, dakhel-e bagh',
-      'ask the fisher at the pond about the water': 'az mahigir-e kenar-e abgir darbare-ye ab bepors',
-      'go south from the yard, down to the pond': 'az hiayat be jonub beru, ta abgir',
-      'walk the steppe with the shepherd': 'ba chopan dar dasht beru',
-      'go north past the apiary, to the dry grass': 'az zanbursetan be shomal beru, be alaf-e khoshk',
-      'ask the nomad where the water is': 'az kuch-neshin bepors ab kojast',
-      'go north-east, to where the sand begins': 'be shomal-e shargh beru, jaei ke rig aghaz mishavad',
-      'hear the caravaneer out': 'be karavansara-dar gush kon',
-      'keep going into the dunes': 'be del-e tape-ha-ye rigi beru',
-      'read the stone at the shrine': 'sang-e kenar-e ziaratgah ra bekhan',
-      'find it among the old stones': 'an ra mian-e sang-ha-ye kohan peyda kon',
-      'fish the lake three times over': 'se bar dar daryache mahigiri kon',
-      'row out from the sea, to the lake': 'az darya be daryache paru bezan',
-      'name the seven stars': 'haft setare ra nam begzar',
-      'look up at night, from anywhere on the island': 'shab az har jaye jazire be bala negah kon',
-      'walk the rim of the island': 'dour-e jazire ra begard',
-      'the cliff and the hedge mark the island’s end': 'sakhre va parchin payan-e jazire ra neshan midahand',
-      'The shrine': 'Ziaratgah',
-      'INSCRIBED IN THE STONE': 'DAR SANG KANDE SHODE',
-      'tap a gap, then a word': 'yek khane ra bezan, baad yek vazhe',
-      'The night sky': 'Aseman-e shab',
-      'drag from star to star': 'az setare be setare bekesh',
-      'The comb': 'Shahedane',
-      'tap a cell when it glows': 'vaghti khane midarakhshad an ra bezan',
-      'The queen': 'Malake',
-      'a number says how many cells away she is': 'adadi migooyad chand khane dur-tar ast',
-      'tap a cell': 'yek khane ra bezan',
-      'The greenhouse': 'Gelkhane',
-      'white hides a colour. cross two that hide it.': 'sefidi rangi ra penhan mikonad. do ta ra ke penhanash mikonand peyvand bezan.',
+      'walk the four ways out of the yard': 'cháhár ráh-e birun az hiayát rá beru',
+      'step out of the yard by each of its four edges': 'az har yek az cháhár labe-ye hiayát birun beru',
+      'climb to the high pastures': 'be marghzár-e boland bálá beru',
+      'go north from the apiary, and north again': 'az zanbursetán be shomál beru, va báz ham shomál',
+      'reach the shore and the sea': 'be sáhel va daryá beres',
+      'go south past the pond, to the shore and the sea': 'az ábgir be jonub beru, tá sáhel va daryá',
+      'hear the storyteller out in the yard': 'be ghesse-gu dar hiayát gush kon',
+      'he sits in the yard, by the well': 'u dar hiayát, kenar-e cháh minechinad',
+      'sit with the weaver in the garden': 'bá báfande dar bágh beneshin',
+      'go east from the yard, into the garden': 'az hiayát be shargh beru, dákhel-e bágh',
+      'ask the fisher at the pond about the water': 'az mahigir-e kenar-e ábgir darbáre-ye áb bepors',
+      'go south from the yard, down to the pond': 'az hiayát be jonub beru, tá ábgir',
+      'walk the steppe with the shepherd': 'bá chopán dar dasht beru',
+      'go north past the apiary, to the dry grass': 'az zanbursetán be shomál beru, be alaf-e khoshk',
+      'ask the nomad where the water is': 'az kuch-neshin bepors áb kojast',
+      'go north-east, to where the sand begins': 'be shomál-e shargh beru, jaei ke rig ágház mishavad',
+      'hear the caravaneer out': 'be kárávánsará-dar gush kon',
+      'keep going into the dunes': 'be del-e tape-há-ye rigi beru',
+      'read the stone at the shrine': 'sang-e kenar-e ziaratgáh rá bekhán',
+      'find it among the old stones': 'án rá mian-e sang-há-ye kohan peydá kon',
+      'fish the lake three times over': 'se bar dar daryáche máhigiri kon',
+      'row out from the sea, to the lake': 'az daryá be daryáche páru bezan',
+      'name the seven stars': 'haft setáre rá nám begzár',
+      'look up at night, from anywhere on the island': 'shab az har jáye jazire be bálá negah kon',
+      'walk the rim of the island': 'dour-e jazire rá begard',
+      'the cliff and the hedge mark the island’s end': 'sakhre va parchin páyán-e jazire rá neshán midáhand',
+      'The shrine': 'Ziaratgáh',
+      'INSCRIBED IN THE STONE': 'dar sang KANDE SHODE',
+      'tap a gap, then a word': 'yek kháne rá bezan, baad yek vázhe',
+      'The night sky': 'Ásemán-e shab',
+      'drag from star to star': 'az setáre be setáre bekesh',
+      'The comb': 'Shahedáne',
+      'tap a cell when it glows': 'vaghti kháne midarakhshad án rá bezan',
+      'The queen': 'malake',
+      'a number says how many cells away she is': 'adadi migooyad chand kháne dur-tar ast',
+      'tap a cell': 'yek kháne rá bezan',
+      'The greenhouse': 'Gelkháne',
+      'white hides a colour. cross two that hide it.': 'sefidi rangi rá penhán mikonad. do tá rá ke penhánash mikonand peyvand bezan.',
       'Cross': 'Peyvand',
-      'The henhouse': 'Morghdani',
-      'bare straw': 'kah-e khali',
-      'Pair them': 'jofteshan kon',
-      'The kitchen': 'Ashpazkhane',
+      'The henhouse': 'Morghdáni',
+      'bare straw': 'kah-e kháli',
+      'Pair them': 'jofteshán kon',
+      'The kitchen': 'Áshpazkháne',
       'Cook': 'Bepaz',
-      'empty it': 'khalish kon',
-      'The wagon': 'Arabe',
+      'empty it': 'khálish kon',
+      'The wagon': 'Arábe',
       'wheel': 'charkh',
       'handle': 'daste',
-      'The lantern walk': 'Shabgardi ba fanus',
-      'tap a lamp to light the way ahead': 'ru-ye fanus bezan ta rah-e pish-e ro roshan shavad',
-      'The bee-line': 'Khatt-e parvaz-e zanbur',
+      'The lantern walk': 'Shabgardi bá fánus',
+      'tap a lamp to light the way ahead': 'ru-ye fánus bezan tá ráh-e pish-e ro roshan shavad',
+      'The bee-line': 'Khatt-e parváz-e zanbur',
       'three bees, three bearings': 'se zanbur, se jahat',
-      'Record': 'Sabt kon',
-      'The removal': 'Pak-sazi',
-      'row out': 'paru bezan',
+      'Record': 'sabt kon',
+      'The removal': 'Pák-sázi',
+      'row out': 'páru bezan',
       'The spring': 'Cheshme',
-      'the can is full': 'abpash por ast',
-      'hold it still while it fills': 'ta por mishavad bi-harekat negahash dar',
-      'DONYA, MY SISTER': 'Donya, khaharam',
-      '"I found the low path. Come and see."': '«Rah-e kam-shib ra peyda kardam. Bia bebin.»',
-      'The lake': 'Daryache',
-      'The pond': 'Abgir',
-      'the oars take you out': 'paru-ha to ra birun mibarand',
-      'tap what the water brings up': 'ru-ye anche ab bala miyavarad bezan',
-      'A NEW WORD': 'Vazhe-ye taze',
-      'THE WORDS': 'Vazhe-ha',
-      'the wild is on the chart': 'biaban ru-ye naghshe ast',
+      'the can is full': 'ábpásh por ast',
+      'hold it still while it fills': 'tá por mishavad bi-harekat negahash dar',
+      'DONYA, MY SISTER': 'Donyá, kháharam',
+      '"I found the low path. Come and see."': '«Ráh-e kam-shib rá peydá kardam. Bia bebin.»',
+      'The lake': 'Daryáche',
+      'The pond': 'Ábgir',
+      'the oars take you out': 'páru-há to rá birun mibarand',
+      'tap what the water brings up': 'ru-ye ánche áb bálá miyávarad bezan',
+      'A NEW WORD': 'Vázhe-ye táze',
+      'THE WORDS': 'Vázhe-há',
+      'the wild is on the chart': 'biábán ru-ye naghshe ast',
       'basket full': 'sabad por',
-      'a bee flew home': 'zanburi be khane raft',
+      'a bee flew home': 'zanburi be kháne raft',
       'a bee is back': 'zanburi bargasht',
       'bloomed': 'shekoft',
-      'harvested': 'bardasht shod',
+      'harvested': 'bardásht shod',
       'into the bag': 'dar kif',
-      'netted, and let go': 'dar tur, va raha shod',
-      'no seeds left': 'bazri namande',
-      'she steps ashore': 'be sahel miravad',
-      'she steps in': 'savar mishavad',
-      'sown': 'kashte shod',
-      'too big to net': 'baraye tur bozorg ast',
+      'netted, and let go': 'dar tur, va rahá shod',
+      'no seeds left': 'bazri namánde',
+      'she steps ashore': 'be sáhel miravad',
+      'she steps in': 'savár mishavad',
+      'sown': 'káshte shod',
+      'too big to net': 'baráye tur bozorg ast',
       '+2 honey': '+2 asal',
       'mites': 'kane',
       'no mites': 'bikane',
       'spent': 'masraf shode',
       'child': 'farzand',
       'Keep it': 'Negahash dar',
-      'Set it aside': 'Kenarash begzar',
-      'collect the eggs': 'tokhm-ha ra jam kon',
-      'the nest is bare': 'ashiyane khali ast',
-      'a wheel and a handle, somewhere here': 'yek charkh va yek daste, jaei hamin-ja',
-      'fit the parts to the cart': 'qet-e-ha ra ru-ye arabe begzar',
-      '{0} of 4 faces free': '{0} az 4 vajh azad',
-      'drag the needle to the average': 'aqrebe ra ta mian-gin bekesh',
-      'tap the tree on the line': 'derakht-e ru-ye khatt ra bezan',
-      'the meadow': 'chamanzar',
-      'the thirsty sprouts': 'javane-ha-ye teshne',
-      'the fireflies': 'kerm-ha-ye shabtab',
-      'the comb': 'shahedane',
+      'Set it aside': 'Kenárash begzár',
+      'collect the eggs': 'tokhm-há rá jam kon',
+      'the nest is bare': 'áshiyáne kháli ast',
+      'a wheel and a handle, somewhere here': 'yek charkh va yek daste, jaei hamin-já',
+      'fit the parts to the cart': 'qat\'e-há rá ru-ye arábe begzár',
+      '{0} of 4 faces free': '{0} az 4 vajh ázád',
+      'drag the needle to the average': 'aqrebe rá tá mian-gin bekesh',
+      'tap the tree on the line': 'derakht-e ru-ye khatt rá bezan',
+      'the meadow': 'chamanzár',
+      'the thirsty sprouts': 'javáne-há-ye teshne',
+      'the fireflies': 'kerm-há-ye shab-táb',
+      'the comb': 'shahedáne',
       'the queen': 'malake',
-      'the greenhouse': 'gelkhane',
-      'the henhouse': 'morghdani',
-      'the kitchen': 'ashpazkhane',
-      'the wagon': 'arabe',
+      'the greenhouse': 'gelkháne',
+      'the henhouse': 'morghdáni',
+      'the kitchen': 'áshpazkháne',
+      'the wagon': 'arábe',
       'the stream': 'juy',
-      'the lantern walk': 'shabgardi ba fanus',
-      'the bee-line': 'khatt-e parvaz-e zanbur',
-      'the removal': 'pak-sazi',
-      'the Hyrcanian forest': 'jangal-e Hyrkania',
-      'the Zagros steppe': 'dasht-e Zagros',
-      'the alpine meadow': 'marghzar-e Alpi',
-      'the Kavir desert': 'biaban-e Kavir',
+      'the lantern walk': 'shabgardi bá fánus',
+      'the bee-line': 'khatt-e parváz-e zanbur',
+      'the removal': 'pák-sázi',
+      'the Hyrcanian forest': 'jangal-e hyrkaniya',
+      'the Zagros steppe': 'dasht-e zagros',
+      'the alpine meadow': 'marghzár-e Alpi',
+      'the Kavir desert': 'biábán-e kavir',
       'the river': 'rud',
-      'the sea': 'darya',
-      'the beach': 'sahel',
-      'the shrine': 'ziaratgah',
-      'the lake': 'daryache',
-      'the stars': 'setare-ha',
+      'the sea': 'daryá',
+      'the beach': 'sáhel',
+      'the shrine': 'ziaratgáh',
+      'the lake': 'daryáche',
+      'the stars': 'setáre-há',
       'honey': 'asal',
       'grow a {0} bloom': 'yek shokufe-ye {0} beruyan',
       'bee {0}': 'zanbur {0}',
       'back': 'ghabli',
       'next': 'baadi',
-      'it comes up': 'bala miayad',
+      'it comes up': 'bálá miáyad',
       'it flowers': 'gol midahad',
       'white': 'sefid',
-      'coral': 'marjani',
+      'coral': 'marjáni',
       'rose': 'goli',
+      'tap a page to read it': 'roo ye safhe bezan tá bekhuni',
+      '12 cells': '12 kháne',
+      'Bag': 'kif',
+      'Bee-line': 'khat-e zanbur',
+      'Close look': 'negah-e nazdik',
+      'Comb': 'sháne',
+      'Greenhouse': 'golkháne',
+      'Hens': 'morgh-há',
+      'Hyrcanian forest': 'jangal-e Hircani',
+      'Kavir desert': 'kavir',
+      'Kitchen': 'áshpazkháne',
+      'Lake': 'daryáche',
+      'Lanterns': 'fánus-há',
+      'Paused': 'mokhes',
+      'Queen': 'malake',
+      'Removal': 'koch dádán',
+      'Shrine': 'ziyáratgáh',
+      'Stream': 'juybár',
+      'The island waits.': 'jazire montazer ast.',
+      'The {0} is watered': '{0} áb-yári mishavad',
+      'Wagon': 'arábe',
+      'Zagros steppe': 'estep-e zagros',
+      'a clutch is wanted: pair the two best sitters': 'yek joje-keshi lázem ast: do behtarin korch rá joft kon',
+      'a strange stew': 'ashi-ye ajib',
+      'alpine meadow': 'chamanzár-e Alpi',
+      'ash': 'ásh',
+      'beans': 'lubiyá',
+      'brood': 'nozád',
+      'by the {0} from': 'bá {0} az',
+      'cage': 'ghafas',
+      'cage the queen': 'malake rá dar ghafas begozár',
+      'cut': 'boresh',
+      'cut while the knife is in the green': 'vaghti tigha dar sabzi, bebor',
+      'eggs': 'tokhm',
+      'evacuate': 'takhliye',
+      'greens': 'sabzi',
+      'hardy': 'sarsakht',
+      'her own clothes': 'lebas-e khodash',
+      'layers': 'tokhm-gozár',
+      'look at the entrance': 'be vorudi negah kon',
+      'nothing here': 'chizi injá nist',
+      'nothing yet': 'hanooz chizi nist',
+      'queen': 'malake',
+      'rice': 'berenj',
+      'rice twice the beans, and greens to match the beans': 'berenj do barábar-e lubiyá, va sabzi be andáze-ye lubiyá',
+      'row out past the shallows': 'az kam-áb birun bero',
+      'saffron': 'zaferán',
+      'sitters': 'korch',
+      'smoke': 'dud',
+      'summer stew': 'ásh-e tábestáni',
+      'survey': 'barresi',
+      'tap the cluster until they follow': 'ruye khushe bezan tá donbál konand',
+      'tap the water to cast': 'baráye andákhtan-e gholáb ruye áb bezan',
+      'tap to go back': 'baráye bázgasht bezan',
+      'tap to keep walking': 'baráye edáme-ye ráh bezan',
+      'the acorns lie under the oaks': 'balut-há zire derakhtán-e balut oftáde-and',
+      'the bank keeps what the water leaves': 'karáne ánche áb migozárad negah midárad',
+      'the bee suit': 'lebas-e zanburdári',
+      'the deepest, shadowed face': 'zharf-tarin ruye sáye-dár',
+      'the family wants eggs: pair the two best layers': 'kháneváde tokhm mikháhad: do behtarin tokhm-gozár rá joft kon',
+      'the festival dress': 'lebas-e jashn',
+      'the fisher\'s smock': 'piráhan-e mahigir',
+      'the flowers have gone to seed': 'gol-há tokhm baste-and',
+      'the house': 'kháne',
+      'the mountain cloak': 'shenl-e kuhestan',
+      'the old trees keep the ground soft': 'derakhtán-e kohan zamin rá narm negah midárand',
+      'the orchard coat': 'paltu-ye bágh',
+      'the sand gives up what it buried': 'shen ánche rá dafn karde pas midahad',
+      'the sprouts': 'jovane-há',
+      'the tide line is where things gather': 'khatt-e jazr jáye gard ámadan-e chiz-hast',
+      'the walk': 'ráh-peymáyi',
+      'the weaver\'s apron': 'pishband-e báfande',
+      'the {0}.': '{0}.',
+      'tomato': 'goje',
+      'tomato twice the beans, and one pinch of saffron': 'goje do barábar-e lubiyá, va yek paymáne zaferán',
+      'two soft puffs': 'do pof-e narm',
+      '{0} of {1} pairs · {2} chicks': '{0} az {1} joft · {2} joje',
+      'next \\u00b7 {0}': 'baadi · {0}',
+      'found': 'yáfte shod',
+      'A clutch in the straw': 'yek joje-keshi dar kah',
+      'A good day on the island.': 'rooz-e khubi dar jazire.',
+      'A wheel and a handle, found in the yard.': 'yek charkh va yek daste, dar hiayát peydá shod.',
+      'Barfi': 'Barfi',
+      'Kakoli': 'Kákoli',
+      'Pesteh': 'Pesteh',
+      'Saffron': 'Zaferán',
+      'Donya\'s dress': 'lebas-e Donyá',
+      'Donya, my sister': 'Donyá, kháharam',
+      'Eight cells sealed with wax, and not a bee disturbed.': 'hasht kháne bá mum pushide shod, va hich zanburi áshofte nashod.',
+      'Settled in the box': 'dar ja\'be já gereftand',
+      'She carried the spring back to the beds.': 'cheshme rá be kert-há bord.',
+      'She reached the gate': 'be darváze resid',
+      'She was carried gently to the middle frames.': 'u árám be gháb-há-ye miyani borde shod.',
+      'Surveyed, smoked, cut, caged and carried out.': 'barresi, dud, boresh, ghafas va birun bordan.',
+      'Tap for the island': 'baráye jazire bezan',
+      'The can is full': 'áb-pásh por shod',
+      'The cart rolls again': 'arábe dobáre mighaltad',
+      'The colony is found': 'koloni peydá shod',
+      'The colony scatters': 'koloni parákande shod',
+      'The comb is capped': 'sháne pushide shod',
+      'The day ends': 'rooz tamám shod',
+      'The day is done': 'rooz be páyán resid',
+      'The greenhouse keeps the seed.': 'golkháne tokhm rá negah midárad.',
+      'The pot knows': 'dig midánad',
+      'The queen is found': 'malake peydá shod',
+      'Three bearings, one line, one hollow tree.': 'se jahat, yek khatt, yek derakht-e tukhsar.',
+      'Too much stirring, and they leave for the trees. Nothing is hurt.': 'áshoftegi bish az andáze, va be derakhtán raftand. chizi ásib nadid.',
+      'Two colours from white': 'do rang az sefid',
+      'Two dishes by their ratios, and a strange stew on the way.': 'do khorák be nesbat-háyeshán, va yek ásh-e ajib dar ráh.',
+      'Two pairs, chosen by their numbers.': 'do joft, bar paye-ye adad-háyeshán.',
+      'reel': 'bekesh',
+      '{0} fireflies caught': '{0} kerm-e shab-táb gerefte shod',
+      '{0} nectar carried home': '{0} shahd be kháne borde shod',
+      '{0} of {1} fireflies caught': '{0} az {1} kerm-e shab-táb',
+      '{0} of {1} lamps were lit as she passed.': '{0} az {1} fánus dar gozar-e u roshan shod.',
+      '{0} of {1} nectar': '{0} az {1} shahd',
+      '{0} of {1} sprouts watered': '{0} az {1} jovane áb-yári shod',
+      'next \\u00b7 {0}': 'baadi · {0}',
+      'draw water': 'áb bekesh',
+      'greet Donya': 'be Donyá salám kon',
+      'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
+      'look at the clover': 'be shabdar negah kon',
+      'look at the geranium': 'be shamadáni negah kon',
+      'look at the grass': 'be alaf negah kon',
+      'look at the persian rose': 'be gol-e mohammadi negah kon',
+      'net the ginger cat': 'gorbe-ye zanjebili rá bá tur begir',
+      'net the hedgehog': 'joje-tighi rá bá tur begir',
+      'net the house sparrow': 'gonjeshk-e khaneghi rá bá tur begir',
+      'net the songbird': 'parande-ye avaz-khan rá bá tur begir',
+      'net the starling': 'sar rá bá tur begir',
+      'net the swallow': 'parastu rá bá tur begir',
+      'net the tabby cat': 'gorbe-ye ráh-ráh rá bá tur begir',
+      'read the stone': 'sang rá bekhán',
     },
   };
 
@@ -10526,38 +12331,38 @@ props: islandProps.map(function (p) {
       '水渠、坎儿井'
     ],
     fi: [
-      'zanbur', 'kandu', 'shahedane', 'malake',
+      'zanbur', 'kandu', 'sháne', 'malake',
       'asal', 'kane', 'mum', 'garde',
-      'shahed', 'parvaz', 'zanbur-e kargar', 'zanbur-e parastar',
-      'zanbur-e negahban', 'larv', 'shafire', 'derakht',
-      'gol dan', 'bahar', 'tabestan', 'payiz',
-      'zemestan', 'dozd', 'kane', 'ab',
+      'shahd', 'parváz', 'zanbur-e kárgar', 'zanbur-e parastár',
+      'zanbur-e negahbán', 'lárv', 'shafire', 'derakht',
+      'goldán', 'bahár', 'tábestán', 'páyiz',
+      'zemestán', 'dozd', 'kane', 'áb',
       'ordak', 'gol', 'sabze, alaf', 'shokufe',
-      'bagh, baghestan', 'giah', 'bazr', 'nar',
-      'zhele-ye saltanati', 'bare-mum', 'khane-ye shan', 'koloni',
-      'nan-e zanbur', 'daste', 'bal', 'cheshm',
-      'rishe', 'barg', 'shakhe', 'mive',
-      'ghonche', 'khar', 'khak', 'aftab',
-      'saye', 'baran', 'ruz', 'shab',
-      'khane', 'maman', 'baba', 'khahar',
-      'dust', 'khanevade', 'bad', 'rah',
-      'jazire', 'aseman', 'aftabi', 'abri',
-      'tufan', 'garma', 'barf', 'setare',
-      'Dob-e Akbar', 'Shekarchi', 'Zat al-Korsi', 'Ghu',
-      'Chang', 'Kazhdom', 'Shir', 'Gav',
-      'Dopeykar', 'Oghab', 'Sag-e Bozorg', 'Gavran',
-      'Dob-e Asghar', 'Asb-e Bal-dar', 'Zan-e Barzanjir', 'Barsavosh',
-      'Arabe-ran', 'Barre', 'Sag-e Kuchak', 'Kharchang',
-      'Dushize', 'Tarazu', 'Kaman', 'Bozghale',
-      'darya', 'saf', 'nime abri', 'kam elan abri',
-      'meh alud', 'ghobar alud', 'barani', 'nam nam',
-      'ragbar', 'baran-e shadid', 'barfi', 'kulak',
-      'tagarg', 'makhlut', 'badi', 'nasim',
-      'tondbad', 'tufani', 'rad va bargh', 'gerdbad',
-      'dagh', 'garm', 'khonak', 'sard',
-      'yakhbandan', 'martub', 'khoshk', 'pish-bini-ye hava',
-      'daraje-ye hararat', 'moj-e garma', 'jebhe-ye sarma', 'sang',
-      'kanal, qanat'
+      'bágh, baghestan', 'giáh', 'bazr', 'nar',
+      'zhele-ye saltanati', 'bare-mum', 'kháne-ye sháne', 'koloni',
+      'nán-e zanbur', 'daste', 'bál', 'cheshm',
+      'rishe', 'barg', 'shákhe', 'mive',
+      'ghonche', 'khár', 'khák', 'áftáb',
+      'sáye', 'bárán', 'ruz', 'shab',
+      'kháne', 'mámán', 'bábá', 'kháhar',
+      'dust', 'kháneváde', 'bád', 'ráh',
+      'jazire', 'ásemán', 'áftábi', 'ábri',
+      'tufán', 'garmá', 'barf', 'setáre',
+      'Dob-e Akbar', 'Shekárchi', 'Zat al-Korsi', 'Ghu',
+      'Chang', 'Kazhdom', 'Shir', 'Gáv',
+      'Dopeykar', 'Ogháb', 'Sag-e Bozorg', 'Gávrán',
+      'Dob-e Asghar', 'Asb-e Bál-dar', 'Zan-e Barzanjir', 'Barsávosh',
+      'Arábe-ran', 'Barre', 'Sag-e Kuchak', 'Kharchang',
+      'Dushize', 'Tarázu', 'Kamán', 'Bozghále',
+      'daryá', 'sáf', 'nime ábri', 'kámelan ábri',
+      'meh alud', 'ghobar alud', 'báráni', 'nám nám',
+      'ragbár', 'bárán-e shadid', 'barfi', 'kulák',
+      'tagarg', 'makhlut', 'bádi', 'nasim',
+      'tondbád', 'tufáni', 'rad va bargh', 'gerdbád',
+      'dágh', 'garm', 'khonak', 'sard',
+      'yakhbandán', 'martub', 'khoshk', 'pish-bini-ye hava',
+      'daraje-ye hararat', 'moj-e garmá', 'jebhe-ye sarma', 'sang',
+      'kanal, qanát',
     ],
   };
 
@@ -10781,7 +12586,7 @@ props: islandProps.map(function (p) {
     y += 30 * s;
 
     // The name, in the keeper's own hand.
-    var title = sp ? (sp.e || sp.f) : 'nothing here';
+    var title = sp ? (sp.e || sp.f) : T('nothing here');
     ctx.fillStyle = C.ink;
     fitFont(ctx, title, 26 * s, plateW - 40 * s, '600', FONT_SERIF, 'italic ');
     ctx.fillText(title, cssW / 2, y);
@@ -10986,9 +12791,9 @@ props: islandProps.map(function (p) {
     ctx.font = '600 9px ' + FONT_UI;
     spacedText(T('INSCRIBED IN THE STONE'), 195, sy + 30, 2.4);
 
-    drawSentence([{ t: 'The ' }, { b: 0 }, { t: ' is watered' }], 195, sy + 96);
-    drawSentence([{ t: 'by the ' }, { b: 1 }, { t: ' from' }], 195, sy + 152);
-    drawSentence([{ t: 'the ' }, { b: 2 }, { t: '.' }], 195, sy + 208);
+    drawSentence(oneGap(T('The {0} is watered'), 0), 195, sy + 96);
+    drawSentence(oneGap(T('by the {0} from'), 1), 195, sy + 152);
+    drawSentence(oneGap(T('the {0}.'), 2), 195, sy + 208);
 
     // Three carved clues.
     for (var i = 0; i < 3; i++) {
@@ -11061,7 +12866,7 @@ props: islandProps.map(function (p) {
     if (shrine.msgAge < 3.4 && shrine.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11px ' + FONT_UI;
-      var msgLines = wrapText(shrine.msg, 320, '500 11px ' + FONT_UI);
+      var msgLines = wrapText(T(shrine.msg), 320, '500 11px ' + FONT_UI);
       ctx.font = '500 11px ' + FONT_UI;
       for (var m = 0; m < msgLines.length; m++) ctx.fillText(msgLines[m], 195, 740 + m * 14);
     } else if (!shrine.done) {
@@ -11086,6 +12891,18 @@ props: islandProps.map(function (p) {
 
     ctx.textAlign = 'left';
     pageEnd();
+  }
+
+  /* One line of the inscription: the part before the gap, the gap, the part after. */
+  function oneGap(template, blank) {
+    var i = template.indexOf('{0}');
+    if (i < 0) return [{ t: template }];
+    var parts = [];
+    if (i > 0) parts.push({ t: template.slice(0, i) });
+    parts.push({ b: blank });
+    var rest = template.slice(i + 3);
+    if (rest) parts.push({ t: rest });
+    return parts;
   }
 
   /* One line of the inscription, with a gap cut into it. */
@@ -11829,7 +13646,7 @@ props: islandProps.map(function (p) {
     if (lake.msgAge < 2.6 && lake.msg) {
       ctx.fillStyle = lake.state === 'hooked' || lake.state === 'landed' ? C.turquoiseDeep : C.terracotta;
       ctx.font = '600 13px ' + FONT_UI;
-      ctx.fillText(lake.msg, 195, 54);
+      ctx.fillText(T(lake.msg), 195, 54);
     } else if (!lake.state || lake.state === 'idle') {
       ctx.fillStyle = 'rgba(247,244,238,0.92)';
       ctx.font = '500 12px ' + FONT_UI;
@@ -12295,7 +14112,7 @@ props: islandProps.map(function (p) {
       ctx.globalAlpha = sky.glow;
       ctx.fillStyle = '#F7E9C2';
       ctx.font = 'italic 600 24px ' + FONT_SERIF;
-      ctx.fillText(SKY_FIGURE.name, 195, 590);
+      ctx.fillText(T(SKY_FIGURE.name), 195, 590);
       ctx.fillStyle = 'rgba(247,233,194,0.7)';
       ctx.font = '400 12px ' + FONT_UI;
       ctx.fillText(SKY_FIGURE.en + '  \u00b7  ' + SKY_FIGURE.p, 195, 616);
@@ -12626,7 +14443,7 @@ props: islandProps.map(function (p) {
     if (comb.msgAge < 3 && comb.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 12px ' + FONT_UI;
-      ctx.fillText(comb.msg, 195, 748);
+      ctx.fillText(T(comb.msg), 195, 748);
     } else if (!comb.done) {
       ctx.fillStyle = 'rgba(247,244,238,0.75)';
       ctx.font = '400 12px ' + FONT_UI;
@@ -12635,7 +14452,7 @@ props: islandProps.map(function (p) {
     ctx.textAlign = 'left';
 
     if (comb.done && clock - comb.doneAt > 3.6) {
-      placeDoneCard('The comb is capped', 'Eight cells sealed with wax, and not a bee disturbed.', [
+      placeDoneCard(T('The comb is capped'), T('Eight cells sealed with wax, and not a bee disturbed.'), [
         'shane \u00b7 comb'
       ]);
       pageEnd();
@@ -12736,7 +14553,7 @@ props: islandProps.map(function (p) {
     pageBegin(cssW, cssH);
     drawHiveRoom();
     placeHeader(T('The queen'));
-    countChip(queen.found ? 'found' : '12 cells', 262, 58, 116);
+    countChip(queen.found ? T('found') : T('12 cells'), 262, 58, 116);
 
     for (var i = 0; i < 12; i++) {
       var c = queen.cells[i];
@@ -12788,7 +14605,7 @@ props: islandProps.map(function (p) {
     ctx.textAlign = 'left';
 
     if (queen.done && clock - queen.foundAt > 5.4) {
-      placeDoneCard('The queen is found', 'She was carried gently to the middle frames.', [
+      placeDoneCard(T('The queen is found'), T('She was carried gently to the middle frames.'), [
         'malake \u00b7 queen'
       ]);
       pageEnd();
@@ -13051,15 +14868,18 @@ props: islandProps.map(function (p) {
     placeHeader(T('The greenhouse'));
     countChip(glass.round + ' / ' + glass.rounds, 262, 58, 116);
 
-    // The aim.
+    // The aim. The hint is a whole sentence in every language, so it is fitted
+    // rather than trusted to fit: the Finglish of it is 38 characters longer than
+    // English and ran off both edges of the page.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#3B4A40';
     ctx.font = '600 12px ' + FONT_UI;
     ctx.fillText(T('grow a {0} bloom', bloomName(glass.target)), 195, 120);
     ctx.fillStyle = 'rgba(59,74,64,0.6)';
-    ctx.font = '400 11px ' + FONT_UI;
-    ctx.fillText(T('white hides a colour. cross two that hide it.'), 195, 140);
+    var glassHint = fitLine(T('white hides a colour. cross two that hide it.'), 340, FONT_UI, 400, '', 11, 8.5);
+    ctx.font = glassHint.font;
+    ctx.fillText(glassHint.text, 195, 140);
 
     // The blooms on their bench.
     for (var i = 0; i < glass.blooms.length; i++) {
@@ -13157,12 +14977,12 @@ props: islandProps.map(function (p) {
     if (glass.msgAge < 3 && glass.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(glass.msg, 195, 616);
+      ctx.fillText(T(glass.msg), 195, 616);
     }
 
     ctx.textAlign = 'left';
     if (glass.done && clock - glass.doneAt > 3.6) {
-      placeDoneCard('Two colours from white', 'The greenhouse keeps the seed.', [
+      placeDoneCard(T('Two colours from white'), T('The greenhouse keeps the seed.'), [
         'tokhm \u00b7 seed'
       ]);
       pageEnd();
@@ -13382,10 +15202,10 @@ props: islandProps.map(function (p) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#F3E7CF';
     ctx.font = '600 12.5px ' + FONT_UI;
-    ctx.fillText(HEN_AIMS[hens.aim].line, 195, 74);
+    ctx.fillText(T(HEN_AIMS[hens.aim].line), 195, 74);
     ctx.fillStyle = 'rgba(243,231,207,0.6)';
     ctx.font = '400 11px ' + FONT_UI;
-    ctx.fillText(hens.round + ' of ' + hens.rounds + ' pairs · ' + hens.chick + ' chicks', 195, 96);
+    ctx.fillText(T('{0} of {1} pairs · {2} chicks', hens.round, hens.rounds, hens.chick), 195, 96);
 
     for (var i = 0; i < hens.birds.length; i++) {
       var hen = hens.birds[i];
@@ -13403,13 +15223,13 @@ props: islandProps.map(function (p) {
       ctx.textAlign = 'left';
       ctx.fillStyle = C.ink;
       ctx.font = 'italic 600 15px ' + FONT_SERIF;
-      ctx.fillText(hen.name, x + 100, y + 40);
+      ctx.fillText(T(hen.name), x + 100, y + 40);
       var rows = [['eggs', hen.eggs], ['brood', hen.brood], ['hardy', hen.hardy]];
       for (var r = 0; r < 3; r++) {
         var ry = y + 66 + r * 30;
         ctx.fillStyle = C.inkSoft;
         ctx.font = '500 10px ' + FONT_UI;
-        ctx.fillText(rows[r][0], x + 100, ry + 7);
+        ctx.fillText(T(rows[r][0]), x + 100, ry + 7);
         for (var p2 = 0; p2 < 5; p2++) {
           ctx.fillStyle = p2 < rows[r][1] ? (rows[r][0] === hens.aim ? C.terracotta : C.inkSoft) : 'rgba(42,35,32,0.16)';
           ctx.beginPath();
@@ -13470,12 +15290,12 @@ props: islandProps.map(function (p) {
     if (hens.msgAge < 3 && hens.msg) {
       ctx.fillStyle = '#F3C89A';
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(hens.msg, 195, 800);
+      ctx.fillText(T(hens.msg), 195, 800);
     }
     ctx.textAlign = 'left';
 
     if (hens.done && clock - hens.doneAt > 3.6) {
-      placeDoneCard('A clutch in the straw', 'Two pairs, chosen by their numbers.', [
+      placeDoneCard(T('A clutch in the straw'), T('Two pairs, chosen by their numbers.'), [
         'morgh \u00b7 hen'
       ]);
       pageEnd();
@@ -13666,10 +15486,10 @@ props: islandProps.map(function (p) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = C.ink;
     ctx.font = 'italic 600 19px ' + FONT_SERIF;
-    ctx.fillText(dish.name, 195, 92);
+    ctx.fillText(T(dish.name), 195, 92);
     ctx.fillStyle = C.inkSoft;
     ctx.font = '400 11.5px ' + FONT_UI;
-    var noteLines = wrapText(dish.riddle, 300, '400 11.5px ' + FONT_UI);
+    var noteLines = wrapText(T(dish.riddle), 300, '400 11.5px ' + FONT_UI);
     ctx.font = '400 11.5px ' + FONT_UI;
     for (var nl = 0; nl < noteLines.length; nl++) ctx.fillText(noteLines[nl], 195, 114 + nl * 15);
 
@@ -13711,11 +15531,11 @@ props: islandProps.map(function (p) {
       var nm = POT_ITEMS[pi];
       if (kitchen.pot[nm]) parts.push(kitchen.pot[nm] + ' ' + nm);
     }
-    ctx.fillText(parts.length ? parts.join('  \u00b7  ') : 'nothing yet', 195, 424);
+    ctx.fillText(parts.length ? parts.join('  \u00b7  ') : T('nothing yet'), 195, 424);
     if (kitchen.cooked) {
       ctx.fillStyle = kitchen.cooked === 'a strange stew' ? C.terracotta : C.turquoiseDeep;
       ctx.font = 'italic 600 14px ' + FONT_SERIF;
-      ctx.fillText(kitchen.cooked, 195, 452);
+      ctx.fillText(T(kitchen.cooked), 195, 452);
     }
 
     // The shelf of things.
@@ -13731,7 +15551,7 @@ props: islandProps.map(function (p) {
       drawFood(x + 54, y + 30, POT_ITEMS[i]);
       ctx.fillStyle = C.inkSoft;
       ctx.font = '500 10.5px ' + FONT_UI;
-      ctx.fillText(POT_ITEMS[i] + (n2 ? ' ' + n2 : ''), x + 54, y + 58);
+      ctx.fillText(T(POT_ITEMS[i]) + (n2 ? ' ' + n2 : ''), x + 54, y + 58);
       addHit(x, y, 108, 68, 'item', i);
     }
 
@@ -13755,12 +15575,12 @@ props: islandProps.map(function (p) {
     if (kitchen.msgAge < 3 && kitchen.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(kitchen.msg, 195, 790);
+      ctx.fillText(T(kitchen.msg), 195, 790);
     }
     ctx.textAlign = 'left';
 
     if (kitchen.done && clock - kitchen.doneAt > 3.6) {
-      placeDoneCard('The pot knows', 'Two dishes by their ratios, and a strange stew on the way.', [
+      placeDoneCard(T('The pot knows'), T('Two dishes by their ratios, and a strange stew on the way.'), [
         'ash \u00b7 a herb stew'
       ]);
       pageEnd();
@@ -13986,12 +15806,12 @@ props: islandProps.map(function (p) {
     if (wagon.msgAge < 3.2 && wagon.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(wagon.msg, 195, 790);
+      ctx.fillText(T(wagon.msg), 195, 790);
     }
     ctx.textAlign = 'left';
 
     if (wagon.done && clock - wagon.doneAt > 3.6) {
-      placeDoneCard('The cart rolls again', 'A wheel and a handle, found in the yard.', [
+      placeDoneCard(T('The cart rolls again'), T('A wheel and a handle, found in the yard.'), [
         'charkh \u00b7 wheel'
       ]);
       pageEnd();
@@ -14458,7 +16278,7 @@ props: islandProps.map(function (p) {
     if (lanterns.msgAge < 3 && lanterns.msg) {
       ctx.fillStyle = '#F3C89A';
       ctx.font = '500 12px ' + FONT_UI;
-      ctx.fillText(lanterns.msg, 195, 794);
+      ctx.fillText(T(lanterns.msg), 195, 794);
     } else if (!lanterns.done) {
       ctx.fillStyle = 'rgba(240,236,224,0.65)';
       ctx.font = '400 11.5px ' + FONT_UI;
@@ -14467,7 +16287,7 @@ props: islandProps.map(function (p) {
     ctx.textAlign = 'left';
 
     if (lanterns.done && clock - lanterns.doneAt > 3.8) {
-      placeDoneCard('She reached the gate', lanterns.litPassed + ' of ' + lanterns.lamps.length + ' lamps were lit as she passed.', [
+      placeDoneCard(T('She reached the gate'), T('{0} of {1} lamps were lit as she passed.', lanterns.litPassed, lanterns.lamps.length), [
         'cheragh \u00b7 lamp'
       ]);
       pageEnd();
@@ -14718,12 +16538,12 @@ props: islandProps.map(function (p) {
     if (beeline.msgAge < 3 && beeline.msg && !beeline.done) {
       ctx.fillStyle = '#F3C89A';
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(beeline.msg, 195, 664);
+      ctx.fillText(T(beeline.msg), 195, 664);
     }
     ctx.textAlign = 'left';
 
     if (beeline.done && clock - beeline.doneAt > 3.8) {
-      placeDoneCard('The colony is found', 'Three bearings, one line, one hollow tree.', [
+      placeDoneCard(T('The colony is found'), T('Three bearings, one line, one hollow tree.'), [
         'rah \u00b7 way'
       ]);
       pageEnd();
@@ -15063,25 +16883,25 @@ props: islandProps.map(function (p) {
       ctx.fill();
       ctx.fillStyle = now ? '#F7F4EE' : past ? 'rgba(247,244,238,0.7)' : 'rgba(247,244,238,0.45)';
       ctx.font = '500 9.5px ' + FONT_UI;
-      ctx.fillText(REMOVAL_STEPS[v], vx, vy + 0.5);
+      ctx.fillText(T(REMOVAL_STEPS[v]), vx, vy + 0.5);
       addHit(vx - pillW / 2, vy - 14, pillW, 28, 'verb', v);
     }
 
     if (removal.msgAge < 3.4 && removal.msg) {
       ctx.fillStyle = '#F3C89A';
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(removal.msg, 195, 752);
+      ctx.fillText(T(removal.msg), 195, 752);
     } else if (!removal.done && !removal.scattered) {
       ctx.fillStyle = 'rgba(247,244,238,0.62)';
       ctx.font = '400 11.5px ' + FONT_UI;
-      ctx.fillText(REMOVAL_HINTS[Math.min(removal.step, REMOVAL_HINTS.length - 1)], 195, 752);
+      ctx.fillText(T(REMOVAL_HINTS[Math.min(removal.step, REMOVAL_HINTS.length - 1)]), 195, 752);
     }
     ctx.textAlign = 'left';
 
     if (removal.scattered) {
       ctx.fillStyle = 'rgba(20,18,14,0.72)';
       ctx.fillRect(0, 0, 390, 844);
-      placeDoneCard('The colony scatters', 'Too much stirring, and they leave for the trees. Nothing is hurt.', [
+      placeDoneCard(T('The colony scatters'), T('Too much stirring, and they leave for the trees. Nothing is hurt.'), [
         'not every site can be moved'
       ], false);
       pageEnd();
@@ -15089,7 +16909,7 @@ props: islandProps.map(function (p) {
     }
 
     if (removal.done && clock - removal.doneAt > 3.8) {
-      placeDoneCard('Settled in the box', 'Surveyed, smoked, cut, caged and carried out.', [
+      placeDoneCard(T('Settled in the box'), T('Surveyed, smoked, cut, caged and carried out.'), [
         'duud \u00b7 smoke'
       ]);
       pageEnd();
@@ -15540,7 +17360,7 @@ props: islandProps.map(function (p) {
     roundRect(195 - hintW / 2, 780, hintW, 30, 15);
     ctx.fill();
     ctx.fillStyle = C.inkSoft;
-    ctx.fillText(st.hint, 195, 796);
+    ctx.fillText(T(st.hint), 195, 796);
     ctx.textAlign = 'left';
 
     if (st.done && clock - st.doneAt > 1.6) {
@@ -20511,7 +22331,7 @@ var ANIMAL_SIZES = {
       ctx.fillText(T('the can is full'), 195, by + 34);
     } else if (stream.msgAge < 3 && stream.msg) {
       ctx.fillStyle = C.terracotta;
-      ctx.fillText(stream.msg, 195, by + 34);
+      ctx.fillText(T(stream.msg), 195, by + 34);
     } else {
       ctx.fillText(T('hold it still while it fills'), 195, by + 34);
     }
@@ -20522,7 +22342,7 @@ var ANIMAL_SIZES = {
     addHit(0, 120, 390, 600, 'hold');
 
     if (stream.done && clock - stream.doneAt > 3.6) {
-      placeDoneCard('The can is full', 'She carried the spring back to the beds.', [
+      placeDoneCard(T('The can is full'), T('She carried the spring back to the beds.'), [
         'cheshmeh \u00b7 spring'
       ]);
       pageEnd();
@@ -23068,7 +24888,7 @@ var ANIMAL_SIZES = {
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(42,35,32,0.45)';
       ctx.font = 'italic 600 13px ' + FONT_SERIF;
-      ctx.fillText(p.k === 'house' ? 'the house' : 'the henhouse', x, y + (p.k === 'house' ? 96 : 116));
+      ctx.fillText(T(p.k === 'house' ? 'the house' : 'the henhouse'), x, y + (p.k === 'house' ? 96 : 116));
       ctx.textAlign = 'left';
     }
   }
@@ -23283,7 +25103,7 @@ var ANIMAL_SIZES = {
     bookTab(cssW, cssH, sectionDef().name);
     if (islandVerb) {
       ctx.font = '600 14px ' + FONT_UI;
-      var label = islandVerb.verb;
+      var label = T(islandVerb.verb);
       var tw = ctx.measureText(label).width + 44;
       var th = 40;
 
