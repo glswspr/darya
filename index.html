@@ -2784,177 +2784,6 @@
 
 
 
-  /* Who the keeper has spoken to, so an errand can be "go and meet the
-     shepherd" and read the world for the answer. */
-  var metBeing = {};
-
-  /* The errands, in order. Each is a sentence in the keeper's own voice that
-     names a PERSON, a PLACE and a THING TO DO in one line, a count for the strip,
-     and a test that reads the world rather than a flag. The people of the island
-     are the ones asking, so the walking always has someone behind it. */
-  var ERRANDS = [
-    {
-      line: 'read three of the carved stones',
-      where: 'go to any carved stone and read it',
-      count: function () { return [Math.min(3, learned.length), 3]; },
-      done: function () { return learned.length >= 3; }
-    },
-    {
-      line: 'greet Donya at the well',
-      where: 'she waits in the yard, by the well',
-      count: function () { return [donyaMet ? 1 : 0, 1]; },
-      done: function () { return !!donyaMet; }
-    },
-    {
-      line: 'walk out to the apiary and open a hive',
-      where: 'go north out of the yard, past the wood edge',
-      count: function () { return [placeDone('comb') || placeDone('queen') ? 1 : 0, 1]; },
-      done: function () {
-        return beenTo('the apiary') && (placeDone('comb') || placeDone('queen'));
-      }
-    },
-    {
-      line: 'find the greenhouse and cross two seeds',
-      where: 'go west along the lane, to the greenhouse',
-      count: function () { return [placeDone('glasshouse') ? 1 : 0, 1]; },
-      done: function () { return placeDone('glasshouse'); }
-    },
-    {
-      line: 'carry the can to the stream and fill it',
-      where: 'go south-west, to where the ground turns wet',
-      count: function () { return [placeDone('stream') ? 1 : 0, 1]; },
-      done: function () { return placeDone('stream'); }
-    },
-    {
-      line: 'walk the four ways out of the yard',
-      where: 'step out of the yard by each of its four edges',
-      count: function () {
-        return [(visited['0,1'] ? 1 : 0) + (visited['-1,0'] ? 1 : 0) +
-          (visited['1,0'] ? 1 : 0) + (visited['0,-1'] ? 1 : 0), 4];
-      },
-      done: function () {
-        return !!(visited['0,1'] && visited['-1,0'] && visited['1,0'] && visited['0,-1']);
-      }
-    },
-    {
-      line: 'climb to the high pastures',
-      where: 'go north from the apiary, and north again',
-      count: function () { return [beenTo('the high pastures') ? 1 : 0, 1]; },
-      done: function () { return beenTo('the high pastures'); }
-    },
-    {
-      line: 'reach the shore and the sea',
-      where: 'go south past the pond, to the shore and the sea',
-      count: function () {
-        return [(beenTo('the shore') ? 1 : 0) + (beenTo('the sea') ? 1 : 0), 2];
-      },
-      done: function () { return beenTo('the shore') && beenTo('the sea'); }
-    },
-    /* ---- the people ---- */
-    {
-      line: 'hear the storyteller out in the yard',
-      where: 'he sits in the yard, by the well',
-      count: function () { return [metBeing['being-storyteller'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-storyteller']; }
-    },
-    {
-      line: 'sit with the weaver in the garden',
-      where: 'go east from the yard, into the garden',
-      count: function () { return [metBeing['being-weaver'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-weaver']; }
-    },
-    {
-      line: 'ask the fisher at the pond about the water',
-      where: 'go south from the yard, down to the pond',
-      count: function () { return [metBeing['being-fisher'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-fisher']; }
-    },
-    {
-      line: 'walk the steppe with the shepherd',
-      where: 'go north past the apiary, to the dry grass',
-      count: function () { return [metBeing['being-shepherd'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-shepherd']; }
-    },
-    {
-      line: 'ask the nomad where the water is',
-      where: 'go north-east, to where the sand begins',
-      count: function () { return [metBeing['being-nomad'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-nomad']; }
-    },
-    {
-      line: 'hear the caravaneer out',
-      where: 'keep going into the dunes',
-      count: function () { return [metBeing['being-caravaneer'] ? 1 : 0, 1]; },
-      done: function () { return !!metBeing['being-caravaneer']; }
-    },
-    {
-      line: 'read the stone at the shrine',
-      where: 'find it among the old stones',
-      count: function () { return [placeDone('shrine') ? 1 : 0, 1]; },
-      done: function () { return placeDone('shrine'); }
-    },
-    {
-      line: 'fish the lake three times over',
-      where: 'row out from the sea, to the lake',
-      count: function () { return [placeDone('lake') ? 1 : 0, 1]; },
-      done: function () { return placeDone('lake'); }
-    },
-    {
-      line: 'name the seven stars',
-      where: 'look up at night, from anywhere on the island',
-      count: function () { return [placeDone('sky') ? 1 : 0, 1]; },
-      done: function () { return placeDone('sky'); }
-    },
-    {
-      line: 'walk the rim of the island',
-      where: 'the cliff and the hedge mark the island’s end',
-      count: function () {
-        var n = 0;
-        for (var k in SECTIONS) if (SECTIONS.hasOwnProperty(k) && visited[k]) n++;
-        return [n, Object.keys(SECTIONS).length];
-      },
-      done: function () {
-        var n = 0;
-        for (var k in SECTIONS) if (SECTIONS.hasOwnProperty(k) && visited[k]) n++;
-        return n >= Object.keys(SECTIONS).length;
-      }
-    }
-  ];
-
-  /* The people of the island, and the one thing each of them wants. */
-  var PEOPLE = {
-    'being-fisher': {
-      where: 'the pond', ask: 'bring the fisher word of the water',
-      said: '"The pond keeps its own counsel. Ask it at dusk."'
-    },
-    'being-weaver': {
-      where: 'the garden', ask: 'sit with the weaver while she works',
-      said: '"Every row is a decision. You cannot take one back."'
-    },
-    'being-shepherd': {
-      where: 'the steppe', ask: 'walk the steppe with the shepherd',
-      said: '"Up here the flock knows the ground better than I do."'
-    },
-    'being-nomad': {
-      where: 'the desert', ask: 'ask the nomad where the water is',
-      said: '"The sand remembers every path. I only follow the cool ones."'
-    },
-    'being-caravaneer': {
-      where: 'the desert', ask: 'hear the caravaneer out',
-      said: '"Forty days to the sea, and every one of them a story."'
-    },
-    'being-storyteller': {
-      where: 'the yard', ask: 'hear the storyteller to the end',
-      said: '"Sit. The island has been waiting to tell you something."'
-    }
-  };
-
-
-
-
-  /* Called whenever the world may have changed: a word learned, a place
-     finished, a section entered. One errand completes at a time, so the strip
-     never jumps two steps and the reward always lands where she is standing. */
 
   /* The strip at the top of the island: what she is about, and how far along. */
 
@@ -4349,6 +4178,14 @@
         for (var k in SECTIONS) if (SECTIONS.hasOwnProperty(k) && visited[k]) n++;
         return n >= Object.keys(SECTIONS).length;
       }
+    },
+    /* The last errand sends her back where she started, because a day that ends
+       where it began is a day with a shape. */
+    {
+      line: 'go back to the well and close the book',
+      where: 'the day began there, by the capped well',
+      count: function () { return [closedAtWell ? 1 : 0, 1]; },
+      done: function () { return !!closedAtWell; }
     }
   ];
 
@@ -5810,7 +5647,7 @@
     { id: 'river', label: 'the river', w: 'par',
       line: 'The river carried a feather down from somewhere I have not walked yet.' },
     { id: 'sea', label: 'the sea', w: 'sadaf',
-      line: 'Out past the shallows the shells were bigger, and the boat knew the way back.' },
+      line: 'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.' },
     { id: 'beach', label: 'the beach', w: 'chub',
       line: 'The tide left a line of shells, and a piece of wood worn smooth.' },
     { c: 'VI \u00b7 the old stones', id: 'shrine', label: 'the shrine', w: 'bágh',
@@ -6267,8 +6104,9 @@
     var ax = colOpen(g.a), bx = colClose(g.a);
 
     if (storyComplete()) {
+      // The last page is its own spread: no second page, no picked-page column
+      // showing through the writing.
       drawNotebookEnding();
-      drawPageFace();
       return;
     }
 
@@ -7017,34 +6855,42 @@
     var body = [
       'The meadow, the hive, the yard, the island',
       'and the old stones: every one of them has',
-      'a word now, and I have written them all down.'
+      'a word now, and I have written them all.',
+      '',
+      'The hand was not mine to begin. She kept',
+      'this island forty years, and the water took',
+      'her in a winter. The family came back,',
+      'because a place with nobody in it is worse',
+      'than a place with grief in it.'
     ];
     ctx.fillStyle = C.inkSoft;
     ctx.font = '400 12.5px ' + FONT_UI;
-    for (var i = 0; i < body.length; i++) ctx.fillText(body[i], 195, 236 + i * 20);
+    for (var i = 0; i < body.length; i++) ctx.fillText(body[i], 195, 210 + i * 20);
 
     var w = storyWord('darya');
     ctx.fillStyle = C.ink;
     ctx.font = 'italic 600 52px ' + FONT_SERIF;
-    ctx.fillText(w.f, 195, 400);
+    ctx.fillText(w.f, 195, 432);
     ctx.fillStyle = C.inkSoft;
     ctx.font = '400 30px ' + FONT_SERIF;
-    ctx.fillText(w.p, 195, 452);
+    ctx.fillText(w.p, 195, 484);
     ctx.fillStyle = C.turquoise;
-    ctx.fillRect(195 - 26, 484, 52, 2);
+    ctx.fillRect(195 - 26, 516, 52, 2);
 
     var tail = [
-      'It means the sea. It was the name of this place',
-      'before it was mine, and the keeper before me',
-      'wrote it here, on the page after the last one.'
+      'It means the sea. It is the name of this',
+      'place, and it is on the first page of the',
+      'book, in a hand that is not mine. She went',
+      'out to the water and the water kept her.',
+      'I have written hers on.'
     ];
     ctx.fillStyle = C.inkSoft;
     ctx.font = '400 12.5px ' + FONT_UI;
-    for (var t = 0; t < tail.length; t++) ctx.fillText(tail[t], 195, 528 + t * 20);
+    for (var t = 0; t < tail.length; t++) ctx.fillText(tail[t], 195, 548 + t * 20);
 
     ctx.fillStyle = C.inkFaint;
     ctx.font = '600 10px ' + FONT_UI;
-    spacedText(T('THE KEEPER OF DARYA'), 195, 642, 2.4);
+    spacedText(T('THE KEEPER OF DARYA'), 195, 672, 2.4);
 
     ctx.fillStyle = 'rgba(42,35,32,0.45)';
     ctx.font = '400 10.5px ' + FONT_UI;
@@ -7165,7 +7011,7 @@
 
     // The hive, and one way in.
     ctx.save();
-    ctx.translate(cssW / 2, 445);
+    ctx.translate(cssW / 2, 500);
     ctx.scale(0.62 * s, 0.62 * s);
     drawTitleHive();
     ctx.restore();
@@ -8703,6 +8549,304 @@
     g.restore();
   }
 
+/* ---------------------------- FRAME COST ------------------------------------
+     Numbers, so a performance argument has something to point at.
+
+     `?cost` draws this over the game; `__cost()` returns the same thing as JSON.
+     Everything is an exponential average over the last second or so, because a
+     single frame tells you nothing. */
+  var _cost = {
+    frame: 0, fauna: 0, animals: 0, sprites: 0, builds: 0,
+    nFrame: 0, nFauna: 0
+  };
+  var COST_ON = /(^|[?&])cost/.test(location.search);
+  var _costAcc = { fauna: 0, animals: 0, builds: 0 };
+
+  function costBegin() { _costAcc.fauna = 0; _costAcc.animals = 0; _costAcc.builds = 0; }
+
+  function costEnd() {
+    _cost.animals = _costAcc.animals;
+    _cost.builds = _costAcc.builds;
+    var prev = _cost.fauna || _costAcc.fauna;
+    _cost.fauna = prev * 0.85 + _costAcc.fauna * 0.15;
+  }
+
+  function noteFrameCost(ms) {
+    _cost.frame = _cost.frame ? _cost.frame * 0.85 + ms * 0.15 : ms;
+  }
+
+  /* What one animal costs, drawn live against blitted from the sprite cache. */
+  /* Live draw against cached blit, same pose, same size, diffed. */
+  window.__spriteCheck = function (id, size) {
+    size = size || 240;
+    var e = findSpecies(id) || findSpecies('creature-graywolf');
+    var S = beastHeight(e);
+    var prev = ctx;
+
+    function plate(cached, pose) {
+      var c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      var g = c.getContext('2d');
+      g.fillStyle = '#F2ECDC'; g.fillRect(0, 0, size, size);
+      ctx = g;
+      SPRITE.off = !cached;
+      g.save();
+      g.translate(size * 0.5, size * 0.86);
+      if (cached) paintAnimalCached(g, e, pose, S);
+      else paintAnimal(g, e, pose, S);
+      g.restore();
+      ctx = prev;
+      return c;
+    }
+
+    var worst = 0, diff = 0, total = 0;
+    var poses = [
+      { moving: false, walk: 0, facing: 1, seed: 3, view: 'side' },
+      { moving: true, walk: 3, facing: 1, seed: 3, view: 'side' },
+      { moving: true, walk: 0, facing: 1, seed: 3, view: 'front' },
+      { moving: true, walk: 0, facing: -1, seed: 3, view: 'back' }
+    ];
+    for (var p = 0; p < poses.length; p++) {
+      var a = plate(false, poses[p]);
+      var b = plate(true, poses[p]);
+      var da = a.getContext('2d').getImageData(0, 0, size, size).data;
+      var db = b.getContext('2d').getImageData(0, 0, size, size).data;
+      for (var i = 0; i < da.length; i += 4) {
+        var d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]),
+          Math.abs(da[i + 2] - db[i + 2]), Math.abs(da[i + 3] - db[i + 3]));
+        if (d > 0) { diff++; if (d > worst) worst = d; }
+        total++;
+      }
+    }
+    SPRITE.off = false;
+    return JSON.stringify({
+      animal: id, views: poses.length, pixels: total,
+      differingPixels: diff, maxChannelDelta: worst,
+      identical: diff === 0
+    });
+  };
+
+
+  window.__costBench = function (id, n) {
+    n = n || 300;
+    var e = findSpecies(id) || findSpecies('creature-graywolf') ||
+      { id: 'creature-graywolf', sh: 'beast', f: 'graywolf', e: 'graywolf' };
+    var cvs = document.createElement('canvas');
+    cvs.width = 300;
+    cvs.height = 300;
+    var g = cvs.getContext('2d');
+    var S = beastHeight(e);
+    var prev = ctx;
+    ctx = g;
+    var poses = [];
+    for (var i = 0; i < 8; i++) poses.push({ moving: true, walk: i, facing: 1, seed: 3, view: 'side' });
+
+    function run(cached) {
+      SPRITE.off = !cached;
+      if (cached) {
+        // Warm it first, so the timed pass measures blits and not builds.
+        for (var w = 0; w < n; w++) {
+          g.save(); g.translate(150, 220);
+          paintAnimalCached(g, e, poses[w % 8], S);
+          g.restore();
+        }
+        SPRITE.hits = 0; SPRITE.misses = 0;
+      }
+      var t0 = performance.now();
+      for (var k = 0; k < n; k++) {
+        g.save();
+        g.translate(150, 220);
+        if (cached) paintAnimalCached(g, e, poses[k % 8], S);
+        else paintAnimal(g, e, poses[k % 8], S);
+        g.restore();
+      }
+      var dt = performance.now() - t0;
+      return dt;
+    }
+
+    var live = run(false);
+    var cached = run(true);
+    SPRITE.off = false;
+    ctx = prev;
+    return JSON.stringify({
+      animal: id, n: n,
+      liveMs: +live.toFixed(1), cachedMs: +cached.toFixed(1),
+      livePerAnimalUs: +(live * 1000 / n).toFixed(1),
+      cachedPerAnimalUs: +(cached * 1000 / n).toFixed(1),
+      speedup: +(live / Math.max(0.001, cached)).toFixed(1)
+    });
+  };
+
+
+  window.__cost = function () {
+    return JSON.stringify({
+      frameMs: +_cost.frame.toFixed(2),
+      faunaMs: +_cost.fauna.toFixed(2),
+      animals: _cost.animals,
+      spriteBuilds: _cost.builds,
+      spriteEntries: SPRITE.cache.size,
+      hits: SPRITE.hits, misses: SPRITE.misses,
+      fps: Math.round(1000 / Math.max(1, _cost.frame))
+    });
+  };
+
+  /* Reset the hit counters so a measurement starts from zero. */
+  window.__costReset = function () {
+    SPRITE.hits = 0; SPRITE.misses = 0;
+    _cost.frame = 0; _cost.fauna = 0;
+    return 'reset';
+  };
+
+  function drawCostOverlay() {
+    var cvs = ctx.canvas;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    var lines = [
+      'frame   ' + _cost.frame.toFixed(2) + ' ms',
+      'fauna   ' + _cost.fauna.toFixed(2) + ' ms   ' + _cost.animals + ' animals',
+      'sprites ' + SPRITE.cache.size + ' cached, ' + _cost.builds + ' built this frame',
+      'hits    ' + SPRITE.hits + ' / ' + (SPRITE.hits + SPRITE.misses)
+    ];
+    ctx.font = '12px ui-monospace, Consolas, monospace';
+    var w = 0;
+    for (var i = 0; i < lines.length; i++) w = Math.max(w, ctx.measureText(lines[i]).width);
+    ctx.fillStyle = 'rgba(246,242,232,0.86)';
+    ctx.fillRect(6, 6, w + 14, lines.length * 15 + 12);
+    ctx.fillStyle = '#2a2320';
+    for (var j = 0; j < lines.length; j++) ctx.fillText(lines[j], 13, 24 + j * 15);
+    ctx.restore();
+  }
+
+  /* ---------------------------- SPRITE CACHE ----------------------------------
+     An animal is a few hundred path operations. Drawn forty times a frame that is all
+     of the frame's cost, and the picture is identical every time - the pose is a
+     BUCKET, one of eight walk frames, eight jump frames, three graze steps. So each
+     combination is rendered once into an offscreen canvas and blitted after that.
+
+     Key: shape | view | palette | drawn size | pose bucket. Facing is NOT in the key:
+     the caller has already applied the mirror to its own transform, so a blit picks it
+     up for free.
+
+     The art is untouched. This only decides where the paths are rasterised. */
+  var SPRITE = { cache: new Map(), max: 420, hits: 0, misses: 0, order: [] };
+
+  /* The pose, reduced to the buckets the cache keys on. */
+  var _scratchAnim = {
+    moving: false, walk: 0, facing: 1, seed: 0, gait: 'still',
+    leapK: 0, grazeK: 0, drinking: 0, grazing: false, view: 'side'
+  };
+
+  function spriteKey(e, a, S, shape) {
+    var view = (a && a.view) || 'side';
+    var w = a ? Math.round((((a.walk || 0) % 8) + 8) % 8) : 0;
+    var j = (a && a.gait === 'hop' && a.leapK !== undefined)
+      ? Math.round(a.leapK * 7) : -1;
+    var g = a ? Math.round((a.grazeK || 0) * 2) : 0;
+    var d = a && a.drinking > 0 ? 1 : 0;
+    var m = a && a.moving ? 1 : 0;
+    return shape + '|' + view + '|' + hueOf(e.id) + '|' + Math.round(S) + '|' +
+      w + '|' + j + '|' + g + '|' + d + '|' + m;
+  }
+
+  /* The anim the sprite is drawn with: the bucket values, not the live ones, so the
+     drawing matches its key exactly. */
+  function spriteAnim(a, w, j, g, d, m) {
+    var s = _scratchAnim;
+    s.moving = !!m;
+    s.walk = w;
+    s.grazing = g > 0;
+    s.grazeK = g / 2;
+    s.drinking = d ? 1 : 0;
+    s.gait = j >= 0 ? 'hop' : (a && a.gait) || 'still';
+    s.leapK = j >= 0 ? j / 7 : 0;
+    s.facing = a ? a.facing : 1;
+    s.view = (a && a.view) || 'side';
+    s.seed = a ? a.seed : 0;
+    return s;
+  }
+
+  /* Draw one animal, from the cache when it is there. */
+  /* Turn the cache off to measure against a live draw. Same page, same animals. */
+  window.__spriteOff = function (v) {
+    SPRITE.off = !!v;
+    SPRITE.hits = 0; SPRITE.misses = 0;
+    return SPRITE.off;
+  };
+
+  function paintAnimalCached(g, e, a, S) {
+    if (SPRITE.off) { paintAnimal(g, e, a, S); return; }
+    var shape = animalShapeOf(e.id);
+    var f = animalFrame(shape);
+    var b = f.bounds;
+    var sc = S / Math.max(1e-6, b.h);
+
+    var key = spriteKey(e, a, S, shape);
+    var entry = SPRITE.cache.get(key);
+
+    if (!entry) {
+      SPRITE.misses++;
+      _costAcc.builds++;
+      var view = (a && a.view) || 'side';
+      var w = a ? Math.round((((a.walk || 0) % 8) + 8) % 8) : 0;
+      var j = (a && a.gait === 'hop' && a.leapK !== undefined) ? Math.round(a.leapK * 7) : -1;
+      var gq = a ? Math.round((a.grazeK || 0) * 2) : 0;
+      var dq = a && a.drinking > 0 ? 1 : 0;
+      var mq = a && a.moving ? 1 : 0;
+
+      // The ink can reach past the neutral bounds when a leg lifts or the head dips,
+      // so the box is padded. A clipped hoof on a cached sprite would be a bug that
+      // only appears on some frames.
+      var padX = Math.max(0.10, (b.x1 - b.x0) * 0.10);
+      var padY = Math.max(0.06, (b.y1 - b.y0) * 0.06);
+      var x0 = b.x0 - padX, x1 = b.x1 + padX;
+      var y0 = Math.min(0, b.y0) - padY, y1 = b.y1 + padY;
+
+      // Render at the resolution the display will use, so the blit is 1:1 where it
+      // can be. The context's own scale is the camera and device pixel ratio.
+      var tr = g.getTransform ? g.getTransform() : null;
+      var dev = tr ? Math.max(0.5, Math.min(3, Math.abs(tr.d) || 1)) : 1;
+
+      var px = sc * dev;
+      var cw = Math.max(8, Math.ceil((x1 - x0) * px));
+      var chh = Math.max(8, Math.ceil((y1 - y0) * px));
+
+      var cvs = document.createElement('canvas');
+      cvs.width = cw;
+      cvs.height = chh;
+      var sg = cvs.getContext('2d');
+
+      // paintAnimal applies its own scale(sc, -sc) and translate(0, -b.y0). This
+      // pre-transform lands its output in the sprite's pixel box.
+      sg.setTransform(px, 0, 0, px, -x0 * px, (y1 - y0) * px);
+      var prevCtx = ctx;
+      ctx = sg;
+      try {
+        paintAnimal(sg, e, spriteAnim(a, w, j, gq, dq, mq), S);
+      } catch (err) {
+        ctx = prevCtx;
+        return;                       // a broken sprite is better than a broken frame
+      }
+      ctx = prevCtx;
+
+      entry = { canvas: cvs, x0: x0, x1: x1, y0: y0, y1: y1, sc: sc };
+      SPRITE.cache.set(key, entry);
+      SPRITE.order.push(key);
+      // A bounded cache: the oldest sprite goes when the room runs out.
+      while (SPRITE.order.length > SPRITE.max) {
+        var old = SPRITE.order.shift();
+        SPRITE.cache.delete(old);
+      }
+    } else {
+      SPRITE.hits++;
+    }
+
+    // The blit. The caller has already translated to the animal and mirrored it if
+    // needed, so the sprite lands in the right place in the right facing.
+    g.drawImage(entry.canvas,
+      entry.x0 * entry.sc, -entry.y1 * entry.sc,
+      (entry.x1 - entry.x0) * entry.sc, (entry.y1 - entry.y0) * entry.sc);
+  }
+
   /* 11. MAIN LOOP */
   function frame(now) {
     requestAnimationFrame(frame);
@@ -8717,8 +8861,13 @@
     // rather than the beat. It is aimed at the place she is in and the hour on the
     // island every frame, and slides there.
     score.aim(dt);
+    var _ct0 = performance.now();
+    costBegin();
     if (!paused) update(dt);
     render();
+    costEnd();
+    noteFrameCost(performance.now() - _ct0);
+    if (COST_ON) drawCostOverlay();
     if (previewPage) {
       var pp = storyPage(previewPage);
       if (pp) drawPaperCard(390, 844, 'A page of the notebook', storyWord(pp.w).e, [pp.label], 'Tap to go back', pp);
@@ -10017,6 +10166,22 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'The sea took the rest of the world.': 'Havet tog resten av världen.',
+      'This is the piece that stayed.': 'Det här är biten som blev kvar.',
+      'look at the well': 'titta på brunnen',
+      'the well': 'brunnen',
+      'The lid is on. Baba put it there the week we came back.': 'Locket sitter på. Baba lade det där veckan vi kom tillbaka.',
+      'Donya': 'Donya',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Jag gick ner först. Du kom efter. Nu hittar jag dem och du skriver ner dem.',
+      'Mâmânbozorg': 'Mâmânbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'Hon höll den före mig. Hon gick ut till vattnet och vattnet behöll henne.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Bortom grundet blev vattnet mörkt, och det var samma hav som tog resten av världen.',
+      'go back to the well and close the book': 'gå tillbaka till brunnen och stäng boken',
+      'the day began there, by the capped well': 'dagen började där, vid den övertäckta brunnen',
+      'Enough of the {0}.': 'Det räcker med {0}.',
+      'Not the best pair. Look at the {0}.': 'Inte det bästa paret. Titta på {0}.',
+      'The stone refuses it. {0}': 'Stenen tar inte emot det. {0}',
+      'look at the well': 'titta i brunnen',
       'sow a seed': 'så ett frö',
       'nothing left to sow': 'inget kvar att så',
       'a small fish': 'en liten fisk',
@@ -10509,6 +10674,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'läs stenen',
     },
     fa: {
+      'The sea took the rest of the world.': 'دریا باقیِ جهان را گرفت.',
+      'This is the piece that stayed.': 'این همان تکه‌ای است که ماند.',
+      'look at the well': 'به چاه نگاه کن',
+      'the well': 'چاه',
+      'The lid is on. Baba put it there the week we came back.': 'سرپوش روی آن است. بابا هفته‌ای که برگشتیم آن را گذاشت.',
+      'Donya': 'دنیا',
+      'I went down first. You came after me. Now I find them and you write them down.': 'من اول پایین رفتم. تو دنبالم آمدی. حالا من پیدا می‌کنم و تو می‌نویسی.',
+      'Mâmânbozorg': 'مادربزرگ',
+      'She kept it before me. She went out to the water and the water kept her.': 'او پیش از من اینجا را نگه داشت. به آب رفت و آب او را نگه داشت.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'آن‌سوی کم‌عمقی آب تاریک شد، و همان دریایی بود که باقی جهان را گرفت.',
+      'go back to the well and close the book': 'به چاه برگرد و دفتر را ببند',
+      'the day began there, by the capped well': 'روز از آنجا شروع شد، کنار چاه سرپوشیده',
+      'Enough of the {0}.': '{0} بس است.',
+      'Not the best pair. Look at the {0}.': 'بهترین جفت نیست. به {0} نگاه کن.',
+      'The stone refuses it. {0}': 'سنگ قبولش نمی‌کند. {0}',
+      'look at the well': 'به چاه نگاه کن',
       'sow a seed': 'یک دانه بکار',
       'nothing left to sow': 'دانه‌ای برای کاشتن نمانده',
       'a small fish': 'یک ماهی کوچک',
@@ -11001,6 +11182,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'The sea took the rest of the world.': 'Das Meer nahm den Rest der Welt.',
+      'This is the piece that stayed.': 'Das ist das Stück, das blieb.',
+      'look at the well': 'den Brunnen ansehen',
+      'the well': 'der Brunnen',
+      'The lid is on. Baba put it there the week we came back.': 'Der Deckel ist drauf. Baba hat ihn in der Woche gelegt, in der wir zurückkamen.',
+      'Donya': 'Donya',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Ich bin zuerst hinunter. Du bist mir nach. Jetzt finde ich sie und du schreibst sie auf.',
+      'Mâmânbozorg': 'Mâmânbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'Sie hütete ihn vor mir. Sie ging hinaus aufs Wasser, und das Wasser behielt sie.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Hinter der Untiefe wurde das Wasser dunkel, und es war dasselbe Meer, das den Rest der Welt nahm.',
+      'go back to the well and close the book': 'zum Brunnen zurückgehen und das Buch schließen',
+      'the day began there, by the capped well': 'der Tag begann dort, am abgedeckten Brunnen',
+      'Enough of the {0}.': 'Genug von {0}.',
+      'Not the best pair. Look at the {0}.': 'Nicht das beste Paar. Sieh dir {0} an.',
+      'The stone refuses it. {0}': 'Der Stein nimmt es nicht an. {0}',
+      'look at the well': 'in den Brunnen sehen',
       'sow a seed': 'einen Samen säen',
       'nothing left to sow': 'kein Samen mehr',
       'a small fish': 'ein kleiner Fisch',
@@ -11493,6 +11690,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'The sea took the rest of the world.': 'La mer a pris le reste du monde.',
+      'This is the piece that stayed.': 'C’est le morceau qui est resté.',
+      'look at the well': 'regarder le puits',
+      'the well': 'le puits',
+      'The lid is on. Baba put it there the week we came back.': 'Le couvercle est dessus. Baba l’a posé la semaine où nous sommes revenus.',
+      'Donya': 'Donya',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Je suis descendue la première. Tu m’as suivie. Maintenant je les trouve et tu les écris.',
+      'Mâmânbozorg': 'Mâmânbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'Elle l’a gardé avant moi. Elle est allée sur l’eau et l’eau l’a gardée.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Au-delà du haut-fond l’eau est devenue sombre, et c’était la même mer qui a pris le reste du monde.',
+      'go back to the well and close the book': 'retourner au puits et fermer le livre',
+      'the day began there, by the capped well': 'la journée a commencé là, près du puits couvert',
+      'Enough of the {0}.': 'Assez de {0}.',
+      'Not the best pair. Look at the {0}.': 'Pas la meilleure paire. Regardez {0}.',
+      'The stone refuses it. {0}': 'La pierre le refuse. {0}',
+      'look at the well': 'regarder le puits',
       'sow a seed': 'semer une graine',
       'nothing left to sow': 'plus rien à semer',
       'a small fish': 'un petit poisson',
@@ -11984,6 +12197,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'lire la pierre',
     },
     es: {
+      'The sea took the rest of the world.': 'El mar se llevó el resto del mundo.',
+      'This is the piece that stayed.': 'Este es el trozo que quedó.',
+      'look at the well': 'mirar el pozo',
+      'the well': 'el pozo',
+      'The lid is on. Baba put it there the week we came back.': 'La tapa está puesta. Baba la puso la semana que volvimos.',
+      'Donya': 'Donya',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Bajé primero. Tú viniste detrás. Ahora yo los encuentro y tú los escribes.',
+      'Mâmânbozorg': 'Mâmânbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'Lo cuidó antes que yo. Salió al agua y el agua se la quedó.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Pasado el bajío el agua se volvió oscura, y era el mismo mar que se llevó el resto del mundo.',
+      'go back to the well and close the book': 'volver al pozo y cerrar el libro',
+      'the day began there, by the capped well': 'el día empezó allí, junto al pozo tapado',
+      'Enough of the {0}.': 'Ya hay bastante {0}.',
+      'Not the best pair. Look at the {0}.': 'No es la mejor pareja. Mira {0}.',
+      'The stone refuses it. {0}': 'La piedra lo rechaza. {0}',
+      'look at the well': 'mirar el pozo',
       'sow a seed': 'sembrar una semilla',
       'nothing left to sow': 'no queda nada que sembrar',
       'a small fish': 'un pez pequeño',
@@ -12476,6 +12705,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'The sea took the rest of the world.': 'Deniz dünyanın geri kalanını aldı.',
+      'This is the piece that stayed.': 'Kalan parça bu.',
+      'look at the well': 'kuyuya bak',
+      'the well': 'kuyu',
+      'The lid is on. Baba put it there the week we came back.': 'Kapak üstünde. Baba onu döndüğümüz hafta koydu.',
+      'Donya': 'Donya',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Önce ben indim. Sen arkamdan geldin. Şimdi ben bulurum, sen yazarsın.',
+      'Mâmânbozorg': 'Mâmânbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'Benden önce o bekledi. Suya açıldı, su onu tuttu.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Sığlığın ötesinde su karardı ve dünyanın geri kalanını alan aynı denizdi.',
+      'go back to the well and close the book': 'kuyuya dön ve defteri kapat',
+      'the day began there, by the capped well': 'gün orada başladı, kapalı kuyunun yanında',
+      'Enough of the {0}.': 'Yeterince {0}.',
+      'Not the best pair. Look at the {0}.': 'En iyi çift değil. {0} bak.',
+      'The stone refuses it. {0}': 'Taş kabul etmiyor. {0}',
+      'look at the well': 'kuyuya bak',
       'sow a seed': 'bir tohum ek',
       'nothing left to sow': 'ekecek tohum kalmadı',
       'a small fish': 'küçük bir balık',
@@ -12968,6 +13213,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'taşı oku',
     },
     ar: {
+      'The sea took the rest of the world.': 'أخذ البحر بقية العالم.',
+      'This is the piece that stayed.': 'هذه هي القطعة التي بقيت.',
+      'look at the well': 'انظر إلى البئر',
+      'the well': 'البئر',
+      'The lid is on. Baba put it there the week we came back.': 'الغطاء عليه. وضعه بابا في الأسبوع الذي عدنا فيه.',
+      'Donya': 'دنيا',
+      'I went down first. You came after me. Now I find them and you write them down.': 'نزلت أولاً. جئتِ بعدي. الآن أنا أجدها وأنتِ تكتبينها.',
+      'Mâmânbozorg': 'مادربزرغ',
+      'She kept it before me. She went out to the water and the water kept her.': 'حفظته قبلي. خرجت إلى الماء فحفظها الماء.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'بعد الضحضاح صار الماء داكناً، وكان البحر نفسه الذي أخذ بقية العالم.',
+      'go back to the well and close the book': 'عُد إلى البئر وأغلق الدفتر',
+      'the day began there, by the capped well': 'بدأ النهار هناك، عند البئر المغطى',
+      'Enough of the {0}.': 'كفى من {0}.',
+      'Not the best pair. Look at the {0}.': 'ليست أفضل زوج. انظر إلى {0}.',
+      'The stone refuses it. {0}': 'الحجر يرفضه. {0}',
+      'look at the well': 'انظر إلى البئر',
       'sow a seed': 'ازرع بذرة',
       'nothing left to sow': 'لم يبقَ ما يُزرع',
       'a small fish': 'سمكة صغيرة',
@@ -13460,6 +13721,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'The sea took the rest of the world.': '海带走了世界的其余部分。',
+      'This is the piece that stayed.': '这就是留下的那一块。',
+      'look at the well': '看看这口井',
+      'the well': '井',
+      'The lid is on. Baba put it there the week we came back.': '盖子盖上了。爸爸在我们回来的那个星期盖上的。',
+      'Donya': '多妮娅',
+      'I went down first. You came after me. Now I find them and you write them down.': '我先下去的。你跟着来了。现在我找，你写。',
+      'Mâmânbozorg': '奶奶',
+      'She kept it before me. She went out to the water and the water kept her.': '她在我之前守着这里。她去了水上，水留下了她。',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': '过了浅滩水就变暗了，那正是带走世界其余部分的那片海。',
+      'go back to the well and close the book': '回到井边，合上书',
+      'the day began there, by the capped well': '这一天从那里开始，在盖着的井旁',
+      'Enough of the {0}.': '{0}已经够了。',
+      'Not the best pair. Look at the {0}.': '不是最好的一对。看看{0}。',
+      'The stone refuses it. {0}': '石头不接受。{0}',
+      'look at the well': '看看水井',
       'sow a seed': '播一颗种子',
       'nothing left to sow': '没有种子了',
       'a small fish': '一条小鱼',
@@ -13952,6 +14229,22 @@ props: islandProps.map(function (p) {
       'read the stone': '读那块石头',
     },
     fi: {
+      'The sea took the rest of the world.': 'Daryá bághi-ye jahán-rá gereft.',
+      'This is the piece that stayed.': 'In hamán tekye-ast ke mánd.',
+      'look at the well': 'be cháh negáh kon',
+      'the well': 'cháh',
+      'The lid is on. Baba put it there the week we came back.': 'Sarpush ruye án ast. Bábá hafte-i ke bargashtim án-rá gozásht.',
+      'Donya': 'Donyá',
+      'I went down first. You came after me. Now I find them and you write them down.': 'Man avval páyin raftam. To donbálam ámadi. Hálá man peydá mikonam va to minevisi.',
+      'Mâmânbozorg': 'Mámánbozorg',
+      'She kept it before me. She went out to the water and the water kept her.': 'U pish az man in-já-rá negah dasht. Be áb raft va áb u-rá negah dasht.',
+      'Out past the shallows the water went dark, and it was the same sea that took the rest of the world.': 'Án-su-ye kam-omghi áb tárik shod, va hamán daryá-i bud ke bághi-ye jahán-rá gereft.',
+      'go back to the well and close the book': 'be cháh bargard va daftar-rá beband',
+      'the day began there, by the capped well': 'Ruz az ánjá shoru shod, kenár-e cháh-e sarpushide',
+      'Enough of the {0}.': '{0} bas ast.',
+      'Not the best pair. Look at the {0}.': 'behtarin joft nist. be {0} negáh kon.',
+      'The stone refuses it. {0}': 'sang ghabulash nemikonad. {0}',
+      'look at the well': 'be cháh negáh kon',
       'sow a seed': 'yek dáne bekár',
       'nothing left to sow': 'dáne-i baráye káshtan namánde',
       'a small fish': 'yek máhi-ye kuchak',
@@ -14163,15 +14456,15 @@ props: islandProps.map(function (p) {
       'inside the house': 'dákhel-e kháne',
       'I walked out at first light, and the meadow gave up its nectar.': 'Bá nokhostin roshnai birun raftam va chamanzár shahedash rá dád.',
       'The can stayed steady, and every sprout drank its fill.': 'Ábpásh ostovár mánd va har javáne sir nushid.',
-      'At dusk I kept a few lights, for the dark path home.': 'dar ghoroob chand cherágh negah dáshtam, baráye ráh-e tarik-e kháne.',
+      'At dusk I kept a few lights, for the dark path home.': 'dar ghoroob chand cherágh negah dáshtam, baráye ráh-e tárik-e kháne.',
       'Eight cells capped, before the honey thinned.': 'Hasht kháne baste shod, pish az ánke asal raghigh shavad.',
       'She was two cells away, and then none.': 'do kháne dur-tar bood va baad hich.',
       'White hid a colour. The cross gave it back.': 'Sefidi rangi rá penhán karde bood. Peyvand án rá bázgardánd.',
       'I paired the layers first, and the sitters after.': 'Nokhost morgh-e tokhmo-gozár rá joft kardam va baad morgh-e khabide rá.',
       'Two of rice to one of beans, and the pot knew the dish.': 'do paymáne berenj be yek paymáne lubiyá, va digh ghazá rá shenakht.',
       'The wheel was behind the crate the whole time.': 'charkh tamám-e moddat posht-e jo be bood.',
-      'I held the can still, and the spring did the rest.': 'Ábpásh rá bi-harekat negah dáshtam va cheshme baghi-ye-ásh rá kard.',
-      'She walked the dark path with a lamp ahead of her.': 'U ráh-e tarik rá bá fanusi pish-e ro raft.',
+      'I held the can still, and the spring did the rest.': 'Ábpásh rá bi-harekat negah dáshtam va cheshme bághi-ye-ásh rá kard.',
+      'She walked the dark path with a lamp ahead of her.': 'U ráh-e tárik rá bá fanusi pish-e ro raft.',
       'Three bearings agreed, and the wood gave up the colony.': 'se jahat bá ham khándand va jangal jamiyat rá dád.',
       'Six steps, and not one bee lost.': 'Shesh gám, va yek zanbur ham gom nashod.',
       'Under the old trees the ground was soft, and full of things worth keeping.': 'Zir-e derakhtán-e kohan zamin narm bood va por az chiz-háyi ke arzesh-e negah dáshtan dáshtand.',
@@ -14180,14 +14473,14 @@ props: islandProps.map(function (p) {
       'The sand held a fossil and a crust of salt: the sea that used to be here.': 'Rig yek fosil va yek puste namak dasht: daryáyi ke zamán-i injá bood.',
       'The river carried a feather down from somewhere I have not walked yet.': 'Rud pari rá az jaei ávard ke hanooz narafte-am.',
       'Out past the shallows the shells were bigger, and the boat knew the way back.': 'Án su-ye kam-áb, sodf-há bozorg-tar boodand va gháyegh ráh-e bargasht rá midanest.',
-      'The tide left a line of shells, and a piece of wood worn smooth.': 'Jazr-o-madd khatti az sodf gozasht va teke-i chub ke sáf sayide shode bood.',
+      'The tide left a line of shells, and a piece of wood worn smooth.': 'Jazr-o-madd khatti az sodf gozásht va teke-i chub ke sáf sayide shode bood.',
       'The stone said: the garden is watered by the water from the channel.': 'sang goft: bágh bá áb-e juy áb mikhorad.',
       'Three fish, and the lake kept its patience.': 'se máhi, va ábgir shekibai-ye-ásh rá negah dasht.',
       'The Plough sat where the old chart said it would.': 'Khoshe-ye Parvin ham-án-já bood ke naghshe-ye kohan migoft.',
       'read three of the carved stones': 'se sang-e kande-kári rá bekhán',
       'go to any carved stone and read it': 'be har sang-e kande-kári beru va bekhánash',
       'greet Donya at the well': 'dar cháh be Donyá salám kon',
-      'she waits in the yard, by the well': 'u dar hiayát, kenar-e cháh montazer ast',
+      'she waits in the yard, by the well': 'u dar hiayát, kenár-e cháh montazer ast',
       'walk out to the apiary and open a hive': 'be zanbursetán beru va kandu-i rá báz kon',
       'go north out of the yard, past the wood edge': 'az hiayát be shomál beru, az labe-ye jangal begzár',
       'find the greenhouse and cross two seeds': 'gelkháne rá peydá kon va do dáne rá peyvand bezan',
@@ -14201,10 +14494,10 @@ props: islandProps.map(function (p) {
       'reach the shore and the sea': 'be sáhel va daryá beres',
       'go south past the pond, to the shore and the sea': 'az ábgir be jonub beru, tá sáhel va daryá',
       'hear the storyteller out in the yard': 'be ghesse-gu dar hiayát gush kon',
-      'he sits in the yard, by the well': 'u dar hiayát, kenar-e cháh minechinad',
+      'he sits in the yard, by the well': 'u dar hiayát, kenár-e cháh minechinad',
       'sit with the weaver in the garden': 'bá báfande dar bágh beneshin',
       'go east from the yard, into the garden': 'az hiayát be shargh beru, dákhel-e bágh',
-      'ask the fisher at the pond about the water': 'az mahigir-e kenar-e ábgir darbáre-ye áb bepors',
+      'ask the fisher at the pond about the water': 'az mahigir-e kenár-e ábgir darbáre-ye áb bepors',
       'go south from the yard, down to the pond': 'az hiayát be jonub beru, tá ábgir',
       'walk the steppe with the shepherd': 'bá chopán dar dasht beru',
       'go north past the apiary, to the dry grass': 'az zanbursetán be shomál beru, be alaf-e khoshk',
@@ -14212,7 +14505,7 @@ props: islandProps.map(function (p) {
       'go north-east, to where the sand begins': 'be shomál-e shargh beru, jaei ke rig ágház mishavad',
       'hear the caravaneer out': 'be kárávánsará-dar gush kon',
       'keep going into the dunes': 'be del-e tape-há-ye rigi beru',
-      'read the stone at the shrine': 'sang-e kenar-e ziaratgáh rá bekhán',
+      'read the stone at the shrine': 'sang-e kenár-e ziaratgáh rá bekhán',
       'find it among the old stones': 'án rá mian-e sang-há-ye kohan peydá kon',
       'fish the lake three times over': 'se bar dár daryáche máhigiri kon',
       'row out from the sea, to the lake': 'az daryá be daryáche páru bezan',
@@ -15120,7 +15413,8 @@ props: islandProps.map(function (p) {
   function shrinePlace(idx, key) {
     if (shrine.done) return false;
     if (key !== SHRINE_ANSWER[idx]) {
-      shrine.msg = 'The stone refuses it. ' + SHRINE_CLUES[idx];
+      shrine.msg = 'The stone refuses it. {0}';
+      shrine.msgArg = SHRINE_CLUES[idx];
       shrine.msgAge = 0;
       shrine.shakeAt = clock;
       sfx.bee();
@@ -15279,7 +15573,7 @@ props: islandProps.map(function (p) {
     if (shrine.msgAge < 3.4 && shrine.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11px ' + FONT_UI;
-      var msgLines = wrapText(T(shrine.msg), 320, '500 11px ' + FONT_UI);
+      var msgLines = wrapText(T(shrine.msg, shrine.msgArg ? T(shrine.msgArg) : undefined), 320, '500 11px ' + FONT_UI);
       ctx.font = '500 11px ' + FONT_UI;
       for (var m = 0; m < msgLines.length; m++) ctx.fillText(msgLines[m], 195, 740 + m * 14);
     } else if (!shrine.done) {
@@ -17547,7 +17841,8 @@ props: islandProps.map(function (p) {
           hens.msgAge = 0;
         }
       } else {
-        hens.msg = 'Not the best pair. Look at the ' + hens.aim + '.';
+        hens.msg = 'Not the best pair. Look at the {0}.';
+        hens.msgArg = hens.aim;
         hens.msgAge = 0;
         hens.picked = [];
         sfx.bee();
@@ -17706,7 +18001,7 @@ props: islandProps.map(function (p) {
     if (hens.msgAge < 3 && hens.msg) {
       ctx.fillStyle = '#F3C89A';
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(T(hens.msg), 195, 800);
+      ctx.fillText(T(hens.msg, hens.msgArg ? T(hens.msgArg) : undefined), 195, 800);
     }
     ctx.textAlign = 'left';
 
@@ -17810,7 +18105,8 @@ props: islandProps.map(function (p) {
       var name = POT_ITEMS[h.arg];
       var n = kitchen.pot[name] || 0;
       if (n >= 4) {
-        kitchen.msg = 'Enough of the ' + name + '.';
+        kitchen.msg = 'Enough of the {0}.';
+        kitchen.msgArg = name;
         kitchen.msgAge = 0;
         return;
       }
@@ -17991,7 +18287,7 @@ props: islandProps.map(function (p) {
     if (kitchen.msgAge < 3 && kitchen.msg) {
       ctx.fillStyle = C.terracotta;
       ctx.font = '500 11.5px ' + FONT_UI;
-      ctx.fillText(T(kitchen.msg), 195, 790);
+      ctx.fillText(T(kitchen.msg, kitchen.msgArg ? T(kitchen.msgArg) : undefined), 195, 790);
     }
     ctx.textAlign = 'left';
 
@@ -20574,19 +20870,25 @@ props: islandProps.map(function (p) {
       g.beginPath();
       for (i = 0; i < 7; i++) {
         if ((i % 3 === 0) !== (tone === 1)) continue;
-        var a = p.lean + i * (TAU / 7) + shake * Math.sin(tr * 11.0 + p.ph + i * 1.7) * 0.45 * sf;
-        var spread = 0.58 + shake * (0.10 + 0.16 * Math.sin(tr * 13.0 + p.ph * 1.3 + i)) * sf;
+        // Each leaf flutters on its own clock: a slow sway plus a faster twitch,
+        // offset by its phase so one heap never reads as a single spinning mass.
+        var f = tr * (1.7 + i * 0.29) + p.ph * (1.3 + i * 0.15);
+        var a = p.lean + i * (TAU / 7) + shake * Math.sin(f) * 0.30 * sf;
+        var spread = 0.58 + shake * (0.13 + 0.11 * Math.sin(tr * 2.5 + p.ph + i * 0.9)) * sf;
         var big = 1 - 0.28 * (i / 7);
+        // A leaf tilts as it opens, not as it spins: its own slow wobble.
+        var tilt = a * 0.7 + shake * Math.cos(tr * 1.5 + p.ph * 1.4 + i) * 0.45 * sf;
         g.ellipse(Math.cos(a) * rx * spread,
-          -ry * 0.34 + Math.sin(a) * ry * (0.52 + shake * 0.10 * sf),
+          -ry * 0.34 + Math.sin(a) * ry * (0.52 + shake * 0.06 * sf),
           rx * 0.30 * big, ry * 0.24 * big,
-          a * 0.7 + shake * Math.sin(tr * 12.0 + i) * 0.6 * sf, 0, TAU);
+          tilt, 0, TAU);
         any = true;
       }
       if (tone === 1) {
         // The crest: the leaf on top, catching the sky.
-        g.ellipse(rx * (0.10 + shake * Math.sin(tr * 10.0 + p.ph) * 0.22 * sf),
-          -ry * (0.70 + shake * 0.10 * sf), rx * 0.26, ry * 0.20, -0.4, 0, TAU);
+        g.ellipse(rx * (0.10 + shake * Math.sin(tr * 4.1 + p.ph) * 0.15 * sf),
+          -ry * (0.70 + shake * 0.06 * sf), rx * 0.26, ry * 0.20,
+          -0.4 + shake * Math.cos(tr * 2.9 + p.ph * 1.3) * 0.3 * sf, 0, TAU);
         any = true;
       }
       if (!any) continue;
@@ -20615,9 +20917,14 @@ props: islandProps.map(function (p) {
         // Amp is read here and not from the cache: a tuning page moves `swing`
         // and the crown must obey without being rebuilt.
         var k = gust * (WIND.swing + p.r * WIND.swingVar), ph = p.ph;
-        ctx.rotate((Math.sin(tr * 9.1 + ph) * 0.62 + Math.sin(tr * 13.7 + ph * 1.9) * 0.38) * k * 1.1);
-        ctx.translate((Math.sin(tr * 11.3 + ph * 2.1) * 0.5 + Math.sin(tr * 7.1 + ph) * 0.5) * k * 2.0,
-          Math.sin(tr * 12.9 + ph * 0.6) * k * 1.3);
+        // Rock instead of spin: one slow roll with a slower counter-roll, so a
+        // heap tips and settles rather than spinning, and no two heaps rock in
+        // step. Mostly horizontal - a leaf pile does not bounce up and down.
+        var roll = Math.sin(tr * 1.7 + ph) * 0.5 + Math.sin(tr * 4.4 + ph * 1.3) * 0.3;
+        var shX = Math.sin(tr * 2.5 + ph * 1.1) * 0.45;
+        var shY = Math.cos(tr * 3.2 + ph * 0.8) * 0.25;
+        ctx.rotate(roll * k * 0.9);
+        ctx.translate(shX * k * 1.4, shY * k * 1.1);
       }
       drawLeafPile(ctx, p, gust, t);
       ctx.restore();
@@ -27037,8 +27344,16 @@ var ANIMAL_SIZES = {
       // The doors and doors-of-the-yard.
       if (d.kind === 'yard') {
         out.push({ k: 'house', x: W * 0.29, y: H * 0.19, verb: 'go in', act: 'inside', to: 'house', name: '' });
-        out.push({ k: 'well', x: W * 0.22, y: H * 0.74, verb: 'look at the well', act: 'well', name: '' });
-        out.push({ k: 'sister', x: W * 0.68, y: H * 0.40, verb: 'greet Donya', act: 'sister', name: '' });
+        // The yard's own tree: one plane tree, the height of four and a half of
+        // her, standing where the house's shadow does not reach. It is a species
+        // like any other, so the wind finds its leaves.
+        var yardTree = null;
+        for (var yt = 0; yt < SPECIES.woods.length; yt++) {
+          if (SPECIES.woods[yt].id === 'plant-chenar') yardTree = SPECIES.woods[yt];
+        }
+        if (yardTree) out.push({ k: 'species', sp: yardTree, x: W * 0.79, y: H * 0.33, name: '' });
+        out.push({ k: 'well', x: W * 0.24, y: H * 0.72, verb: 'look at the well', act: 'well', name: '' });
+        out.push({ k: 'sister', x: W * 0.68, y: H * 0.44, verb: 'greet Donya', act: 'sister', name: '' });
       } else if (d.kind === 'henhouse') {
         out.push({ k: 'coopdoor', x: W * 0.5, y: H * 0.22, verb: 'go into the henhouse', act: 'enter', to: 'hens', name: '' });
       } else if (d.kind === 'apiary') {
@@ -27647,7 +27962,6 @@ var ANIMAL_SIZES = {
       return;
     }
     if (p.act === 'sister') {
-      donyaLine = clock;
       donyaMet = true;
       teachWord('khahar');
       // She went first, and she says so once: this is the handoff from the sister
@@ -27687,8 +28001,8 @@ var ANIMAL_SIZES = {
       addParticles(p.x, p.y - 60, '#FFF3D0', 10, 70);
       // The grandmother carries the keeper before, the sea and the reason the
       // house is here, in one line, once.
-      if (p.who === 'grandmother' && !metFamily.saidGrandmother) {
-        metFamily.saidGrandmother = true;
+      if (p.who === 'grandmother' && !grandmotherSaid) {
+        grandmotherSaid = true;
         beingSaid = {
           at: clock, who: T('Mâmânbozorg'),
           line: T('She kept it before me. She went out to the water and the water kept her.')
@@ -28103,7 +28417,10 @@ var ANIMAL_SIZES = {
       if (a.facing < 0 && !waterSection()) ctx.scale(-1, 1);
       if (e.sh === 'beast') {
         // paintAnimal takes its height directly, so it is not scaled again.
-        paintAnimal(ctx, e, a, beastHeight(e));
+        var _at0 = performance.now();
+        paintAnimalCached(ctx, e, a, beastHeight(e));
+        _costAcc.fauna += performance.now() - _at0;
+        _costAcc.animals++;
         ctx.restore();
         return;
       }
@@ -28214,22 +28531,102 @@ var ANIMAL_SIZES = {
       return;
     }
     if (p.k === 'house') {
-      castShadow(x, y + 72, 210, 0.24, 150);
-      ctx.fillStyle = '#F6F1E6';
-      ctx.fillRect(x - 96, y - 60, 192, 132);
-      ctx.fillStyle = '#B4553F';
+      // A house seen from the front-right: a front wall, a side wall that recedes
+      // up and away, a hipped roof with an eave, and the door turned toward the
+      // path. Nothing here is a flat elevation any more.
+      var fw = 168, fh = 104, dep = 52, dh = 26, ov = 13, rh = 54;
+      var btm = y + 36, top = btm - fh, eaveY = top + 4;
+      castShadow(x + 10, btm + 4, 240, 0.22, 168);
+
+      // The ground the house stands on: a swept apron, so it is not floating.
+      ctx.fillStyle = 'rgba(178,168,140,0.20)';
       ctx.beginPath();
-      ctx.moveTo(x - 112, y - 56);
-      ctx.lineTo(x, y - 118);
-      ctx.lineTo(x + 112, y - 56);
+      ctx.ellipse(x + 6, btm + 6, fw * 0.62, 26, 0, 0, TAU);
+      ctx.fill();
+
+      // The side wall, receding up and to the right.
+      ctx.fillStyle = '#E8DDCB';
+      ctx.beginPath();
+      ctx.moveTo(x + fw / 2, top);
+      ctx.lineTo(x + fw / 2 + dep, top - dh);
+      ctx.lineTo(x + fw / 2 + dep, btm - dh);
+      ctx.lineTo(x + fw / 2, btm);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = '#B4762E';
-      roundRect(x - 22, y + 18, 44, 54, 4);
+
+      // The front wall.
+      ctx.fillStyle = '#F7F2E7';
+      ctx.fillRect(x - fw / 2, top, fw, fh);
+
+      // The roof: the front slope and the right slope of a hipped roof.
+      var eL = x - fw / 2 - ov, eR = x + fw / 2 + ov;
+      var rA = x - fw / 2 + 30, rB = x + fw / 2 - 30 + dep;
+      ctx.fillStyle = '#B4553F';
+      ctx.beginPath();
+      ctx.moveTo(eL, eaveY);
+      ctx.lineTo(eR, eaveY);
+      ctx.lineTo(rB, eaveY - rh - dh);
+      ctx.lineTo(rA, eaveY - rh);
+      ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = 'rgba(120,160,175,0.6)';
-      ctx.fillRect(x - 74, y - 26, 38, 36);
-      ctx.fillRect(x + 36, y - 26, 38, 36);
+      ctx.fillStyle = '#9C4835';
+      ctx.beginPath();
+      ctx.moveTo(eR, eaveY);
+      ctx.lineTo(eR + dep, eaveY - dh);
+      ctx.lineTo(rB, eaveY - rh - dh);
+      ctx.closePath();
+      ctx.fill();
+
+      // The eave's own shadow, falling on the wall under it.
+      ctx.fillStyle = 'rgba(70,50,40,0.10)';
+      ctx.fillRect(x - fw / 2, eaveY, fw, 7);
+
+      // The chimney, standing on the back of the ridge.
+      ctx.fillStyle = '#8E6A57';
+      ctx.fillRect(x + 30, eaveY - rh - dh - 4, 16, 26);
+      ctx.fillStyle = '#6F5044';
+      ctx.fillRect(x + 27, eaveY - rh - dh - 8, 22, 6);
+
+      // The door, set toward the path side, with a stone step.
+      ctx.fillStyle = '#B4762E';
+      roundRect(x + 22, btm - 62, 36, 62, 3);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(60,35,20,0.25)';
+      ctx.fillRect(x + 22, btm - 62, 36, 4);
+      ctx.fillStyle = '#E3D6C0';
+      ctx.beginPath();
+      ctx.ellipse(x + 40, btm + 3, 27, 8, 0, 0, TAU);
+      ctx.fill();
+
+      // Two windows on the front wall, one on the side wall.
+      function pane(px, py, pw, ph) {
+        ctx.fillStyle = 'rgba(120,160,175,0.55)';
+        ctx.fillRect(px, py, pw, ph);
+        ctx.strokeStyle = 'rgba(250,246,236,0.85)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px + pw / 2, py);
+        ctx.lineTo(px + pw / 2, py + ph);
+        ctx.moveTo(px, py + ph / 2);
+        ctx.lineTo(px + pw, py + ph / 2);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(90,70,55,0.35)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px - 1, py - 1, pw + 2, ph + 2);
+      }
+      pane(x - 66, top + 26, 34, 28);
+      pane(x - 22, top + 26, 34, 28);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(120,160,175,0.45)';
+      ctx.beginPath();
+      ctx.moveTo(x + fw / 2 + 12, top + 28);
+      ctx.lineTo(x + fw / 2 + 32, top + 18);
+      ctx.lineTo(x + fw / 2 + 32, top + 46);
+      ctx.lineTo(x + fw / 2 + 12, top + 56);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     } else if (p.k === 'coopdoor') {
       var isGlass = false;
       ctx.fillStyle = isGlass ? '#EAF1EE' : '#F2E7D4';
@@ -28367,9 +28764,27 @@ var ANIMAL_SIZES = {
       ctx.beginPath();
       ctx.ellipse(x, y + 4, 46, 30, 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = '#6E8B90';
+      // The lid: boards across the mouth, and a stone on it, because a lid that
+      // can be lifted by a child is not a lid.
+      ctx.fillStyle = '#B4823C';
       ctx.beginPath();
-      ctx.ellipse(x, y + 2, 34, 20, 0, 0, TAU);
+      ctx.ellipse(x, y + 2, 36, 21, 0, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(90,64,36,0.55)';
+      ctx.lineWidth = 1.4;
+      for (var wb = -1; wb <= 1; wb++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 32, y + 2 + wb * 8);
+        ctx.lineTo(x + 32, y + 2 + wb * 8);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#9A958A';
+      ctx.beginPath();
+      ctx.ellipse(x + 4, y - 2, 13, 8, 0.2, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(x + 2, y - 5, 6, 3, 0.2, 0, TAU);
       ctx.fill();
       ctx.strokeStyle = '#8A6A44';
       ctx.lineWidth = 7;
@@ -28819,13 +29234,14 @@ var ANIMAL_SIZES = {
     drawBeingNote();
     // The book is a sheet over the island, so it is drawn last.
     if (BOOK.open) drawBook(canvas.width / dpr, canvas.height / dpr);
-    if (d.kind !== 'yard' || interior) return;
-    drawSisterNote();
   }
 
   var chipHit = null;
-  var donyaLine = -99;
+  /* When Donya was last greeted. The line itself is a being slip, like every
+     other person on the island: one mechanism, one owner. */
   var donyaMet = false;
+  /* The grandmother speaks once, and only once, about the keeper before. */
+  var grandmotherSaid = false;
   /* The day closes at the well she started at: set when she reads the capped well
      after every other errand is done. */
   var closedAtWell = false;
@@ -28843,63 +29259,41 @@ var ANIMAL_SIZES = {
     var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
     var s = clamp(Math.min(cssW, cssH) / 520, 0.82, 1.4);
     var w = Math.min(cssW - 48 * s, 320 * s);
-    var h = 76 * s;
     var x = cssW / 2 - w / 2, y = cssH * 0.115;
     ctx.save();
+    ctx.textAlign = 'left';
+    ctx.font = 'italic ' + Math.round(13.5 * s) + 'px ' + FONT_SERIF;
+    // The line is wrapped before the slip is drawn, so the slip is as tall as
+    // what it says: a long line used to run out of the bottom of a fixed box.
+    var words = beingSaid.line.split(' ');
+    var lines = [], line = '';
+    for (var i = 0; i < words.length; i++) {
+      var tryLine = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(tryLine).width > w - 28 * s && line) {
+        lines.push(line);
+        line = words[i];
+      } else {
+        line = tryLine;
+      }
+    }
+    if (line) lines.push(line);
+    var h = 44 * s + lines.length * 18 * s + 6 * s;
     ctx.fillStyle = C.paper;
     roundRect(x, y, w, h, 10 * s);
     ctx.fill();
     ctx.strokeStyle = C.rule;
     ctx.lineWidth = Math.max(1, s);
     ctx.stroke();
-    ctx.textAlign = 'left';
     ctx.fillStyle = C.inkFaint;
     ctx.font = '600 ' + Math.round(9.5 * s) + 'px ' + FONT_UI;
     ctx.fillText(beingSaid.who.toUpperCase(), x + 14 * s, y + 20 * s);
     ctx.fillStyle = C.inkSoft;
     ctx.font = 'italic ' + Math.round(13.5 * s) + 'px ' + FONT_SERIF;
-    // The line, wrapped to the slip.
-    var words = beingSaid.line.split(' ');
-    var line = '', ly = y + 44 * s;
-    for (var i = 0; i < words.length; i++) {
-      var tryLine = line ? line + ' ' + words[i] : words[i];
-      if (ctx.measureText(tryLine).width > w - 28 * s && line) {
-        ctx.fillText(line, x + 14 * s, ly);
-        ly += 18 * s;
-        line = words[i];
-      } else {
-        line = tryLine;
-      }
-    }
-    if (line) ctx.fillText(line, x + 14 * s, ly);
+    for (var n = 0; n < lines.length; n++) ctx.fillText(lines[n], x + 14 * s, y + 44 * s + n * 18 * s);
     ctx.restore();
     ctx.textAlign = 'left';
   }
 
-  function drawSisterNote() {
-    if (clock - donyaLine > 4) return;
-    var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
-    var s = clamp(Math.min(cssW, cssH) / 520, 0.82, 1.4);
-    var w = Math.min(cssW - 60 * s, 300 * s);
-    var h = 84 * s;
-    var x = cssW / 2 - w / 2, y = cssH * 0.10;
-    ctx.save();
-    ctx.fillStyle = C.paper;
-    roundRect(x, y, w, h, 12 * s);
-    ctx.fill();
-    ctx.strokeStyle = C.rule;
-    ctx.lineWidth = Math.max(1, s);
-    ctx.stroke();
-    ctx.textAlign = 'left';
-    ctx.fillStyle = C.inkFaint;
-    ctx.font = '600 ' + Math.round(10 * s) + 'px ' + FONT_UI;
-    ctx.fillText(T('DONYA, MY SISTER'), x + 16 * s, y + 22 * s);
-    ctx.fillStyle = C.inkSoft;
-    ctx.font = 'italic ' + Math.round(15 * s) + 'px ' + FONT_SERIF;
-    ctx.fillText(T('"I found the low path. Come and see."'), x + 16 * s, y + 52 * s);
-    ctx.restore();
-    ctx.textAlign = 'left';
-  }
 
   /* The tab at the foot of the page is bookTab (see the book), and the two
      marks beside it are carryTabs. Nothing here keeps a second copy. */
