@@ -4,7 +4,1215 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; media-src data: blob:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'; form-action 'none'">
 <title>Darya</title>
 <style>html,body{margin:0;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh;touch-action:none;outline:none}</style></head><body><canvas id="game" tabindex="0"></canvas>
-<script>window.GAME={"title":"Darya","rules":{"duration":120,"hearts":3,"heroSpeed":260,"enemySpeed":55,"enemySpeedGrowth":0.9,"enemySpawnEvery":9,"maxEnemies":3,"maxPickups":6,"heroSize":92,"enemySize":74,"pickupSize":46,"goal":8,"waterGoal":4,"catchGoal":6,"carryMax":5,"shield":{"enabled":false,"every":3,"seconds":4}},"slots":{"hero":{"tile":false,"custom":false},"enemy":{"tile":false,"custom":false},"pickup":{"tile":false,"custom":false},"background":{"tile":true,"custom":false},"hive":{"tile":false,"custom":false}},"assets":{"hero":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBMaXR0bGUgcm91bmQgYWR2ZW50dXJlciwgZmFjaW5nIHRoZSB2aWV3ZXIuIEZsYXQgY2FydG9vbiwgZGFyayBvdXRsaW5lLiAtLT4KICA8IS0tIEdyb3VuZCBzaGFkb3cgLS0+CiAgPGVsbGlwc2UgY3g9IjEyOCIgY3k9IjIyOCIgcng9IjU4IiByeT0iMTYiIGZpbGw9IiMxZjRkMmUiIG9wYWNpdHk9IjAuMzUiLz4KICA8IS0tIEJhY2twYWNrIC0tPgogIDxyZWN0IHg9IjU2IiB5PSIxMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSI1MiIgcng9IjEyIiBmaWxsPSIjZThhMTNjIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxwYXRoIGQ9Ik01NiAxMzJoNDAiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI2Ii8+CiAgPCEtLSBMZWdzIC0tPgogIDxyZWN0IHg9Ijg2IiB5PSIxNjgiIHdpZHRoPSIyNiIgaGVpZ2h0PSI0NCIgcng9IjEyIiBmaWxsPSIjMmY2YjRmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9IjEzNCIgeT0iMTY4IiB3aWR0aD0iMjYiIGhlaWdodD0iNDQiIHJ4PSIxMiIgZmlsbD0iIzJmNmI0ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8IS0tIEJvb3RzIC0tPgogIDxyZWN0IHg9Ijc4IiB5PSIxOTgiIHdpZHRoPSI0MiIgaGVpZ2h0PSIyMiIgcng9IjEwIiBmaWxsPSIjN2E0YTJiIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9IjEyOCIgeT0iMTk4IiB3aWR0aD0iNDIiIGhlaWdodD0iMjIiIHJ4PSIxMCIgZmlsbD0iIzdhNGEyYiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8IS0tIEJvZHkgLS0+CiAgPHBhdGggZD0iTTc2IDk2YzAtMjYgMjAtNDYgNDYtNDZoMTJjMjYgMCA0NiAyMCA0NiA0NnY2MmMwIDIyLTE2IDQwLTM4IDQyaC0yOGMtMjItMi0zOC0yMC0zOC00MnoiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBCZWx0IC0tPgogIDxyZWN0IHg9Ijc2IiB5PSIxNTAiIHdpZHRoPSIxMDQiIGhlaWdodD0iMTQiIGZpbGw9IiMyYjFiMTIiLz4KICA8cmVjdCB4PSIxMTgiIHk9IjE0OCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE4IiByeD0iNCIgZmlsbD0iI2YyYzE0ZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8IS0tIFNjYXJmIGtub3QgLS0+CiAgPHBhdGggZD0iTTk2IDk4YzggOCAyMCAxMiAzMiAxMnMyNC00IDMyLTEybC0xMCAxOGMtNiA2LTE2IDgtMjIgOHMtMTYtMi0yMi04eiIgZmlsbD0iIzNmOGY1YSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjciLz4KICA8IS0tIEFybXMgLS0+CiAgPHJlY3QgeD0iNDQiIHk9IjEwOCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjU0IiByeD0iMTUiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPHJlY3QgeD0iMTgyIiB5PSIxMDgiIHdpZHRoPSIzMCIgaGVpZ2h0PSI1NCIgcng9IjE1IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxjaXJjbGUgY3g9IjU5IiBjeT0iMTcwIiByPSIxNCIgZmlsbD0iI2Y3ZDlhOCIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8Y2lyY2xlIGN4PSIxOTciIGN5PSIxNzAiIHI9IjE0IiBmaWxsPSIjZjdkOWE4IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gSGVhZCAtLT4KICA8Y2lyY2xlIGN4PSIxMjgiIGN5PSI4MiIgcj0iNDIiIGZpbGw9IiNmN2Q5YTgiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBFeWVzIC0tPgogIDxlbGxpcHNlIGN4PSIxMTIiIGN5PSI3OCIgcng9IjYiIHJ5PSI4IiBmaWxsPSIjMmIxYjEyIi8+CiAgPGVsbGlwc2UgY3g9IjE0NiIgY3k9Ijc4IiByeD0iNiIgcnk9IjgiIGZpbGw9IiMyYjFiMTIiLz4KICA8Y2lyY2xlIGN4PSIxMTQiIGN5PSI3NSIgcj0iMi40IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGNpcmNsZSBjeD0iMTQ4IiBjeT0iNzUiIHI9IjIuNCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gQ2hlZWtzIC0tPgogIDxjaXJjbGUgY3g9Ijk4IiBjeT0iOTIiIHI9IjciIGZpbGw9IiNmMDhhNmUiIG9wYWNpdHk9IjAuOCIvPgogIDxjaXJjbGUgY3g9IjE1OCIgY3k9IjkyIiByPSI3IiBmaWxsPSIjZjA4YTZlIiBvcGFjaXR5PSIwLjgiLz4KICA8IS0tIE1vdXRoIC0tPgogIDxwYXRoIGQ9Ik0xMTggOTZjNCA1IDE2IDUgMjAgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gSGF0IC0tPgogIDxwYXRoIGQ9Ik04NCA2NmMwLTIwIDE2LTM2IDM2LTM2aDE2YzIwIDAgMzYgMTYgMzYgMzZ2MTRIODR6IiBmaWxsPSIjM2Y4ZjVhIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9Ijc4IiB5PSI3MiIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxNiIgcng9IjgiIGZpbGw9IiMyZjZiNGYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+Cjwvc3ZnPgo=","enemy":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBHcnVtcHkgc3Bpa3kgYmxvYi4gRmxhdCBjYXJ0b29uLCBkYXJrIG91dGxpbmUuIC0tPgogIDxlbGxpcHNlIGN4PSIxMjgiIGN5PSIyMzAiIHJ4PSI2MiIgcnk9IjE0IiBmaWxsPSIjMWY0ZDJlIiBvcGFjaXR5PSIwLjM1Ii8+CiAgPCEtLSBTcGlrZXMgLS0+CiAgPHBhdGggZD0iTTEyOCAyNmwxNCAzNC0zOCA4eiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNzQgNTJsMzAgMjAtMzAgMjR6IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik0xODIgNTJsLTMwIDIwIDMwIDI0eiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNMTk2IDExNmwtMzAgNiAxMiAzMHoiIGZpbGw9IiM1YTRhOGYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTYwIDExNmwzMCA2LTEyIDMweiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8IS0tIEJvZHkgLS0+CiAgPHBhdGggZD0iTTc4IDgyYzAtMzggMjQtNTggNTAtNThzNTAgMjAgNTAgNThjMCA2MC0yMiA4OC01MCA4OHMtNTAtMjgtNTAtODh6IiBmaWxsPSIjOGE3NGQ2IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gQmVsbHkgLS0+CiAgPGVsbGlwc2UgY3g9IjEyOCIgY3k9IjE1MCIgcng9IjI4IiByeT0iMjIiIGZpbGw9IiNjM2I0ZjAiIG9wYWNpdHk9IjAuODUiLz4KICA8IS0tIEV5ZXMgLS0+CiAgPHBhdGggZD0iTTk2IDEwNGM4LTEwIDE2LTEwIDIyIDAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNMTM4IDEwNGM2LTEwIDE0LTEwIDIyIDAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIxMDciIGN5PSIxMTIiIHI9IjYiIGZpbGw9IiMyYjFiMTIiLz4KICA8Y2lyY2xlIGN4PSIxNDkiIGN5PSIxMTIiIHI9IjYiIGZpbGw9IiMyYjFiMTIiLz4KICA8IS0tIEFuZ3J5IGJyb3dzIC0tPgogIDxwYXRoIGQ9Ik05NCA5MGwyMCA2IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHBhdGggZD0iTTE2MiA5MGwtMjAgNiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gTW91dGggLS0+CiAgPHBhdGggZD0iTTExMiAxMzZjMTItMTAgMjItMTAgMzIgMCIgZmlsbD0iIzJiMWIxMiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gVGVldGggLS0+CiAgPHBhdGggZD0iTTExOCAxMzZsNSA5IDUtOSA1IDkgNS05IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPCEtLSBGZWV0IC0tPgogIDxlbGxpcHNlIGN4PSIxMDAiIGN5PSIyMDgiIHJ4PSIyMiIgcnk9IjE2IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxlbGxpcHNlIGN4PSIxNTYiIGN5PSIyMDgiIHJ4PSIyMiIgcnk9IjE2IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgo8L3N2Zz4K","pickup":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBHbG93aW5nIHBhcGVyIGxhbnRlcm4uIEZsYXQgY2FydG9vbiwgZGFyayBvdXRsaW5lLiAtLT4KICA8IS0tIFNvZnQgZ2xvdyAtLT4KICA8Y2lyY2xlIGN4PSIxMjgiIGN5PSIxNDIiIHI9Ijg0IiBmaWxsPSIjZmZkNjZiIiBvcGFjaXR5PSIwLjI4Ii8+CiAgPGNpcmNsZSBjeD0iMTI4IiBjeT0iMTQyIiByPSI2MCIgZmlsbD0iI2ZmYzk0ZCIgb3BhY2l0eT0iMC40Ii8+CiAgPCEtLSBIYW5naW5nIHN0cmluZyAtLT4KICA8bGluZSB4MT0iMTI4IiB5MT0iMTYiIHgyPSIxMjgiIHkyPSI0NiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gVG9wIGNhcCAtLT4KICA8cmVjdCB4PSI5MiIgeT0iNDQiIHdpZHRoPSI3MiIgaGVpZ2h0PSIxOCIgcng9IjgiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBSaWJzIC0tPgogIDxwYXRoIGQ9Ik0xMTIgNjBjMCA0MiAxNiA2OCAxNiA5NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDk4YTJiIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8cGF0aCBkPSJNMTQ0IDYwYzAgNDItMTYgNjgtMTYgOTQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q5OGEyYiIgc3Ryb2tlLXdpZHRoPSI2Ii8+CiAgPHBhdGggZD0iTTEyOCA2MHY5NiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDk4YTJiIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8IS0tIExhbnRlcm4gYm9keSAtLT4KICA8cGF0aCBkPSJNODggNjJjMCA1NCAxOCA4NCA0MCA4NHM0MC0zMCA0MC04NGMwLTYtOC0xMi0yMC0xMmgtNDBjLTEyIDAtMjAgNi0yMCAxMnoiIGZpbGw9IiNmZmM5NGQiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPHBhdGggZD0iTTg4IDY2aDgwIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHBhdGggZD0iTTkyIDE0NmMwIDggOCAxMiAxNCAxMmg0NGM2IDAgMTQtNCAxNC0xMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gQm90dG9tIGNhcCAtLT4KICA8cmVjdCB4PSI5NCIgeT0iMTUwIiB3aWR0aD0iNjgiIGhlaWdodD0iMTYiIHJ4PSI4IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gVGFzc2VsIC0tPgogIDxsaW5lIHgxPSIxMjgiIHkxPSIxNjYiIHgyPSIxMjgiIHkyPSIxOTIiIHN0cm9rZT0iI2U4NWQzZCIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNMTIwIDE5MmM0IDEyIDEyIDEyIDE2IDB6IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDwhLS0gSW5uZXIgZ2xvdyAtLT4KICA8ZWxsaXBzZSBjeD0iMTI4IiBjeT0iMTE2IiByeD0iMjIiIHJ5PSIzMCIgZmlsbD0iI2ZmZjNjNCIgb3BhY2l0eT0iMC45Ii8+Cjwvc3ZnPgo=","background":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+PCEtLSBQbGFjZWhvbGRlciBmb3IgIklzbGFuZCBmaWVsZCI7IGRyYXcgb3ZlciB0aGlzIGZpbGUgb3IgZ2VuZXJhdGUgYXJ0IGZvciB0aGUgc2xvdC4gLS0+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIGZpbGw9ImhzbCg3OCAzMCUgNzglKSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0iY2VudHJhbCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZvbnQtc2l6ZT0iMTg0IiBmaWxsPSJoc2woNzggNDUlIDIyJSkiPkk8L3RleHQ+PC9zdmc+Cg==","hive":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiI+PCEtLSBQbGFjZWhvbGRlciBmb3IgIkhpdmUiOyBkcmF3IG92ZXIgdGhpcyBmaWxlIG9yIGdlbmVyYXRlIGFydCBmb3IgdGhlIHNsb3QuIC0tPjxjaXJjbGUgY3g9IjEyOCIgY3k9IjEyOCIgcj0iMTA4IiBmaWxsPSJoc2woMTAzIDYwJSA2MiUpIiBzdHJva2U9ImhzbCgxMDMgNDUlIDI4JSkiIHN0cm9rZS13aWR0aD0iOSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0iY2VudHJhbCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZvbnQtc2l6ZT0iOTIiIGZpbGw9ImhzbCgxMDMgNDUlIDIyJSkiPkg8L3RleHQ+PC9zdmc+Cg=="}};</script>
+<script>window.GAME={"title":"Darya","rules":{"duration":120,"hearts":3,"heroSpeed":260,"enemySpeed":55,"enemySpeedGrowth":0.9,"enemySpawnEvery":9,"maxEnemies":3,"maxPickups":6,"heroSize":92,"enemySize":74,"pickupSize":46,"goal":8,"waterGoal":4,"catchGoal":6,"carryMax":5,"shield":{"enabled":false,"every":3,"seconds":4}},"slots":{"hero":{"tile":false,"custom":false},"enemy":{"tile":false,"custom":false},"pickup":{"tile":false,"custom":false},"background":{"tile":true,"custom":false},"hive":{"tile":false,"custom":false}},"assets":{"hero":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBMaXR0bGUgcm91bmQgYWR2ZW50dXJlciwgZmFjaW5nIHRoZSB2aWV3ZXIuIEZsYXQgY2FydG9vbiwgZGFyayBvdXRsaW5lLiAtLT4KICA8IS0tIEdyb3VuZCBzaGFkb3cgLS0+CiAgPGVsbGlwc2UgY3g9IjEyOCIgY3k9IjIyOCIgcng9IjU4IiByeT0iMTYiIGZpbGw9IiMxZjRkMmUiIG9wYWNpdHk9IjAuMzUiLz4KICA8IS0tIEJhY2twYWNrIC0tPgogIDxyZWN0IHg9IjU2IiB5PSIxMjAiIHdpZHRoPSI0MCIgaGVpZ2h0PSI1MiIgcng9IjEyIiBmaWxsPSIjZThhMTNjIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxwYXRoIGQ9Ik01NiAxMzJoNDAiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI2Ii8+CiAgPCEtLSBMZWdzIC0tPgogIDxyZWN0IHg9Ijg2IiB5PSIxNjgiIHdpZHRoPSIyNiIgaGVpZ2h0PSI0NCIgcng9IjEyIiBmaWxsPSIjMmY2YjRmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9IjEzNCIgeT0iMTY4IiB3aWR0aD0iMjYiIGhlaWdodD0iNDQiIHJ4PSIxMiIgZmlsbD0iIzJmNmI0ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8IS0tIEJvb3RzIC0tPgogIDxyZWN0IHg9Ijc4IiB5PSIxOTgiIHdpZHRoPSI0MiIgaGVpZ2h0PSIyMiIgcng9IjEwIiBmaWxsPSIjN2E0YTJiIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9IjEyOCIgeT0iMTk4IiB3aWR0aD0iNDIiIGhlaWdodD0iMjIiIHJ4PSIxMCIgZmlsbD0iIzdhNGEyYiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8IS0tIEJvZHkgLS0+CiAgPHBhdGggZD0iTTc2IDk2YzAtMjYgMjAtNDYgNDYtNDZoMTJjMjYgMCA0NiAyMCA0NiA0NnY2MmMwIDIyLTE2IDQwLTM4IDQyaC0yOGMtMjItMi0zOC0yMC0zOC00MnoiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBCZWx0IC0tPgogIDxyZWN0IHg9Ijc2IiB5PSIxNTAiIHdpZHRoPSIxMDQiIGhlaWdodD0iMTQiIGZpbGw9IiMyYjFiMTIiLz4KICA8cmVjdCB4PSIxMTgiIHk9IjE0OCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE4IiByeD0iNCIgZmlsbD0iI2YyYzE0ZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8IS0tIFNjYXJmIGtub3QgLS0+CiAgPHBhdGggZD0iTTk2IDk4YzggOCAyMCAxMiAzMiAxMnMyNC00IDMyLTEybC0xMCAxOGMtNiA2LTE2IDgtMjIgOHMtMTYtMi0yMi04eiIgZmlsbD0iIzNmOGY1YSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjciLz4KICA8IS0tIEFybXMgLS0+CiAgPHJlY3QgeD0iNDQiIHk9IjEwOCIgd2lkdGg9IjMwIiBoZWlnaHQ9IjU0IiByeD0iMTUiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPHJlY3QgeD0iMTgyIiB5PSIxMDgiIHdpZHRoPSIzMCIgaGVpZ2h0PSI1NCIgcng9IjE1IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxjaXJjbGUgY3g9IjU5IiBjeT0iMTcwIiByPSIxNCIgZmlsbD0iI2Y3ZDlhOCIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiLz4KICA8Y2lyY2xlIGN4PSIxOTciIGN5PSIxNzAiIHI9IjE0IiBmaWxsPSIjZjdkOWE4IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gSGVhZCAtLT4KICA8Y2lyY2xlIGN4PSIxMjgiIGN5PSI4MiIgcj0iNDIiIGZpbGw9IiNmN2Q5YTgiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBFeWVzIC0tPgogIDxlbGxpcHNlIGN4PSIxMTIiIGN5PSI3OCIgcng9IjYiIHJ5PSI4IiBmaWxsPSIjMmIxYjEyIi8+CiAgPGVsbGlwc2UgY3g9IjE0NiIgY3k9Ijc4IiByeD0iNiIgcnk9IjgiIGZpbGw9IiMyYjFiMTIiLz4KICA8Y2lyY2xlIGN4PSIxMTQiIGN5PSI3NSIgcj0iMi40IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGNpcmNsZSBjeD0iMTQ4IiBjeT0iNzUiIHI9IjIuNCIgZmlsbD0iI2ZmZmZmZiIvPgogIDwhLS0gQ2hlZWtzIC0tPgogIDxjaXJjbGUgY3g9Ijk4IiBjeT0iOTIiIHI9IjciIGZpbGw9IiNmMDhhNmUiIG9wYWNpdHk9IjAuOCIvPgogIDxjaXJjbGUgY3g9IjE1OCIgY3k9IjkyIiByPSI3IiBmaWxsPSIjZjA4YTZlIiBvcGFjaXR5PSIwLjgiLz4KICA8IS0tIE1vdXRoIC0tPgogIDxwYXRoIGQ9Ik0xMTggOTZjNCA1IDE2IDUgMjAgMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gSGF0IC0tPgogIDxwYXRoIGQ9Ik04NCA2NmMwLTIwIDE2LTM2IDM2LTM2aDE2YzIwIDAgMzYgMTYgMzYgMzZ2MTRIODR6IiBmaWxsPSIjM2Y4ZjVhIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxyZWN0IHg9Ijc4IiB5PSI3MiIgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxNiIgcng9IjgiIGZpbGw9IiMyZjZiNGYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+Cjwvc3ZnPgo=","enemy":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBHcnVtcHkgc3Bpa3kgYmxvYi4gRmxhdCBjYXJ0b29uLCBkYXJrIG91dGxpbmUuIC0tPgogIDxlbGxpcHNlIGN4PSIxMjgiIGN5PSIyMzAiIHJ4PSI2MiIgcnk9IjE0IiBmaWxsPSIjMWY0ZDJlIiBvcGFjaXR5PSIwLjM1Ii8+CiAgPCEtLSBTcGlrZXMgLS0+CiAgPHBhdGggZD0iTTEyOCAyNmwxNCAzNC0zOCA4eiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNNzQgNTJsMzAgMjAtMzAgMjR6IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik0xODIgNTJsLTMwIDIwIDMwIDI0eiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNMTk2IDExNmwtMzAgNiAxMiAzMHoiIGZpbGw9IiM1YTRhOGYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPHBhdGggZD0iTTYwIDExNmwzMCA2LTEyIDMweiIgZmlsbD0iIzVhNGE4ZiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8IS0tIEJvZHkgLS0+CiAgPHBhdGggZD0iTTc4IDgyYzAtMzggMjQtNTggNTAtNThzNTAgMjAgNTAgNThjMCA2MC0yMiA4OC01MCA4OHMtNTAtMjgtNTAtODh6IiBmaWxsPSIjOGE3NGQ2IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gQmVsbHkgLS0+CiAgPGVsbGlwc2UgY3g9IjEyOCIgY3k9IjE1MCIgcng9IjI4IiByeT0iMjIiIGZpbGw9IiNjM2I0ZjAiIG9wYWNpdHk9IjAuODUiLz4KICA8IS0tIEV5ZXMgLS0+CiAgPHBhdGggZD0iTTk2IDEwNGM4LTEwIDE2LTEwIDIyIDAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8cGF0aCBkPSJNMTM4IDEwNGM2LTEwIDE0LTEwIDIyIDAiIGZpbGw9IiNmZmZmZmYiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KICA8Y2lyY2xlIGN4PSIxMDciIGN5PSIxMTIiIHI9IjYiIGZpbGw9IiMyYjFiMTIiLz4KICA8Y2lyY2xlIGN4PSIxNDkiIGN5PSIxMTIiIHI9IjYiIGZpbGw9IiMyYjFiMTIiLz4KICA8IS0tIEFuZ3J5IGJyb3dzIC0tPgogIDxwYXRoIGQ9Ik05NCA5MGwyMCA2IiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHBhdGggZD0iTTE2MiA5MGwtMjAgNiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gTW91dGggLS0+CiAgPHBhdGggZD0iTTExMiAxMzZjMTItMTAgMjItMTAgMzIgMCIgZmlsbD0iIzJiMWIxMiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gVGVldGggLS0+CiAgPHBhdGggZD0iTTExOCAxMzZsNSA5IDUtOSA1IDkgNS05IiBmaWxsPSIjZmZmZmZmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgPCEtLSBGZWV0IC0tPgogIDxlbGxpcHNlIGN4PSIxMDAiIGN5PSIyMDgiIHJ4PSIyMiIgcnk9IjE2IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDxlbGxpcHNlIGN4PSIxNTYiIGN5PSIyMDgiIHJ4PSIyMiIgcnk9IjE2IiBmaWxsPSIjNWE0YThmIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgo8L3N2Zz4K","pickup":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiI+CiAgPCEtLSBHbG93aW5nIHBhcGVyIGxhbnRlcm4uIEZsYXQgY2FydG9vbiwgZGFyayBvdXRsaW5lLiAtLT4KICA8IS0tIFNvZnQgZ2xvdyAtLT4KICA8Y2lyY2xlIGN4PSIxMjgiIGN5PSIxNDIiIHI9Ijg0IiBmaWxsPSIjZmZkNjZiIiBvcGFjaXR5PSIwLjI4Ii8+CiAgPGNpcmNsZSBjeD0iMTI4IiBjeT0iMTQyIiByPSI2MCIgZmlsbD0iI2ZmYzk0ZCIgb3BhY2l0eT0iMC40Ii8+CiAgPCEtLSBIYW5naW5nIHN0cmluZyAtLT4KICA8bGluZSB4MT0iMTI4IiB5MT0iMTYiIHgyPSIxMjgiIHkyPSI0NiIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gVG9wIGNhcCAtLT4KICA8cmVjdCB4PSI5MiIgeT0iNDQiIHdpZHRoPSI3MiIgaGVpZ2h0PSIxOCIgcng9IjgiIGZpbGw9IiNlODVkM2QiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPCEtLSBSaWJzIC0tPgogIDxwYXRoIGQ9Ik0xMTIgNjBjMCA0MiAxNiA2OCAxNiA5NCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDk4YTJiIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8cGF0aCBkPSJNMTQ0IDYwYzAgNDItMTYgNjgtMTYgOTQiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q5OGEyYiIgc3Ryb2tlLXdpZHRoPSI2Ii8+CiAgPHBhdGggZD0iTTEyOCA2MHY5NiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZDk4YTJiIiBzdHJva2Utd2lkdGg9IjYiLz4KICA8IS0tIExhbnRlcm4gYm9keSAtLT4KICA8cGF0aCBkPSJNODggNjJjMCA1NCAxOCA4NCA0MCA4NHM0MC0zMCA0MC04NGMwLTYtOC0xMi0yMC0xMmgtNDBjLTEyIDAtMjAgNi0yMCAxMnoiIGZpbGw9IiNmZmM5NGQiIHN0cm9rZT0iIzJiMWIxMiIgc3Ryb2tlLXdpZHRoPSI4Ii8+CiAgPHBhdGggZD0iTTg4IDY2aDgwIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPHBhdGggZD0iTTkyIDE0NmMwIDggOCAxMiAxNCAxMmg0NGM2IDAgMTQtNCAxNC0xMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMmIxYjEyIiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDwhLS0gQm90dG9tIGNhcCAtLT4KICA8cmVjdCB4PSI5NCIgeT0iMTUwIiB3aWR0aD0iNjgiIGhlaWdodD0iMTYiIHJ4PSI4IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iOCIvPgogIDwhLS0gVGFzc2VsIC0tPgogIDxsaW5lIHgxPSIxMjgiIHkxPSIxNjYiIHgyPSIxMjgiIHkyPSIxOTIiIHN0cm9rZT0iI2U4NWQzZCIgc3Ryb2tlLXdpZHRoPSI4IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8cGF0aCBkPSJNMTIwIDE5MmM0IDEyIDEyIDEyIDE2IDB6IiBmaWxsPSIjZTg1ZDNkIiBzdHJva2U9IiMyYjFiMTIiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogIDwhLS0gSW5uZXIgZ2xvdyAtLT4KICA8ZWxsaXBzZSBjeD0iMTI4IiBjeT0iMTE2IiByeD0iMjIiIHJ5PSIzMCIgZmlsbD0iI2ZmZjNjNCIgb3BhY2l0eT0iMC45Ii8+Cjwvc3ZnPgo=","background":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiB2aWV3Qm94PSIwIDAgNTEyIDUxMiI+PCEtLSBQbGFjZWhvbGRlciBmb3IgIklzbGFuZCBmaWVsZCI7IGRyYXcgb3ZlciB0aGlzIGZpbGUgb3IgZ2VuZXJhdGUgYXJ0IGZvciB0aGUgc2xvdC4gLS0+PHJlY3Qgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiIGZpbGw9ImhzbCg3OCAzMCUgNzglKSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0iY2VudHJhbCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZvbnQtc2l6ZT0iMTg0IiBmaWxsPSJoc2woNzggNDUlIDIyJSkiPkk8L3RleHQ+PC9zdmc+Cg==","hive":"data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNTYiIGhlaWdodD0iMjU2IiB2aWV3Qm94PSIwIDAgMjU2IDI1NiI+PCEtLSBQbGFjZWhvbGRlciBmb3IgIkhpdmUiOyBkcmF3IG92ZXIgdGhpcyBmaWxlIG9yIGdlbmVyYXRlIGFydCBmb3IgdGhlIHNsb3QuIC0tPjxjaXJjbGUgY3g9IjEyOCIgY3k9IjEyOCIgcj0iMTA4IiBmaWxsPSJoc2woMTAzIDYwJSA2MiUpIiBzdHJva2U9ImhzbCgxMDMgNDUlIDI4JSkiIHN0cm9rZS13aWR0aD0iOSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0iY2VudHJhbCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZvbnQtc2l6ZT0iOTIiIGZpbGw9ImhzbCgxMDMgNDUlIDIyJSkiPkg8L3RleHQ+PC9zdmc+Cg=="},"scoreTuning":{"tuning":{"bpm":76,"swing":0.4,"lookahead":0.25,"master":0.6,"bass":1,"chord":1,"lead":1,"beat":1,"thirdChance":1,"ornamentRate":1,"returnPhrases":1,"chordOnBeat":0.55,"chordPush":0.28,"leadOffset":2},"instruments":{"bass":{"label":"bass","base":110,"partials":[1,2,3],"gains":[0.6,0.2,0.08],"tine":0,"bright":1,"decay":3,"seconds":0.7,"attack":0.01,"vibrato":0,"ring":1},"chord":{"label":"chord","base":220,"partials":[1,2,3,4,6],"gains":[0.45,0.18,0.1,0.06,0.04],"tine":0.1,"bright":0.34,"decay":1,"seconds":2.2,"attack":0.02,"vibrato":0,"ring":1},"lead":{"label":"tune","base":440,"partials":[1,2,3],"gains":[0.5,0.15,0.05],"tine":0,"bright":0,"decay":2.5,"seconds":0.9,"attack":0.042,"vibrato":0.001,"ring":1.82},"brush":{"label":"brushes","base":0,"partials":[],"gains":[],"tine":0,"bright":0.52,"decay":19.2,"seconds":0.22,"attack":0.081,"vibrato":0,"ring":1}},"composition":{"places":{"woods":{"dastgah":2,"movement":0.4,"register":0.4,"tempo":0.97,"kit":0.85,"ornament":1,"chordOnBeat":0.5,"chordPush":0.3,"bass":0.4,"chord":0.55,"lead":0.5,"beat":0.2,"figures":[1,2]},"steppe":{"dastgah":1,"movement":0.45,"register":0.55,"tempo":0.95,"kit":0.9,"ornament":1.1,"chordOnBeat":0.5,"chordPush":0.34,"bass":0.36,"chord":0.48,"lead":0.55,"beat":0.24,"figures":[0,1]},"meadow":{"dastgah":0,"movement":0.42,"register":0.58,"tempo":1,"kit":0.9,"ornament":1,"chordOnBeat":0.55,"chordPush":0.28,"bass":0.34,"chord":0.5,"lead":0.56,"beat":0.22,"figures":[0,1,2]},"heights":{"dastgah":3,"movement":0.3,"register":0.8,"tempo":0.96,"kit":1,"ornament":0.8,"chordOnBeat":0.62,"chordPush":0.2,"bass":0.28,"chord":0.45,"lead":0.55,"beat":0.22,"figures":[2,0]},"desert":{"dastgah":5,"movement":0.25,"register":0.75,"tempo":0.92,"kit":0.55,"ornament":0.7,"chordOnBeat":0.4,"chordPush":0.4,"bass":0.3,"chord":0.42,"lead":0.5,"beat":0.18,"figures":[0,2]},"beach":{"dastgah":4,"movement":0.5,"register":0.6,"tempo":1.02,"kit":1.1,"ornament":1.2,"chordOnBeat":0.45,"chordPush":0.35,"bass":0.3,"chord":0.45,"lead":0.52,"beat":0.26,"figures":[1,2]},"sea":{"dastgah":1,"movement":0.5,"register":0.5,"tempo":0.98,"kit":1,"ornament":1,"chordOnBeat":0.5,"chordPush":0.3,"bass":0.38,"chord":0.55,"lead":0.5,"beat":0.24,"figures":[0,1,2]},"river":{"dastgah":2,"movement":0.55,"register":0.55,"tempo":1.03,"kit":1.15,"ornament":1.3,"chordOnBeat":0.48,"chordPush":0.32,"bass":0.32,"chord":0.48,"lead":0.55,"beat":0.26,"figures":[1,2,0]},"apiary":{"dastgah":0,"movement":0.55,"register":0.62,"tempo":1.06,"kit":1.35,"ornament":1.2,"chordOnBeat":0.58,"chordPush":0.26,"bass":0.34,"chord":0.52,"lead":0.58,"beat":0.34,"figures":[2,0]},"glass":{"dastgah":3,"movement":0.35,"register":0.7,"tempo":0.94,"kit":0.6,"ornament":0.9,"chordOnBeat":0.66,"chordPush":0.14,"bass":0.28,"chord":0.46,"lead":0.54,"beat":0.14,"figures":[1,2]},"yard":{"dastgah":0,"movement":0.35,"register":0.55,"tempo":1,"kit":0.9,"ornament":1,"chordOnBeat":0.55,"chordPush":0.28,"bass":0.32,"chord":0.5,"lead":0.55,"beat":0.22,"figures":[0,1,2]},"comb":{"dastgah":4,"movement":0.3,"register":0.52,"tempo":0.93,"kit":0.7,"ornament":0.8,"chordOnBeat":0.7,"chordPush":0.1,"bass":0.3,"chord":0.5,"lead":0.58,"beat":0.18,"figures":[1]},"shrine":{"dastgah":1,"movement":0.25,"register":0.6,"tempo":0.9,"kit":0.35,"ornament":1.4,"chordOnBeat":0.75,"chordPush":0.05,"bass":0.32,"chord":0.52,"lead":0.55,"beat":0.1,"figures":[2,1]},"sky":{"dastgah":3,"movement":0.22,"register":0.85,"tempo":0.88,"kit":0.25,"ornament":1.1,"chordOnBeat":0.8,"chordPush":0,"bass":0.24,"chord":0.44,"lead":0.58,"beat":0.08,"figures":[2]},"lake":{"dastgah":2,"movement":0.45,"register":0.6,"tempo":0.96,"kit":0.7,"ornament":1.2,"chordOnBeat":0.6,"chordPush":0.18,"bass":0.3,"chord":0.48,"lead":0.54,"beat":0.18,"figures":[1,0]},"hens":{"dastgah":0,"movement":0.5,"register":0.58,"tempo":1.04,"kit":1.2,"ornament":1.1,"chordOnBeat":0.5,"chordPush":0.3,"bass":0.32,"chord":0.5,"lead":0.55,"beat":0.28,"figures":[0,2]}},"canons":[{"name":"Mahur","shahed":4,"ist":0,"colour":6,"tempo":1,"progression":[0,5,1,4,0,3,1,4,5,1,4,0,3,2,1,4],"ornament":"mordent","rate":0.55,"motifs":[[[0,4,2],[2,6,2],[4,7,2],[8,6,4]],[[0,2,2],[2,4,2],[4,5,2],[8,4,4]],[[0,4,4],[4,5,2],[6,6,2],[8,4,4]]],"cadence":[[24,5,2],[26,3,2],[28,0,4]]},{"name":"Rast-Panjgah","shahed":4,"ist":0,"colour":6,"tempo":0.94,"progression":[0,4,1,5,0,6,4,1,5,4,0,6,1,4,5,0],"ornament":"appoggiatura","rate":0.55,"motifs":[[[0,4,4],[4,6,2],[6,4,2],[8,3,4]],[[0,7,2],[2,6,2],[4,4,4],[8,3,4]],[[0,1,2],[2,3,2],[4,4,2],[8,5,4]]],"cadence":[[24,4,2],[26,3,2],[28,0,4]]},{"name":"Delkash","shahed":4,"ist":0,"colour":5,"tempo":0.9,"progression":[0,5,1,3,5,4,1,0,3,5,1,4,0,5,3,0],"ornament":"tahrir","rate":0.6,"motifs":[[[0,5,2],[2,4,2],[4,2,2],[8,4,4]],[[0,6,2],[2,5,2],[4,4,4],[8,2,4]],[[0,4,2],[2,5,2],[4,6,2],[8,4,4]]],"cadence":[[24,5,2],[26,4,2],[28,2,4]]},{"name":"Bayat-e Tork","shahed":2,"ist":0,"colour":3,"tempo":1.06,"progression":[0,2,0,1,3,2,0,1,2,3,0,1,2,0,3,0],"ornament":"slide","rate":0.55,"motifs":[[[0,2,2],[2,3,2],[4,2,2],[8,0,4]],[[0,4,2],[2,3,2],[4,2,2],[8,3,4]],[[0,2,4],[4,5,2],[6,4,2],[8,2,4]]],"cadence":[[24,4,2],[26,3,2],[28,0,4]]},{"name":"Nava","shahed":3,"ist":0,"colour":3,"tempo":0.98,"progression":[0,4,2,5,0,3,4,1,5,2,0,4,3,1,4,0],"ornament":"turn","rate":0.6,"motifs":[[[0,3,2],[2,4,2],[4,5,2],[8,4,4]],[[0,5,2],[2,4,2],[4,3,2],[8,2,4]],[[0,3,4],[4,5,2],[6,6,2],[8,3,4]]],"cadence":[[24,5,2],[26,3,2],[28,2,4]]},{"name":"Chahargah","shahed":5,"ist":0,"colour":6,"tempo":1.1,"progression":[0,5,1,6,0,5,4,1,6,3,0,5,1,4,6,0],"ornament":"sharp","rate":0.6,"motifs":[[[0,5,2],[2,6,2],[4,7,4],[8,5,4]],[[0,7,2],[2,6,2],[4,5,2],[8,4,4]],[[0,1,2],[2,4,2],[4,6,2],[8,5,4]]],"cadence":[[24,3,2],[26,2,2],[28,0,4]]}],"bassJump":[4,4,2,4,6,4]}}};</script>
+<script>/* Darya - the island's score.
+ *
+ * One owner for the music. Two pages use it: the game
+ * (games/darya-keeper/game.js) and the tuner
+ * (games/darya-keeper/tools/score-tuner.html). The game tells it WHERE she is and
+ * how light it is; everything else - the modes, the canons, the harmony, the kit,
+ * the transitions - lives here and nowhere else.
+ *
+ * The score is ported from the Unity game (Assets/!Project/Code/View/
+ * MusicDirector.cs and MusicTheory.cs): a sixteenth clock at 76 BPM, six Persian
+ * dastgahs on one tonic, a sixteen-bar form per mode, a tune in eight phrases, and
+ * a kit of brushes.
+ *
+ * Beyond the port, a dastgah is treated as what it is - a CANON, not a tuning: its
+ * own progression, figures, cadence, ornament, tempo and amount of kit. Walking
+ * into another place changes the material of the music, not only its intonation.
+ *
+ * The accompaniment sounds measured consonances only. Every chord member is
+ * checked in cents against the mode it is played in, because a chord in Chahargah
+ * carries a tritone that no other mode has. The colour degrees of a mode - the
+ * lowered sixth, the neutral third, the augmented step - are never chord members;
+ * they belong to the tune, on short passing notes.
+ *
+ * A mode change is a RETURN, not a cut: one phrase of the tonic, which every mode
+ * holds at exactly the same pitch, the tune walking down to it, and the new canon
+ * beginning on its own first bar. The seam is therefore a note and a chord that
+ * both modes spell identically.
+ *
+ * window.DaryaScore.create(options) -> a score.
+ *   options.audio   () -> AudioContext | null   (null until the first gesture)
+ *   options.where   () -> a palette key          ('menu', 'quiet', a place, a kind)
+ *   options.light   () -> {night, warm}          (the island's own light)
+ *   options.muted   () -> boolean
+ *   options.tuning  an override table (see TUNING)
+ *   options.onNote  (event) -> void            (for a tool that draws the roll)
+ */
+(function (root) {
+  'use strict';
+
+  var TAU = Math.PI * 2;
+  function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function wrap(v, m) { v = v % m; return v < 0 ? v + m : v; }
+
+  /* ------------------------------------------------------------------ tuning */
+  /* Every number a person might want to change while listening. The tuner page
+    edits this table live; the game uses it as it stands. */
+  var TUNING = {
+    bpm: 76,
+    swing: 0.4,          // how far an offbeat rides late, in sixteenths
+    lookahead: 0.25,     // seconds scheduled ahead of the audio clock
+    master: 0.6,
+    bass: 1.0,           // per-voice level, multiplied into the baked mix
+    chord: 1.0,
+    lead: 1.0,
+    beat: 1.0,
+    thirdChance: 1.0,    // scales how often a plain third joins the chord
+    ornamentRate: 1.0,   // scales how often a mode decorates a note
+    returnPhrases: 1,    // phrases spent coming home before a mode changes
+    // Where the chord lands in a bar. The bass and the brushes hold the beat, so
+    // the chord does not have to state it every time: it may anticipate a beat
+    // early, or wait for beat two, and the bar still has a downbeat.
+    chordOnBeat: 0.55,   // chance the chord sounds on the bar's own downbeat
+    chordPush: 0.28,     // chance it anticipates, an eighth before the bar
+    // The tune gives way to the chord: a note written on a bar line is pushed
+    // later by this many sixteenths, so the two never state the same beat.
+    leadOffset: 2
+  };
+
+  /* The six bright dastgahs, in cents above the tonic. Shared tonic: a place
+    changes the mode, not the key. */
+  var SCALES = [
+    [0, 200, 400, 500, 700, 900, 1100],   // Mahur
+    [0, 200, 400, 500, 700, 900, 1000],   // Rast-Panjgah
+    [0, 200, 400, 500, 700, 850, 1000],   // Delkash
+    [0, 200, 300, 500, 700, 850, 1000],   // Bayat-e Tork
+    [0, 200, 350, 500, 700, 850, 1000],   // Nava
+    [0, 200, 400, 500, 700, 800, 1100]    // Chahargah
+  ];
+
+  /* ---- HARMONY: measured consonance only ----------------------------------
+    A chord is built on the mode's own degree, so it must be checked interval by
+    interval, in cents - not assumed to be a pile of thirds. In Chahargah the
+    raised seventh sits a tritone under its own third, and no taste makes that a
+    chord.
+
+    So the accompaniment sounds only these intervals over the root, and only where
+    the mode actually has one. The third is checked harder than the rest: a neutral
+    third is 50 cents from both a minor and a major third, so a wide tolerance
+    would let it in as "a third" while meaning the wrong thing. */
+  var OPEN_CENTS = [0, 300, 400, 500, 700, 800, 900, 1200];
+  var HARMONY_TOLERANCE = 55;
+  var THIRD_TOLERANCE = 30;
+
+  /* The tune's shared head: eight phrases of two bars. Each mode keeps the SHAPE
+    of the first bar, so a place is recognised when it is walked into again. */
+  var PHRASES = [
+    [[0,4,4],[4,5,1],[5,4,3],[8,6,4],[12,4,4],[16,2,4],[20,5,4],[24,4,1],[25,5,3],[28,2,4]],
+    [[0,3,4],[4,5,2],[6,4,1],[7,3,4],[12,1,4],[16,3,4],[20,6,2],[22,5,1],[23,4,3],[26,6,2],[28,4,4]],
+    [[0,2,4],[4,4,4],[8,6,4],[12,4,4],[16,5,4],[20,3,4],[24,2,1],[25,3,3],[28,5,4]],
+    [[0,5,4],[4,3,2],[6,4,1],[7,3,3],[10,1,2],[12,3,4],[16,4,4],[20,6,2],[22,5,1],[23,4,3],[26,1,2],[28,4,4]],
+    [[0,5,4],[4,4,2],[6,3,1],[7,2,3],[10,4,2],[12,5,4],[16,3,4],[20,5,4],[24,4,1],[25,3,3],[28,5,4]],
+    [[0,6,4],[4,4,2],[6,3,1],[7,1,3],[10,3,2],[12,1,4],[16,2,4],[20,4,4],[24,6,2],[26,4,1],[27,2,1],[28,0,4]],
+    [[0,5,4],[4,3,4],[8,2,2],[10,1,1],[11,3,5],[16,6,4],[20,4,4],[24,2,2],[26,1,1],[27,2,3],[30,6,2]],
+    [[0,3,4],[4,5,4],[8,1,4],[12,3,4],[16,4,4],[20,6,4],[24,5,1],[25,4,3],[28,4,4]]
+  ];
+
+  /* ---- THE CANON ----------------------------------------------------------
+    A dastgah is a central degree its phrases circle (shahed), a degree they come
+    home to (ist), a degree where the mode is recognised (colour), a tempo
+    feeling, its own sixteen-bar harmony, and a repertoire: answering figures, a
+    cadence, and one ornament that belongs to it. */
+  var CANONS = [
+    { name: 'Mahur',
+      // The bright major: stepwise motion, the sixth as its colour, a mordent.
+      shahed: 4, ist: 0, colour: 6, tempo: 1.00,
+      // I · vi · ii · V, and its turn a third away.
+      progression: [0, 5, 1, 4, 0, 3, 1, 4, 5, 1, 4, 0, 3, 2, 1, 4],
+      ornament: 'mordent', rate: 0.55,
+      motifs: [
+        [[0, 4, 2], [2, 6, 2], [4, 7, 2], [8, 6, 4]],
+        [[0, 2, 2], [2, 4, 2], [4, 5, 2], [8, 4, 4]],
+        [[0, 4, 4], [4, 5, 2], [6, 6, 2], [8, 4, 4]]
+      ],
+      cadence: [[24, 5, 2], [26, 3, 2], [28, 0, 4]] },
+    { name: 'Rast-Panjgah',
+      // Grand and open: phrases leap to the fifth and circle the seventh, which
+      // sits a whole tone low, so the mode sounds older than the major.
+      shahed: 4, ist: 0, colour: 6, tempo: 0.94,
+      // A slow turn through the fourth and the fifth: no chord borrows the
+      // lowered seventh, so nothing contradicts it.
+      progression: [0, 4, 1, 5, 0, 6, 4, 1, 5, 4, 0, 6, 1, 4, 5, 0],
+      ornament: 'appoggiatura', rate: 0.55,
+      motifs: [
+        [[0, 4, 4], [4, 6, 2], [6, 4, 2], [8, 3, 4]],
+        [[0, 7, 2], [2, 6, 2], [4, 4, 4], [8, 3, 4]],
+        [[0, 1, 2], [2, 3, 2], [4, 4, 2], [8, 5, 4]]
+      ],
+      cadence: [[24, 4, 2], [26, 3, 2], [28, 0, 4]] },
+    { name: 'Delkash',
+      // Soft and lowered: the sixth is a half step flat, and the phrase drops
+      // through it in a two-note tahrir instead of leaping over it.
+      shahed: 4, ist: 0, colour: 5, tempo: 0.90,
+      // It leans on the flat sixth and the second, which is where its colour is.
+      progression: [0, 5, 1, 3, 5, 4, 1, 0, 3, 5, 1, 4, 0, 5, 3, 0],
+      ornament: 'tahrir', rate: 0.6,
+      motifs: [
+        [[0, 5, 2], [2, 4, 2], [4, 2, 2], [8, 4, 4]],
+        [[0, 6, 2], [2, 5, 2], [4, 4, 4], [8, 2, 4]],
+        [[0, 4, 2], [2, 5, 2], [4, 6, 2], [8, 4, 4]]
+      ],
+      cadence: [[24, 5, 2], [26, 4, 2], [28, 2, 4]] },
+    { name: 'Bayat-e Tork',
+      // Cheerful, with a gentle lowered third: the melodic centre sits on the
+      // third, so the figures rock around it instead of reaching the fifth.
+      shahed: 2, ist: 0, colour: 3, tempo: 1.06,
+      // A rocking turn: I · iii · I · ii, which keeps the lowered third in the
+      // ear instead of reaching for the fifth.
+      progression: [0, 2, 0, 1, 3, 2, 0, 1, 2, 3, 0, 1, 2, 0, 3, 0],
+      ornament: 'slide', rate: 0.55,
+      motifs: [
+        [[0, 2, 2], [2, 3, 2], [4, 2, 2], [8, 0, 4]],
+        [[0, 4, 2], [2, 3, 2], [4, 2, 2], [8, 3, 4]],
+        [[0, 2, 4], [4, 5, 2], [6, 4, 2], [8, 2, 4]]
+      ],
+      cadence: [[24, 4, 2], [26, 3, 2], [28, 0, 4]] },
+    { name: 'Nava',
+      // Flowing, on a neutral third: the figures step around the quarter-tone
+      // region with a turn, so the phrase blooms rather than resolves.
+      shahed: 3, ist: 0, colour: 3, tempo: 0.98,
+      // Wide and calm: the fourth under the fifth, so the neutral third is free
+      // to be itself.
+      progression: [0, 4, 2, 5, 0, 3, 4, 1, 5, 2, 0, 4, 3, 1, 4, 0],
+      ornament: 'turn', rate: 0.6,
+      motifs: [
+        [[0, 3, 2], [2, 4, 2], [4, 5, 2], [8, 4, 4]],
+        [[0, 5, 2], [2, 4, 2], [4, 3, 2], [8, 2, 4]],
+        [[0, 3, 4], [4, 5, 2], [6, 6, 2], [8, 3, 4]]
+      ],
+      cadence: [[24, 5, 2], [26, 3, 2], [28, 2, 4]] },
+    { name: 'Chahargah',
+      // Bold: the sixth is lowered and the seventh raised, so the mode carries an
+      // augmented step. The figures leap it, and the ornament approaches from
+      // above, which is where that step is heard.
+      shahed: 5, ist: 0, colour: 6, tempo: 1.10,
+      // Restless: the sixth is a chord of its own rather than a passing colour,
+      // and the progression never settles on one degree for long.
+      progression: [0, 5, 1, 6, 0, 5, 4, 1, 6, 3, 0, 5, 1, 4, 6, 0],
+      ornament: 'sharp', rate: 0.6,
+      motifs: [
+        [[0, 5, 2], [2, 6, 2], [4, 7, 4], [8, 5, 4]],
+        [[0, 7, 2], [2, 6, 2], [4, 5, 2], [8, 4, 4]],
+        [[0, 1, 2], [2, 4, 2], [4, 6, 2], [8, 5, 4]]
+      ],
+      cadence: [[24, 3, 2], [26, 2, 2], [28, 0, 4]] }
+  ];
+
+  /* How a canon is accompanied, not only sung. The bass's second beat, how busy
+    the brushes are, and how often the third is sounded all belong to the mode. */
+  var BASS_JUMP = [4, 4, 2, 4, 6, 4];
+  var KIT_RATE = [1.0, 0.85, 0.75, 1.1, 0.9, 1.15];
+  var THIRD_CHANCE = [0.45, 0.35, 0.30, 0.60, 0.30, 0.35];
+
+  /* The mode's own decoration: the degrees played on the sixteenths before a note
+    of the answer. Each is a passing note, one step long. */
+  var ORNAMENTS = {
+    mordent: function (d) { return [d + 1]; },
+    appoggiatura: function (d) { return [d + 1]; },
+    tahrir: function (d) { return [d + 1, d]; },
+    slide: function (d) { return [d - 1]; },
+    turn: function (d) { return [d + 1, d - 1]; },
+    sharp: function (d) { return [d + 2, d + 1]; }
+  };
+
+  var BRUSH_STEPS = [0, 2, 4, 6, 8, 10, 12, 14];
+  var BASS_FIGURE = [[0, 0], [4, 4], [8, 0], [12, 4]];
+
+  /* ---- The composition, per place -----------------------------------------
+    A place is not a mode. Six modes for twenty-one places means most places
+    would share a tune, so each place also owns its CHARACTER, and that is what
+    makes the desert unlike the yard even when both are in the same dastgah:
+
+      dastgah   which canon it speaks
+      movement  how busy the tune is: 0 holds a note and lets the chord speak,
+                1 answers every bar line. It also decides how often the tune
+                rests a phrase, and whether the ornament is used at all.
+      register  0 stays low and warm, 1 sings an octave up
+      tempo     its own bend on the canon's tempo (0.9 leans back, 1.1 pushes)
+      kit       scales how much of the canon's brushes are heard
+      ornament  scales how often the mode's ornament is played
+      chordOnBeat / chordPush   where the chord lands in the bar
+      bass, chord, lead, beat   the balance of the four voices
+    All of it is data: the composition tool edits this table and the score reads
+    it, so a place can be tuned by ear without touching a line of code. */
+  var PALETTES = {
+    woods:    { dastgah: 2, movement: 0.40, register: 0.40, tempo: 0.97, kit: 0.85, ornament: 1.0, chordOnBeat: 0.50, chordPush: 0.30, bass: 0.40, chord: 0.55, lead: 0.50, beat: 0.20, figures: [1, 2] },
+    steppe:   { dastgah: 1, movement: 0.45, register: 0.55, tempo: 0.95, kit: 0.90, ornament: 1.1, chordOnBeat: 0.50, chordPush: 0.34, bass: 0.36, chord: 0.48, lead: 0.55, beat: 0.24, figures: [0, 1] },
+    meadow:   { dastgah: 0, movement: 0.42, register: 0.58, tempo: 1.00, kit: 0.90, ornament: 1.0, chordOnBeat: 0.55, chordPush: 0.28, bass: 0.34, chord: 0.50, lead: 0.56, beat: 0.22, figures: [0, 1, 2] },
+    heights:  { dastgah: 3, movement: 0.30, register: 0.80, tempo: 0.96, kit: 1.00, ornament: 0.8, chordOnBeat: 0.62, chordPush: 0.20, bass: 0.28, chord: 0.45, lead: 0.55, beat: 0.22, figures: [2, 0] },
+    desert:   { dastgah: 5, movement: 0.25, register: 0.75, tempo: 0.92, kit: 0.55, ornament: 0.7, chordOnBeat: 0.40, chordPush: 0.40, bass: 0.30, chord: 0.42, lead: 0.50, beat: 0.18, figures: [0, 2] },
+    beach:    { dastgah: 4, movement: 0.50, register: 0.60, tempo: 1.02, kit: 1.10, ornament: 1.2, chordOnBeat: 0.45, chordPush: 0.35, bass: 0.30, chord: 0.45, lead: 0.52, beat: 0.26, figures: [1, 2] },
+    sea:      { dastgah: 1, movement: 0.50, register: 0.50, tempo: 0.98, kit: 1.00, ornament: 1.0, chordOnBeat: 0.50, chordPush: 0.30, bass: 0.38, chord: 0.55, lead: 0.50, beat: 0.24, figures: [0, 1, 2] },
+    river:    { dastgah: 2, movement: 0.55, register: 0.55, tempo: 1.03, kit: 1.15, ornament: 1.3, chordOnBeat: 0.48, chordPush: 0.32, bass: 0.32, chord: 0.48, lead: 0.55, beat: 0.26, figures: [1, 2, 0] },
+    apiary:   { dastgah: 0, movement: 0.55, register: 0.62, tempo: 1.06, kit: 1.35, ornament: 1.2, chordOnBeat: 0.58, chordPush: 0.26, bass: 0.34, chord: 0.52, lead: 0.58, beat: 0.34, figures: [2, 0] },
+    glass:    { dastgah: 3, movement: 0.35, register: 0.70, tempo: 0.94, kit: 0.60, ornament: 0.9, chordOnBeat: 0.66, chordPush: 0.14, bass: 0.28, chord: 0.46, lead: 0.54, beat: 0.14, figures: [1, 2] },
+    yard:     { dastgah: 0, movement: 0.35, register: 0.55, tempo: 1.00, kit: 0.90, ornament: 1.0, chordOnBeat: 0.55, chordPush: 0.28, bass: 0.32, chord: 0.50, lead: 0.55, beat: 0.22, figures: [0, 1, 2] },
+    // The places: each is a room of its own, and a room has its own mode.
+    comb:     { dastgah: 4, movement: 0.30, register: 0.52, tempo: 0.93, kit: 0.70, ornament: 0.8, chordOnBeat: 0.70, chordPush: 0.10, bass: 0.30, chord: 0.50, lead: 0.58, beat: 0.18, figures: [1] },
+    shrine:   { dastgah: 1, movement: 0.25, register: 0.60, tempo: 0.90, kit: 0.35, ornament: 1.4, chordOnBeat: 0.75, chordPush: 0.05, bass: 0.32, chord: 0.52, lead: 0.55, beat: 0.10, figures: [2, 1] },
+    sky:      { dastgah: 3, movement: 0.22, register: 0.85, tempo: 0.88, kit: 0.25, ornament: 1.1, chordOnBeat: 0.80, chordPush: 0.00, bass: 0.24, chord: 0.44, lead: 0.58, beat: 0.08, figures: [2] },
+    lake:     { dastgah: 2, movement: 0.45, register: 0.60, tempo: 0.96, kit: 0.70, ornament: 1.2, chordOnBeat: 0.60, chordPush: 0.18, bass: 0.30, chord: 0.48, lead: 0.54, beat: 0.18, figures: [1, 0] },
+    hens:     { dastgah: 0, movement: 0.50, register: 0.58, tempo: 1.04, kit: 1.20, ornament: 1.1, chordOnBeat: 0.50, chordPush: 0.30, bass: 0.32, chord: 0.50, lead: 0.55, beat: 0.28, figures: [0, 2] }
+  };
+
+  /* A section kind or a place id, to its palette. One table, read twice: the
+    island asks by biome kind and a place asks by its own id. */
+  var BY_KIND = {
+    woods: 'woods', steppe: 'steppe', meadow: 'meadow', heights: 'heights',
+    desert: 'desert', beach: 'beach', sea: 'sea', openwater: 'sea',
+    river: 'river', stream: 'river', pond: 'river', garden: 'yard',
+    apiary: 'apiary', glass: 'glass', glasshouse: 'glass', yard: 'yard',
+    henhouse: 'hens', room: 'yard',
+    comb: 'comb', queen: 'comb', shrine: 'shrine', sky: 'sky', lake: 'lake',
+    water: 'lake', hens: 'hens', kitchen: 'hens', wagon: 'hens',
+    nectar: 'yard', fireflies: 'yard', removal: 'yard', lanterns: 'yard',
+    beeline: 'apiary', walk: 'meadow'
+  };
+
+  var MENU = { dastgah: 0, movement: 0.20, register: 0.55, tempo: 1.0, kit: 0.0, ornament: 0.7, chordOnBeat: 0.75, chordPush: 0.05, bass: 0.30, chord: 0.45, lead: 0.50, beat: 0.00 };
+  var QUIET = { dastgah: 0, movement: 0.30, register: 0.55, tempo: 1.0, kit: 0.5, ornament: 0.9, chordOnBeat: 0.65, chordPush: 0.15, bass: 0.30, chord: 0.46, lead: 0.52, beat: 0.10 };
+
+  function paletteFor(name) {
+    if (name === 'menu') return MENU;
+    if (name === 'quiet') return QUIET;
+    var key = BY_KIND[name] || name;
+    return PALETTES[key] || PALETTES.yard;
+  }
+
+  /* The height of a degree in a given mode, in cents, octaves included. Exposed
+    so a tool can draw a mode's ladder without owning the scales. */
+  function centsIn(mode, degree) {
+    var scale = SCALES[wrap(mode, SCALES.length)];
+    return scale[wrap(degree, 7)] + 1200 * Math.floor(degree / 7);
+  }
+
+  function ratioIn(mode, degree) {
+    return Math.pow(2, centsIn(mode, degree) / 1200);
+  }
+
+  /* ---- The instruments ---------------------------------------------------
+     Each voice is baked from these numbers: the partials it is made of, their
+     gains, how fast it decays, how long it rings, how it is struck, how bright
+     its upper partials sit, and how much of the bright strike sounds at the
+     front. They are data because the sound of this band is a judgement, not a
+     constant: the tuner edits them and the score re-bakes on the spot.
+
+       base     the pitch the buffer is baked at; playback pitches it by a ratio
+       partials which harmonics it is made of, as multiples of base
+       gains    how loud each of those is
+       tine     the bright strike at the front, decaying fast (a Rhodes has one)
+       bright   scales every harmonic above the first: 0 is a pure sine
+       decay    how fast the body gives up, per second
+       seconds  how long the buffer is; ring scales it
+       attack   how long the strike takes to reach full
+       vibrato  a shallow wobble on a held note */
+  var INSTRUMENTS = {
+    bass: {
+      label: 'bass', base: 110,
+      partials: [1, 2, 3], gains: [0.60, 0.20, 0.08],
+      tine: 0, bright: 1.0, decay: 3.0, seconds: 0.70, attack: 0.010,
+      vibrato: 0, ring: 1.0
+    },
+    chord: {
+      label: 'chord', base: 220,
+      partials: [1, 2, 3, 4, 6], gains: [0.45, 0.18, 0.10, 0.06, 0.04],
+      tine: 0.10, bright: 1.0, decay: 1.0, seconds: 2.20, attack: 0.020,
+      vibrato: 0, ring: 1.0
+    },
+    lead: {
+      label: 'tune', base: 440,
+      partials: [1, 2, 3], gains: [0.50, 0.15, 0.05],
+      tine: 0, bright: 1.0, decay: 2.6, seconds: 0.90, attack: 0.030,
+      vibrato: 0.004, ring: 1.0
+    },
+    brush: {
+      label: 'brushes', base: 0,
+      partials: [], gains: [],
+      tine: 0, bright: 0.5, decay: 18, seconds: 0.22, attack: 0.003,
+      vibrato: 0, ring: 1.0
+    }
+  };
+
+  /* ------------------------------------------------------------------ create */
+  function create(options) {
+    var opts = options || {};
+    var tuning = {};
+    var key;
+    for (key in TUNING) tuning[key] = TUNING[key];
+    if (opts.tuning) for (key in opts.tuning) tuning[key] = opts.tuning[key];
+
+    var SIXTEENTH = 60 / tuning.bpm / 4;
+    var MEASURE = 16;
+    var PHRASE_STEPS = 32;
+    var MEASURES_PER_PHRASE = 2;
+    var CALM = 0.35;
+
+    var onNote = opts.onNote || null;
+    var sound = opts.audio || function () { return null; };
+    var here = opts.where || function () { return 'yard'; };
+    var lightOf = opts.light || function () { return null; };
+    var isMuted = opts.muted || function () { return false; };
+
+    var voice = { bass: null, pad: null, rhodes: null, brush: null };
+    var bus = { bass: null, chord: null, lead: null, beat: null };
+    var master = null;
+    var started = false;
+    /* A working copy of the instrument table, so a tuner can change one voice
+       without touching the source numbers the game ships with. */
+    var instruments = {};
+    (function cloneInstruments() {
+      for (var name in INSTRUMENTS) {
+        if (!INSTRUMENTS.hasOwnProperty(name)) continue;
+        var src = INSTRUMENTS[name], out = {};
+        for (var k in src) if (src.hasOwnProperty(k)) {
+          out[k] = Array.isArray(src[k]) ? src[k].slice() : src[k];
+        }
+        instruments[name] = out;
+      }
+    })();
+    var instrumentsOverride = null;
+    if (opts.instruments) {
+      for (var name in opts.instruments) {
+        if (!instruments.hasOwnProperty(name)) continue;
+        var patch = opts.instruments[name];
+        for (var k in patch) if (patch.hasOwnProperty(k)) {
+          instruments[name][k] = Array.isArray(patch[k]) ? patch[k].slice() : patch[k];
+        }
+      }
+      instrumentsOverride = opts.instruments;
+    }
+
+    /* ---- The composition: an editable copy of the canons and the places -----
+       The score never reads the shipped tables after this point. A tool edits
+       these copies through setComposition, so what a place sounds like can be
+       changed while it plays. */
+    function deepCopy(v) {
+      if (Array.isArray(v)) {
+        var a = [];
+        for (var i = 0; i < v.length; i++) a.push(deepCopy(v[i]));
+        return a;
+      }
+      if (v && typeof v === 'object') {
+        var o = {};
+        for (var k in v) if (v.hasOwnProperty(k)) o[k] = deepCopy(v[k]);
+        return o;
+      }
+      return v;
+    }
+
+    var canons = deepCopy(CANONS);
+    var places = deepCopy(PALETTES);
+    var bassJump = BASS_JUMP.slice();
+
+    function canonOf(m) { return canons[wrap(m, canons.length)]; }
+
+    /* The tempo a mode is played at in this place: the canon's own feeling bent
+       by the place's character, so two places in one mode still sit differently. */
+    function tempoFor(m) {
+      var canon = canonOf(m);
+      var placeTempo = (mix.tempo == null ? 1 : mix.tempo);
+      return canon.tempo * placeTempo;
+    }
+
+    /* The palette of the place she is in, from the editable copy. */
+    function herePalette() {
+      var name = here();
+      if (name === 'menu') return MENU;
+      if (name === 'quiet') return QUIET;
+      var key = BY_KIND[name] || name;
+      return places[key] || places.yard;
+    }
+
+    function applyComposition(patch) {
+      if (!patch) return;
+      if (patch.canons) {
+        for (var idx in patch.canons) {
+          if (!patch.canons.hasOwnProperty(idx)) continue;
+          var target = canons[Number(idx)];
+          if (!target) continue;
+          var p = patch.canons[idx];
+          for (var k in p) if (p.hasOwnProperty(k)) target[k] = deepCopy(p[k]);
+        }
+      }
+      if (patch.places) {
+        for (var key in patch.places) {
+          if (!patch.places.hasOwnProperty(key)) continue;
+          if (!places.hasOwnProperty(key)) continue;
+          var patch2 = patch.places[key];
+          for (var k2 in patch2) if (patch2.hasOwnProperty(k2)) places[key][k2] = patch2[k2];
+        }
+      }
+      if (patch.bassJump) {
+        for (var i2 = 0; i2 < patch.bassJump.length && i2 < bassJump.length; i2++) {
+          bassJump[i2] = patch.bassJump[i2];
+        }
+      }
+    }
+    applyComposition(opts.composition);
+
+    /* ---- The form ------------------------------------------------------ */
+    var mode = 0;             // the canon sounding now
+    var want = 0;             // the canon the place asks for
+    var pinned = null;        // a tool can hold a mode by hand, past the place
+    var phase = 'steady';     // 'steady' | 'return'
+    var returnUntil = 0;      // the bar the way home ends on
+    var formStart = 0;        // the bar the current canon began, for its own form
+    var lastDegree = 4;       // the last degree the tune sounded
+    var tempoNow = 1;
+
+    /* ---- The mix ------------------------------------------------------- */
+    var target = MENU;
+    var mix = copyOf(MENU);
+    var intensity = 0.2, intensityTarget = 0.2;
+    var sky = 0;
+
+    /* ---- The clock ----------------------------------------------------- */
+    var nextTick = 0, tickIndex = 0, phraseIndex = -1, phraseSeen = -1;
+    var lead = null, leadNote = 0;
+
+    var stats = { ticks: 0, notes: 0, bars: 0, modulations: 0,
+      played: { bass: 0, chord: 0, lead: 0, beat: 0 } };
+
+    function copyOf(p) {
+      return { dastgah: p.dastgah, movement: p.movement, register: p.register,
+        tempo: p.tempo == null ? 1 : p.tempo,
+        kit: p.kit == null ? 1 : p.kit,
+        ornament: p.ornament == null ? 1 : p.ornament,
+        chordOnBeat: p.chordOnBeat == null ? 0.55 : p.chordOnBeat,
+        chordPush: p.chordPush == null ? 0.28 : p.chordPush,
+        bass: p.bass, chord: p.chord, lead: p.lead, beat: p.beat };
+    }
+
+    /* ---- Harmony ------------------------------------------------------- */
+    function centsOf(degree) { return centsIn(mode, degree); }
+
+    function openOffset(root, wantCents, tolerance) {
+      var limit = tolerance || HARMONY_TOLERANCE;
+      var bestOffset = -1, bestGap = limit + 1;
+      for (var o = 0; o <= 7; o++) {
+        var interval = centsOf(root + o) - centsOf(root);
+        var gap = Math.abs(interval - wantCents);
+        if (gap < bestGap) { bestGap = gap; bestOffset = o; }
+      }
+      return bestOffset;
+    }
+
+    /* The chord under `root`: the root, the fifth if the mode has one, the octave,
+      and the third only when asked for and only when it is a plain one. */
+    function chordDegrees(root, withThird) {
+      var out = [root];
+      var fifth = openOffset(root, 700);
+      if (fifth > 0) out.push(root + fifth);
+      var third = withThird ? openOffset(root, 400, THIRD_TOLERANCE) : -1;
+      if (third < 0 && withThird) third = openOffset(root, 300, THIRD_TOLERANCE);
+      if (third > 0 && third !== fifth) out.push(root + third);
+      out.push(root + 7);
+      return out;
+    }
+
+    /* The nearest tone the chord can hold, octaves either side. Only the tones
+      the chord CAN hold: a held melody note must never rest on a colour degree. */
+    function nearestChordTone(degree, root) {
+      var open = chordDegrees(root, true);
+      var best = open[0], bestD = 99;
+      for (var oct = -1; oct <= 1; oct++) {
+        for (var i = 0; i < open.length; i++) {
+          var d = open[i] + oct * 7;
+          var gap = Math.abs(d - degree);
+          if (gap < bestD) { bestD = gap; best = d; }
+        }
+      }
+      return best;
+    }
+
+    /* The chord under a bar. During the way home it is the tonic pedal, which
+      every mode spells identically. */
+    function chordAt(bar) {
+      if (phase === 'return') return 0;
+      var canon = canonOf(mode);
+      return canon.progression[wrap(bar - formStart, canon.progression.length)];
+    }
+
+    function ratio(degree) { return ratioIn(mode, degree); }
+    function stepSeconds() { return SIXTEENTH / (tempoNow || 1); }
+
+    /* ---- The instruments --------------------------------------------------
+       A struck tone: each partial decays at its own rate, and the upper ones
+       decay faster, which is what makes a struck string read as struck and a
+       pad read as bowed. `bright` scales the upper partials, `ring` the length,
+       `attack` how it is struck, `decay` how fast the body gives up. A brush is
+       banded noise with no tone at all. */
+    function bakeTone(ac, spec) {
+      var sr = ac.sampleRate;
+      var seconds = Math.max(0.05, spec.seconds * (spec.ring || 1));
+      var n = Math.max(1, Math.floor(sr * seconds));
+      var buf = ac.createBuffer(1, n, sr);
+      var d = buf.getChannelData(0);
+      var bright = spec.bright == null ? 1 : spec.bright;
+      var decay = spec.decay || 1;
+      var attack = Math.max(0.001, spec.attack || 0.01);
+      var vib = spec.vibrato || 0;
+      var base = spec.base;
+
+      // A higher partial gives up sooner. That ratio, not the waveform, is what
+      // the ear hears as "struck" against "held".
+      var partials = spec.partials;
+      var gains = spec.gains;
+      var shape = [];
+      for (var p = 0; p < partials.length; p++) {
+        shape.push({ mult: partials[p], gain: gains[p], rate: decay * (1 + 0.55 * p) });
+      }
+
+      for (var i = 0; i < n; i++) {
+        var t = i / sr;
+        var wobble = vib ? 1 + vib * Math.sin(t * Math.PI * 2 * 5.5) * Math.min(1, t / 0.2) : 1;
+        var v = 0;
+        for (var k = 0; k < shape.length; k++) {
+          var s = shape[k];
+          var g = k === 0 ? s.gain : s.gain * bright;
+          v += g * Math.sin(TAU * base * s.mult * wobble * t) * Math.exp(-t * s.rate);
+        }
+        // The tine: the bright strike at the front of an electric piano, decaying
+        // far faster than the body.
+        if (spec.tine) v += spec.tine * Math.sin(TAU * base * 8.5 * t) * Math.exp(-t * 34);
+        var rise = Math.min(1, t / attack);
+        var rel = Math.min(1, (seconds - t) / 0.03);
+        d[i] = v * rise * rel * 0.6;
+      }
+      return buf;
+    }
+
+    /* A brush across a skin: banded noise, no tone, so it rustles. */
+    function bakeBrush(ac, spec) {
+      var sr = ac.sampleRate;
+      var seconds = Math.max(0.03, spec.seconds * (spec.ring || 1));
+      var n = Math.floor(sr * seconds);
+      var buf = ac.createBuffer(1, n, sr);
+      var d = buf.getChannelData(0);
+      var seed = 7, smooth = 0;
+      // `bright` is how much of the raw noise survives the band: 0 is a soft
+      // whisk on a drumhead, 1 is the wire of the brush itself.
+      var passage = clamp(spec.bright == null ? 0.5 : spec.bright, 0.02, 0.98);
+      for (var i = 0; i < n; i++) {
+        seed = (seed * 16807) % 2147483647;
+        var white = seed / 2147483647 * 2 - 1;
+        smooth = lerp(smooth, white, passage);
+        var t = i / sr;
+        d[i] = smooth * Math.exp(-t * (spec.decay || 18)) * Math.min(1, t / Math.max(0.0005, spec.attack || 0.003));
+      }
+      return buf;
+    }
+
+    /* Bake every voice from the instrument table. Called once, and again whenever
+       the tuner changes a number: a re-bake is what "hear it differently" means. */
+    function bakeAll() {
+      var ac = sound();
+      if (!ac) return false;
+      try {
+        voice.bass = bakeTone(ac, instruments.bass);
+        voice.rhodes = bakeTone(ac, instruments.chord);
+        voice.pad = bakeTone(ac, instruments.lead);
+        voice.brush = bakeBrush(ac, instruments.brush);
+        return true;
+      } catch (e) { return false; }
+    }
+
+    function applyLevels() {
+      if (!master) return;
+      master.gain.value = isMuted() ? 0 : tuning.master;
+      bus.bass.gain.value = tuning.bass;
+      bus.chord.gain.value = tuning.chord;
+      bus.lead.gain.value = tuning.lead;
+      bus.beat.gain.value = tuning.beat;
+    }
+
+    function start() {
+      if (started) return;
+      var ac = sound();
+      if (!ac) return;
+      try {
+        master = ac.createGain();
+        master.connect(ac.destination);
+        for (var name in bus) {
+          bus[name] = ac.createGain();
+          bus[name].connect(master);
+        }
+        bakeAll();
+        applyLevels();
+        nextTick = ac.currentTime + SIXTEENTH;
+        phraseSeen = -1;
+        formStart = 0;
+        mode = want = herePalette().dastgah;
+        tempoNow = tempoFor(mode);
+        started = true;
+      } catch (e) { started = false; }
+    }
+
+    /* One note on the grid. A buffer source is single-use, so each note makes its
+      own; the voice bus keeps the graph short. */
+    function play(buf, when, rate, gain, busName) {
+      if (!buf || !started) return;
+      try {
+        var src = sound().createBufferSource();
+        src.buffer = buf;
+        src.playbackRate.value = clamp(rate, 0.25, 4);
+        var g = sound().createGain();
+        g.gain.value = clamp(gain, 0, 1);
+        src.connect(g);
+        g.connect(bus[busName] || master);
+        src.start(when);
+        stats.notes++;
+        if (stats.played[busName] != null) stats.played[busName]++;
+      } catch (e) { /* never throw */ }
+    }
+
+    function bassGain() { return (mix.bass || 0) * lerp(0.9, 1.1, intensity) * 1.10; }
+    function chordGain() { return (mix.chord || 0) * lerp(0.8, 1.0, intensity) * 0.55; }
+    function leadGain() { return (mix.lead || 0) * lerp(0.7, 1.1, intensity) * 0.80; }
+    function beatGain() { return (mix.beat || 0) * lerp(0.8, 1.15, intensity) * 0.95; }
+
+    /* ---- The phrase ----------------------------------------------------- */
+    /* A note written on a bar line yields it to the chord. The chord and the bass
+       already state the downbeat, so the tune enters after it: a melody that lands
+       on every bar line competes with the harmony instead of answering it. */
+    function yieldDownbeats(notes, offset) {
+      if (!offset) return notes;
+      var out = [];
+      for (var i = 0; i < notes.length; i++) {
+        var n = notes[i];
+        var s = n[0];
+        if (s % MEASURE === 0) s += offset;
+        out.push([s, n[1], n[2]]);
+      }
+      out.sort(function (a, b) { return a[0] - b[0]; });
+      // Two notes can now share a step: keep the longer one, and never overrun the
+      // phrase. A short note that lost its place is simply not played.
+      var clean = [];
+      for (var j = 0; j < out.length; j++) {
+        var cur = out[j];
+        if (cur[0] >= PHRASE_STEPS) continue;
+        var prev = clean[clean.length - 1];
+        if (prev && prev[0] === cur[0]) {
+          if (cur[2] > prev[2]) clean[clean.length - 1] = cur;
+          continue;
+        }
+        if (prev && prev[0] < cur[0] && prev[0] + prev[2] > cur[0]) {
+          // The earlier note runs into this one: shorten it, so nothing overlaps.
+          prev[2] = cur[0] - prev[0];
+        }
+        clean.push(cur);
+      }
+      return clean;
+    }
+
+    function buildPhrase(index, barNow) {
+      var head = PHRASES[wrap(index, PHRASES.length)];
+      var canon = canonOf(mode);
+      var out = [];
+      var i;
+
+      // The head: the island's own first bar. Its shape is fixed, so a place is
+      // recognised; its held notes are placed on the open tones of THIS mode's
+      // chord, because every mode brings its own progression.
+      var headRoot = chordAt(barNow);
+      for (i = 0; i < head.length; i++) {
+        if (head[i][0] >= 16) continue;
+        var hd = head[i][2] >= 3 ? nearestChordTone(head[i][1], headRoot) : head[i][1];
+        out.push([head[i][0], hd, head[i][2]]);
+      }
+
+      // The answer: the mode's figure in the second bar, over that bar's chord.
+      // The figure stops at step 21, so the sixteenths before the cadence stay
+      // free: they are where the mode is decorated.
+      var root = chordAt(barNow + 1);
+      var figs = herePalette().figures || [0, 1, 2];
+      var motif = canon.motifs[figs[wrap(index, figs.length)] % canon.motifs.length];
+      for (i = 0; i < motif.length; i++) {
+        if (16 + motif[i][0] >= 22) continue;
+        var degree = motif[i][2] >= 3 ? nearestChordTone(motif[i][1], root) : motif[i][1];
+        out.push([motif[i][0] + 16, degree, motif[i][2]]);
+      }
+
+      // The close: the mode's own cadence, so each place ends its own way.
+      for (i = 0; i < canon.cadence.length; i++) {
+        var c = canon.cadence[i];
+        out.push([c[0], nearestChordTone(c[1], root), c[2]]);
+      }
+
+      out.sort(function (a, b) { return a[0] - b[0]; });
+
+      // The ornament: the mode's own decoration, on the free sixteenths before a
+      // note of the answer. It is deterministic - the phrase's own index chooses
+      // the note - because a place should sound like itself every visit.
+      var orn = ORNAMENTS[canon.ornament] || ORNAMENTS.mordent;
+      var rate = canon.rate * tuning.ornamentRate * (mix.ornament || 1);
+      var decorated = out.slice();
+      var pick = index % Math.max(1, out.length);
+      for (var tries = 0; tries < out.length; tries++) {
+        var e = out[(pick + tries) % out.length];
+        if (e[0] < 16) continue;
+        var passes = orn(e[1]);
+        var free = true;
+        for (var p = 0; p < passes.length; p++) {
+          var at = e[0] - passes.length + p;
+          if (at < 16) { free = false; break; }
+          for (var q = 0; q < out.length; q++) {
+            var o = out[q];
+            if (at >= o[0] && at < o[0] + o[2]) { free = false; break; }
+          }
+          if (!free) break;
+        }
+        if (!free || Math.random() >= rate) continue;
+        for (var g = 0; g < passes.length; g++) {
+          decorated.push([e[0] - passes.length + g, passes[g], 1]);
+        }
+        break;
+      }
+      decorated.sort(function (a, b) { return a[0] - b[0]; });
+      return yieldDownbeats(thin(decorated, mix.movement), tuning.leadOffset | 0);
+    }
+
+    /* Movement as a fact, not a mood: a still place leaves notes out of the tune.
+       A note is kept when it is a chord tone (never thin a rest), when it is the
+       first of its phrase, or by the place's own movement. The result still ends
+       on the cadence, so the phrase closes whatever was dropped. */
+    function thin(notes, movement) {
+      if (movement == null || movement >= 0.98) return notes;
+      var keep = clamp(0.35 + movement * 0.65, 0.35, 1);
+      var out = [];
+      for (var i = 0; i < notes.length; i++) {
+        var n = notes[i];
+        var last = (i === notes.length - 1);
+        if (last || i === 0 || n[2] >= 4) { out.push(n); continue; }
+        if (Math.random() < keep) out.push(n);
+      }
+      return out;
+    }
+
+    /* The way home: a descent to the tonic over two bars, a note a beat, entering
+       after each bar line rather than on it, so the chord keeps the downbeat all
+       the way through the seam. */
+    function returnPhrase() {
+      var out = [];
+      var from = lastDegree;
+      var offset = tuning.leadOffset | 0;
+      for (var i = 0; i < 8; i++) {
+        var d = Math.round(lerp(from, 0, i / 7));
+        out.push([i * 4 + offset, d, i === 7 ? 4 - offset : 3]);
+      }
+      return out;
+    }
+
+    function phraseLine(bar) {
+      if (phase === 'return' && bar >= returnUntil) {
+        // Home. The new canon starts its own form, on its own first bar, which is
+        // the tonic in every mode. The tempo is taken here, with the mode, so both
+        // arrive together and no sixteenth changes length mid-phrase.
+        mode = want;
+        phase = 'steady';
+        formStart = bar;
+        phraseIndex = -1;
+        tempoNow = tempoFor(mode);
+        stats.modulations++;
+      }
+      if (phase === 'return') {
+        // Still coming home: the tune walks down again, so the way back is a
+        // phrase of its own rather than an empty bar.
+        lead = returnPhrase();
+        leadNote = 0;
+        return;
+      }
+      if (want !== mode) {
+        // A change is a return, never a cut: a phrase on the tonic, the tune
+        // walking down to it, while the accompaniment holds the root, fifth and
+        // octave that every mode spells at exactly the same pitch. The seam is
+        // therefore a note and a chord that both modes agree on.
+        if ((tuning.returnPhrases | 0) <= 0) {
+          // No way home asked for: change on the phrase line, which is still a
+          // boundary the ear hears, but without the descent. The tempo comes with
+          // the mode here too, so the two never disagree.
+          mode = want;
+          formStart = bar;
+          phraseIndex = -1;
+          tempoNow = tempoFor(mode);
+          stats.modulations++;
+        } else {
+          phase = 'return';
+          returnUntil = bar + 2 * (tuning.returnPhrases | 0);
+          lead = returnPhrase();
+          leadNote = 0;
+          return;
+        }
+      }
+      phraseIndex++;
+      // The place's own tempo feel takes effect here, on the phrase line: a
+      // sixteenth never changes length mid-phrase.
+      tempoNow = tempoFor(mode);
+      // Movement is how busy the tune is: a still place lets whole phrases go by
+      // and leaves the chord to speak on its own.
+      var restChance = clamp((0.55 - mix.movement) * 1.6, 0, 0.75);
+      var rest = Math.random() < restChance;
+      lead = rest ? null : buildPhrase(phraseIndex, bar);
+      leadNote = 0;
+    }
+
+    function scheduleLead(when, phraseStep) {
+      if (!lead) return;
+      while (leadNote < lead.length && lead[leadNote][0] < phraseStep) leadNote++;
+      if (leadNote >= lead.length) return;
+      if (lead[leadNote][0] !== phraseStep) return;
+      var octave = mix.register >= 0.65 ? 2 : 1;
+      var note = lead[leadNote];
+      lastDegree = note[1];
+      var rate = ratio(note[1]) * octave;
+      play(voice.pad, when, rate, leadGain(), 'lead');
+      if (onNote) onNote({ voice: 'lead', when: when, rate: rate, degree: note[1],
+        gain: leadGain(), mode: mode, phase: phase, bar: Math.floor(tickIndex / MEASURE), root: chordAt(Math.floor(tickIndex / MEASURE)) });
+      leadNote++;
+    }
+
+    /* Where the chord lands in a bar. The bass and the brushes hold the beat, so
+       the chord does not have to state it every time: it may anticipate an eighth
+       early, take the downbeat, take beat two, or sit a bar out. Decided from the
+       bar's own number, so the form swings the same way every time and the
+       look-ahead can schedule a note that belongs to the next bar. */
+    function chordPlanOf(bar) {
+      // The bar that begins a form, and every bar of the way home, states the
+      // downbeat plainly: the seam must be definite, not an anticipation.
+      if (phase === 'return' || bar === formStart) return { at: 0, play: true };
+      var h = ((bar * 2654435761) ^ (bar * 40503)) >>> 0;
+      var r = (h % 1000) / 1000;
+      // The place's own character leans on the global setting, so a shrine says
+      // the downbeat plainly and a desert lets the chord drift into the bar.
+      var push = clamp(tuning.chordPush * ((mix.chordPush || 0.28) / 0.28), 0, 0.9);
+      var onBeat = clamp(tuning.chordOnBeat * ((mix.chordOnBeat || 0.55) / 0.55), 0, 0.9 - push);
+      if (r < push) return { at: -2, play: true };
+      if (r < push + onBeat) return { at: 0, play: true };
+      // Not on the downbeat: half the rest take beat two, half beat three.
+      if (r < 0.94) return { at: (r % 2 < 1) ? 4 : 8, play: true };
+      return { at: -1, play: false };   // silent bar: the bass and brushes carry it
+    }
+
+    function soundChord(when, bar) {
+      var root = chordAt(bar);
+      // On the way home the chord is bare: the root, the fifth and the octave,
+      // which every mode spells at exactly the same pitch. The third is the one
+      // member that differs between modes, so it is withheld for that phrase and
+      // the seam is a chord both modes agree on, note for note.
+      var withThird = phase === 'return' ? false
+        : Math.random() < THIRD_CHANCE[wrap(mode, THIRD_CHANCE.length)] * tuning.thirdChance;
+      var open = chordDegrees(root, withThird);
+      for (var c = 0; c < open.length; c++) {
+        var cr = ratio(open[c]);
+        play(voice.rhodes, when, cr, chordGain(), 'chord');
+        if (onNote) onNote({ voice: 'chord', when: when, rate: cr, degree: open[c],
+          gain: chordGain(), mode: mode, phase: phase, bar: bar, root: root });
+      }
+      stats.bars++;
+    }
+
+    function tickOne(when, idx) {
+      var bar = Math.floor(idx / MEASURE);
+      var step = idx % MEASURE;
+      var phraseStep = idx % PHRASE_STEPS;
+
+      if (phraseStep === 0) phraseLine(bar);
+
+      // ---- The chord ------------------------------------------------------
+      // One chord a bar, placed by its own plan. Two sixteenths before the bar
+      // line, the NEXT bar's chord is looked at: if that one anticipates, it is
+      // played now, so the push lands a true eighth early.
+      var plan = chordPlanOf(bar);
+      if (plan.play && plan.at === step) soundChord(when, bar);
+      if (step === MEASURE - 2) {
+        var ahead = chordPlanOf(bar + 1);
+        // This step IS the eighth before the next bar line, so an anticipating
+        // chord plays now, where the note stands, not two sixteenths later.
+        if (ahead.play && ahead.at === -2) soundChord(when, bar + 1);
+      }
+
+      // The bass's two-feel, with the mode's own interval on the second beat: a
+      // grand mode leaps to the fifth, a soft one steps up to the second. On the
+      // way home it plays only the root and the fifth, which every mode shares.
+      for (var b = 0; b < BASS_FIGURE.length; b++) {
+        if (BASS_FIGURE[b][0] === step) {
+          var jump = BASS_FIGURE[b][1] === 4
+            ? (phase === 'return' ? 4 : bassJump[wrap(mode, bassJump.length)])
+            : BASS_FIGURE[b][1];
+          var br = ratio(chordAt(bar) + jump);
+          play(voice.bass, when, br, bassGain(), 'bass');
+          if (onNote) onNote({ voice: 'bass', when: when, rate: br, degree: chordAt(bar) + jump,
+            gain: bassGain(), mode: mode, phase: phase, bar: bar, root: chordAt(bar) });
+          break;
+        }
+      }
+
+      // The brushes: every mode keeps its own amount of kit.
+      if (BRUSH_STEPS.indexOf(step) >= 0) {
+        var kit = KIT_RATE[wrap(mode, KIT_RATE.length)] * (mix.kit == null ? 1 : mix.kit);
+        var back = step === 4 || step === 12;
+        var late = (step % 4 === 2) ? tuning.swing * stepSeconds() : 0;
+        if (kit >= 1 || Math.random() < kit) {
+          play(voice.brush, when + late, 1, beatGain() * (back ? 0.55 : 0.2), 'beat');
+          if (onNote) onNote({ voice: 'beat', when: when + late, rate: 1, degree: -1,
+            gain: beatGain() * (back ? 0.55 : 0.2), mode: mode, phase: phase, bar: bar, root: chordAt(bar) });
+        }
+        if (kit > 1 && Math.random() < kit - 1) {
+          play(voice.brush, when + late + stepSeconds(), 1.06, beatGain() * 0.12, 'beat');
+        }
+      }
+
+      scheduleLead(when, phraseStep);
+      stats.ticks++;
+    }
+
+    /* Keep the grid on the audio clock. A long frame, or a hidden tab, stalls the
+      loop while the clock runs on; the grid moves past the sixteenths that went by
+      instead of scheduling them in the past, where they would all start at once as
+      one loud chord. */
+    function tick() {
+      if (!started) return;
+      var ac = sound();
+      if (!ac) return;
+      var now = ac.currentTime;
+      if (nextTick < now) {
+        var missed = Math.ceil((now - nextTick) / stepSeconds());
+        nextTick += missed * stepSeconds();
+        tickIndex += missed;
+      }
+      var horizon = now + tuning.lookahead;
+      var guard = 0;
+      while (nextTick < horizon && guard++ < 64) {
+        tickOne(nextTick, tickIndex);
+        tickIndex++;
+        nextTick += stepSeconds();
+      }
+    }
+
+    /* The mix slides to wherever she is; a crossing bends the next bar, not the
+      one playing. Written in place, so a frame raises no garbage. The TEMPO does
+      not slide: changing a sixteenth's length mid-phrase is heard as a stumble,
+      so the tempo is set once per phrase, on the phrase line. */
+    function follow(dt) {
+      var k = clamp((dt || 0) * 0.12, 0, 1);
+      mix.movement = lerp(mix.movement, target.movement, k);
+      mix.register = lerp(mix.register, target.register, k);
+      mix.tempo = lerp(mix.tempo, target.tempo, k);
+      mix.kit = lerp(mix.kit, target.kit, k);
+      mix.ornament = lerp(mix.ornament, target.ornament, k);
+      mix.chordOnBeat = lerp(mix.chordOnBeat, target.chordOnBeat, k);
+      mix.chordPush = lerp(mix.chordPush, target.chordPush, k);
+      mix.bass = lerp(mix.bass, target.bass, k);
+      mix.chord = lerp(mix.chord, target.chord, k);
+      mix.lead = lerp(mix.lead, target.lead, k);
+      mix.beat = lerp(mix.beat, target.beat, k);
+      intensity += (intensityTarget - intensity) * clamp((dt || 0) * 0.4, 0, 1);
+    }
+
+    /* The hour, heard: a late sky draws the tune down, the noon lifts it. The mode
+      does not change with the light; a place keeps its own. One scratch palette,
+      so a frame allocates nothing. Every field is written, because the scratch is
+      reused: a field left alone would carry the previous place's character. */
+    var tinted = copyOf(MENU);
+    function withSky(p) {
+      if (sky < 0.02) return p;
+      tinted.dastgah = p.dastgah;
+      tinted.movement = p.movement - 0.05 * sky;
+      tinted.register = p.register;
+      tinted.tempo = p.tempo;
+      tinted.kit = p.kit * (1 - 0.25 * sky);
+      tinted.ornament = p.ornament;
+      tinted.chordOnBeat = p.chordOnBeat;
+      tinted.chordPush = p.chordPush;
+      tinted.bass = p.bass;
+      tinted.chord = p.chord + 0.04 * sky;
+      tinted.lead = p.lead - 0.05 * sky;
+      tinted.beat = p.beat + 0.02 * sky;
+      return tinted;
+    }
+
+    var api = {
+      start: start,
+      tick: tick,
+
+      /* Once a frame: aim at the place and the hour, then slide a little. */
+      aim: function (dt) {
+        var light = lightOf();
+        sky = light ? (light.night ? 0.85 : (light.warm || 0) * 0.7) : 0;
+        var wantPalette = herePalette();
+        target = withSky(wantPalette);
+        want = pinned == null ? wantPalette.dastgah : pinned;
+        intensityTarget = 0.35;
+        follow(dt);
+        tick();
+      },
+
+      /* Hold a mode by hand, whatever the place says. Null hands it back. */
+      mode: function (index) {
+        pinned = index == null ? null : wrap(index, canons.length);
+      },
+
+      /* ---- The composition, for a tool that shapes a place ---------------
+         `composition()` returns the live canons and places; `setPlace` and
+         `setCanon` change one and take effect on the next phrase, so a place can
+         be tuned by ear while it plays. */
+      composition: function () {
+        return { canons: deepCopy(canons), places: deepCopy(places), bassJump: bassJump.slice() };
+      },
+      setPlace: function (key, patch) {
+        if (!places.hasOwnProperty(key)) return false;
+        for (var k in patch) if (patch.hasOwnProperty(k)) places[key][k] = patch[k];
+        return true;
+      },
+      setCanon: function (index, patch) {
+        var target = canons[wrap(index, canons.length)];
+        if (!target) return false;
+        for (var k in patch) if (patch.hasOwnProperty(k)) target[k] = deepCopy(patch[k]);
+        return true;
+      },
+      /* The bass's second beat is one number per mode and lives outside the canon,
+         so it gets its own setter rather than a wider composition shape. */
+      setBassJump: function (index, value) {
+        var i = wrap(index, bassJump.length);
+        bassJump[i] = value;
+        return true;
+      },
+      /* Where she is, for a tool that wants to show it. */
+      place: function () { return here(); },
+
+      /* A tool can drive it directly, without the game's own clock. */
+      step: function (dt) { api.aim(dt); },
+
+      mute: function (on) {
+        if (!master) return;
+        try { master.gain.value = on ? 0 : tuning.master; } catch (e) { /* nothing */ }
+      },
+
+      /* Change a tuning value while it plays. The levels apply at once; the
+        structural values (lookahead, returnPhrases) at the next bar. */
+      setTuning: function (patch) {
+        for (var k in patch) {
+          if (!TUNING.hasOwnProperty(k)) continue;
+          tuning[k] = patch[k];
+        }
+        SIXTEENTH = 60 / tuning.bpm / 4;
+        applyLevels();
+      },
+      tuning: tuning,
+
+      /* ---- The instruments, for a tool that shapes a sound -----------------
+         `instruments()` is the live table; `setInstrument` changes one voice and
+         re-bakes it at once, which is what "hear it differently" means. A tool
+         that only wants to audition a voice can call `preview(voice)`, which plays
+         that voice alone at a given degree. */
+      instruments: function () {
+        var out = {};
+        for (var name in instruments) {
+          if (!instruments.hasOwnProperty(name)) continue;
+          var src = instruments[name], c = {};
+          for (var k in src) if (src.hasOwnProperty(k)) c[k] = Array.isArray(src[k]) ? src[k].slice() : src[k];
+          out[name] = c;
+        }
+        return out;
+      },
+      setInstrument: function (name, patch) {
+        if (!instruments.hasOwnProperty(name)) return false;
+        var spec = instruments[name];
+        for (var k in patch) {
+          if (!spec.hasOwnProperty(k)) continue;
+          spec[k] = Array.isArray(patch[k]) ? patch[k].slice() : patch[k];
+        }
+        return bakeAll();
+      },
+      /* Audition one voice, alone, at a degree of the mode that is playing. */
+      preview: function (name, degree) {
+        var spec = instruments[name];
+        if (!spec) return false;
+        var ac = sound();
+        if (!ac) return false;
+        var when = ac.currentTime + 0.02;
+        if (name === 'brush') {
+          play(voice.brush, when, 1, 0.5, 'beat');
+          return true;
+        }
+        var buf = name === 'bass' ? voice.bass : name === 'chord' ? voice.rhodes : voice.pad;
+        play(buf, when, ratio(degree == null ? 0 : degree), 0.5, name === 'bass' ? 'bass' : name === 'chord' ? 'chord' : 'lead');
+        return true;
+      },
+
+      /* What the score is doing, for a probe that cannot use its ears. */
+      report: function () {
+        var canon = canonOf(mode);
+        return {
+          started: started, ticks: stats.ticks, notes: stats.notes, bars: stats.bars,
+          mode: mode, want: want, phase: phase, canon: canon.name,
+          origin: here(), formBar: Math.max(0, Math.floor(tickIndex / MEASURE) - formStart),
+          shahed: canon.shahed, ist: canon.ist, colour: canon.colour,
+          tempo: canon.tempo, tempoNow: Number(tempoNow.toFixed(3)),
+          ornament: canon.ornament, modulations: stats.modulations,
+          register: Math.round(mix.register * 100),
+          movement: Number(mix.movement.toFixed(2)),
+          kit: Number(mix.kit.toFixed(2)),
+          ornament: Number(mix.ornament.toFixed(2)),
+          placeTempo: Number(mix.tempo.toFixed(2)),
+          figures: (herePalette().figures || [0, 1, 2]).join(''),
+          played: { bass: stats.played.bass, chord: stats.played.chord,
+            lead: stats.played.lead, beat: stats.played.beat },
+          bass: Math.round(bassGain() * 1000), chord: Math.round(chordGain() * 1000),
+          lead: Math.round(leadGain() * 1000), beat: Math.round(beatGain() * 1000),
+          state: sound() ? sound().state : 'none', muted: isMuted(),
+          at: sound() ? Number(sound().currentTime.toFixed(2)) : 0
+        };
+      },
+
+      /* The phrase being played now, so a probe can see the material. */
+      phraseNow: function () {
+        return lead ? lead.slice() : [];
+      },
+
+      /* The chord under the bar being played, and the degrees it holds. */
+      chordNow: function () {
+        var bar = Math.floor(tickIndex / MEASURE);
+        var root = chordAt(bar);
+        return { bar: bar, root: root, degrees: chordDegrees(root, false) };
+      }
+    };
+    return api;
+  }
+
+  root.DaryaScore = {
+    create: create,
+    TUNING: TUNING,
+    INSTRUMENTS: INSTRUMENTS,
+    SCALES: SCALES,
+    CANONS: CANONS,
+    PALETTES: PALETTES,
+    BASS_JUMP: BASS_JUMP,
+    ORNAMENTS: ORNAMENTS,
+    OPEN_CENTS: OPEN_CENTS,
+    HARMONY_TOLERANCE: HARMONY_TOLERANCE,
+    THIRD_TOLERANCE: THIRD_TOLERANCE,
+    paletteFor: paletteFor,
+    centsIn: centsIn,
+    ratioIn: ratioIn,
+    list: function () {
+      var out = [];
+      for (var i = 0; i < CANONS.length; i++) out.push({ index: i, name: CANONS[i].name, tempo: CANONS[i].tempo });
+      return out;
+    },
+    /* The palette keys a place can ask for, so a tool can offer them. */
+    places: function () {
+      var out = [];
+      for (var k in PALETTES) if (PALETTES.hasOwnProperty(k)) out.push(k);
+      return out;
+    }
+  };
+})(typeof window !== 'undefined' ? window : this);
+</script>
 <script>/* Darya - the keeper's island.
  * A small, cosy remake: walk the meadow, gather nectar, carry it home to the
  * hive, and learn a Finglish word every time you deliver. Nothing is harmed:
@@ -6573,7 +7781,7 @@
      at the same joints. What is ported by hand is only the arithmetic that
      moves those joints: KeeperStride and WalkCycle, in design units. */
   var KEEPER_PARTS = {
-    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <\!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <\!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <\!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <\!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<\!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <\!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <\!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <\!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<\!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<\!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <\!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
+    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
   };
 
   /* The design box every view is authored in. */
