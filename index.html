@@ -8577,6 +8577,61 @@
 
   /* What one animal costs, drawn live against blitted from the sprite cache. */
   /* Live draw against cached blit, same pose, same size, diffed. */
+  /* live | cached | difference, for one pose. */
+  window.__spriteCompare = function (id, size, poseIndex) {
+    size = size || 260;
+    var e = findSpecies(id) || findSpecies('creature-graywolf');
+    var S = beastHeight(e);
+    var poses = [
+      { moving: false, walk: 0, facing: 1, seed: 3, view: 'side' },
+      { moving: true, walk: 3, facing: 1, seed: 3, view: 'side' },
+      { moving: true, walk: 0, facing: 1, seed: 3, view: 'front' },
+      { moving: true, walk: 0, facing: 1, seed: 3, view: 'back' }
+    ];
+    var pose = poses[poseIndex || 0];
+    var prev = ctx;
+
+    function plate(cached) {
+      var c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      var g = c.getContext('2d');
+      g.fillStyle = '#F2ECDC'; g.fillRect(0, 0, size, size);
+      ctx = g;
+      SPRITE.off = !cached;
+      g.save();
+      g.translate(size * 0.5, size * 0.86);
+      if (cached) paintAnimalCached(g, e, pose, S);
+      else paintAnimal(g, e, pose, S);
+      g.restore();
+      ctx = prev;
+      return c;
+    }
+
+    var A = plate(false), B = plate(true);
+    var out = document.createElement('canvas');
+    out.width = size * 3; out.height = size;
+    var og = out.getContext('2d');
+    og.fillStyle = '#F2ECDC'; og.fillRect(0, 0, out.width, out.height);
+    og.drawImage(A, 0, 0);
+    og.drawImage(B, size, 0);
+    var da = A.getContext('2d').getImageData(0, 0, size, size).data;
+    var db = B.getContext('2d').getImageData(0, 0, size, size).data;
+    var diff = og.createImageData(size, size);
+    for (var i = 0; i < da.length; i += 4) {
+      var d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]),
+        Math.abs(da[i + 2] - db[i + 2]), Math.abs(da[i + 3] - db[i + 3]));
+      var on = d > 8;
+      diff.data[i] = on ? 220 : 242;
+      diff.data[i + 1] = on ? 40 : 236;
+      diff.data[i + 2] = on ? 30 : 220;
+      diff.data[i + 3] = 255;
+    }
+    og.putImageData(diff, size * 2, 0);
+    SPRITE.off = false;
+    return out;
+  };
+
+
   window.__spriteCheck = function (id, size) {
     size = size || 240;
     var e = findSpecies(id) || findSpecies('creature-graywolf');
@@ -8599,7 +8654,7 @@
       return c;
     }
 
-    var worst = 0, diff = 0, total = 0;
+    var worst = 0, diff = 0, total = 0, sum = 0, strong = 0;
     var poses = [
       { moving: false, walk: 0, facing: 1, seed: 3, view: 'side' },
       { moving: true, walk: 3, facing: 1, seed: 3, view: 'side' },
@@ -8614,7 +8669,8 @@
       for (var i = 0; i < da.length; i += 4) {
         var d = Math.max(Math.abs(da[i] - db[i]), Math.abs(da[i + 1] - db[i + 1]),
           Math.abs(da[i + 2] - db[i + 2]), Math.abs(da[i + 3] - db[i + 3]));
-        if (d > 0) { diff++; if (d > worst) worst = d; }
+        if (d > 0) { diff++; sum += d; if (d > worst) worst = d; }
+        if (d > 64) strong++;
         total++;
       }
     }
@@ -8622,6 +8678,9 @@
     return JSON.stringify({
       animal: id, views: poses.length, pixels: total,
       differingPixels: diff, maxChannelDelta: worst,
+      meanAbsDiff: +(sum / Math.max(1, total)).toFixed(3),
+      strongPixels: strong,
+      strongShareOfDiff: +(strong / Math.max(1, diff)).toFixed(3),
       identical: diff === 0
     });
   };
@@ -8736,7 +8795,16 @@
     leapK: 0, grazeK: 0, drinking: 0, grazing: false, view: 'side'
   };
 
-  function spriteKey(e, a, S, shape) {
+  /* Device pixels per user unit of the context we are drawing into, quantised so two
+     nearby zooms share sprites instead of building one each. */
+  function deviceScaleOf(g) {
+    if (!g.getTransform) return 1;
+    var tr = g.getTransform();
+    var k = Math.abs(tr.d) || Math.abs(tr.a) || 1;
+    return Math.round(Math.max(0.5, Math.min(3, k)) * 4) / 4;
+  }
+
+  function spriteKey(e, a, S, shape, g) {
     var view = (a && a.view) || 'side';
     var w = a ? Math.round((((a.walk || 0) % 8) + 8) % 8) : 0;
     var j = (a && a.gait === 'hop' && a.leapK !== undefined)
@@ -8745,7 +8813,7 @@
     var d = a && a.drinking > 0 ? 1 : 0;
     var m = a && a.moving ? 1 : 0;
     return shape + '|' + view + '|' + hueOf(e.id) + '|' + Math.round(S) + '|' +
-      w + '|' + j + '|' + g + '|' + d + '|' + m;
+      w + '|' + j + '|' + g + '|' + d + '|' + m + '|' + deviceScaleOf(ctx);
   }
 
   /* The anim the sprite is drawn with: the bucket values, not the live ones, so the
@@ -8757,7 +8825,9 @@
     s.grazing = g > 0;
     s.grazeK = g / 2;
     s.drinking = d ? 1 : 0;
-    s.gait = j >= 0 ? 'hop' : (a && a.gait) || 'still';
+    // Same inference `animalPose` makes: no gait given, but moving, means walking.
+    s.gait = j >= 0 ? 'hop'
+      : (a && a.gait) || ((a && a.moving) ? 'walk' : 'still');
     s.leapK = j >= 0 ? j / 7 : 0;
     s.facing = a ? a.facing : 1;
     s.view = (a && a.view) || 'side';
@@ -8780,7 +8850,7 @@
     var b = f.bounds;
     var sc = S / Math.max(1e-6, b.h);
 
-    var key = spriteKey(e, a, S, shape);
+    var key = spriteKey(e, a, S, shape, g);
     var entry = SPRITE.cache.get(key);
 
     if (!entry) {
@@ -8806,9 +8876,12 @@
       var tr = g.getTransform ? g.getTransform() : null;
       var dev = tr ? Math.max(0.5, Math.min(3, Math.abs(tr.d) || 1)) : 1;
 
-      var px = sc * dev;
-      var cw = Math.max(8, Math.ceil((x1 - x0) * px));
-      var chh = Math.max(8, Math.ceil((y1 - y0) * px));
+      // Device pixels per USER unit (paintAnimal applies `sc` itself) and per BODY
+      // unit (the offsets). Using sc*dev for both doubled the scale.
+      var px = dev;
+      var pxB = sc * dev;
+      var cw = Math.max(8, Math.ceil((x1 - x0) * pxB));
+      var chh = Math.max(8, Math.ceil((y1 - y0) * pxB));
 
       var cvs = document.createElement('canvas');
       cvs.width = cw;
@@ -8817,7 +8890,7 @@
 
       // paintAnimal applies its own scale(sc, -sc) and translate(0, -b.y0). This
       // pre-transform lands its output in the sprite's pixel box.
-      sg.setTransform(px, 0, 0, px, -x0 * px, (y1 - y0) * px);
+      sg.setTransform(px, 0, 0, px, -x0 * pxB, (y1 - y0) * pxB);
       var prevCtx = ctx;
       ctx = sg;
       try {
@@ -8840,11 +8913,23 @@
       SPRITE.hits++;
     }
 
-    // The blit. The caller has already translated to the animal and mirrored it if
-    // needed, so the sprite lands in the right place in the right facing.
-    g.drawImage(entry.canvas,
-      entry.x0 * entry.sc, -entry.y1 * entry.sc,
-      (entry.x1 - entry.x0) * entry.sc, (entry.y1 - entry.y0) * entry.sc);
+    // The blit, snapped to whole DEVICE pixels and sized 1:1 with the sprite's own
+    // pixels, so nothing is resampled. The caller has already translated to the animal
+    // and mirrored it if needed, so the placement and facing come for free.
+    var tr2 = g.getTransform ? g.getTransform() : null;
+    var ax = tr2 && tr2.a ? tr2.a : 1;
+    var ay = tr2 && tr2.d ? tr2.d : 1;
+    var dxu = entry.x0 * entry.sc;
+    var dyu = -entry.y1 * entry.sc;
+    if (tr2) {
+      var devX = ax * dxu + tr2.e;
+      var devY = ay * dyu + tr2.f;
+      dxu = (Math.round(devX) - tr2.e) / ax;
+      dyu = (Math.round(devY) - tr2.f) / ay;
+    }
+    // Size taken from the sprite's pixels, so source and destination agree exactly.
+    g.drawImage(entry.canvas, dxu, dyu,
+      entry.canvas.width / Math.abs(ax), entry.canvas.height / Math.abs(ay));
   }
 
   /* 11. MAIN LOOP */
