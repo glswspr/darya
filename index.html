@@ -355,6 +355,87 @@
     return Math.pow(2, centsIn(mode, degree) / 1200);
   }
 
+  /* Is this interval, in cents, one a voicing may sound? Module scope, because the
+     exported voicing walks it and the checks must walk the same rule. */
+  function allowedCents(c) {
+    var at = ((c % 1200) + 1200) % 1200;
+    for (var i = 0; i < HARMONY_BANNED.length; i++) {
+      if (Math.abs(at - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
+      // A banned interval is also banned across the octave boundary.
+      if (Math.abs(at - 1200 - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
+    }
+    return true;
+  }
+
+  /* The degree whose interval over `root` is closest to `wantCents`, only where
+     that interval is allowed in this mode. Zero means "not there". */
+  function openOffsetIn(mode, root, wantCents, tolerance) {
+    var limit = tolerance || HARMONY_TOLERANCE;
+    var best = 0, bestGap = limit + 1;
+    for (var o = -7; o <= 7; o++) {
+      var interval = centsIn(mode, root + o) - centsIn(mode, root);
+      var gap = Math.abs(interval - wantCents);
+      if (gap < bestGap && allowedCents(interval)) { bestGap = gap; best = o; }
+    }
+    return best;
+  }
+
+  /* ---- The piano's voicing -----------------------------------------------
+     Bill Evans did not play a chord and hold it. He played a rootless spread, a
+     little late, rolled from the bottom up, and left the root to the bass: a third
+     and a seventh carry the harmony, a sixth colours it, and the notes sit an
+     octave or two apart so they ring separately instead of fusing into a block.
+
+     A mode does not always offer a third - Nava's is neutral, between minor and
+     major - so this is not "third, seventh, sixth" but a ladder of wanted
+     intervals, each taken where the mode actually has one. An interval that is not
+     there is skipped and the next is tried: a voicing is never left as the root
+     and its octaves, which is not a chord. One owner: the game, the tuner and the
+     checks all call this. */
+  var VOICING_ORDER = [400, 300, 1000, 900, 500, 1100, 700, 1400, 800];
+
+  function voicingFor(mode, root) {
+    var out = [];
+    for (var i = 0; i < VOICING_ORDER.length && out.length < 3; i++) {
+      var offset = openOffsetIn(mode, root, VOICING_ORDER[i], THIRD_TOLERANCE);
+      if (offset === 0) continue;
+      var degree = root + offset;
+      var guard = 0;
+      while (out.length && centsIn(mode, degree) - centsIn(mode, out[out.length - 1]) < 400 && guard++ < 4) {
+        degree += 7;
+      }
+      if (out.length && centsIn(mode, degree) - centsIn(mode, out[out.length - 1]) < 400) continue;
+      var dup = false;
+      for (var j = 0; j < out.length; j++) {
+        if (wrap(degree - out[j], 7) === 0) { dup = true; break; }
+      }
+      if (dup) continue;
+      out.push(degree);
+    }
+    // Some degrees of a mode are too poor to carry a jazz voicing: Delkash's
+    // lowered sixth has almost no consonant interval over it. Such a bar still
+    // needs a chord, so it falls back to the open fifth and octave, which every
+    // mode has. A silent piano bar would be worse than a plain one.
+    if (out.length < 2) {
+      var fifth = openOffsetIn(mode, root, 700);
+      if (fifth) out.push(root + fifth);
+    }
+    if (out.length < 2) out.push(root + 7);
+    // And if even that left a single note, take the first degree the mode offers
+    // that is far enough away to be heard as another voice.
+    if (out.length < 2) {
+      for (var o2 = 1; o2 <= 7 && out.length < 2; o2++) {
+        var cand = root + o2;
+        var interval2 = centsIn(mode, cand) - centsIn(mode, root);
+        if (interval2 < 250 || !allowedCents(interval2)) continue;
+        var dup2 = false;
+        for (var k = 0; k < out.length; k++) if (wrap(cand - out[k], 7) === 0) dup2 = true;
+        if (!dup2) out.push(cand);
+      }
+    }
+    return out;
+  }
+
   /* ---- The instruments ---------------------------------------------------
      Each voice is baked from these numbers: the partials it is made of, their
      gains, how fast it decays, how long it rings, how it is struck, how bright
@@ -556,27 +637,12 @@
     function centsOf(degree) { return centsIn(mode, degree); }
 
     /* Is this interval, in cents, one a voicing may sound? */
-    function allowedCents(c) {
-      var at = ((c % 1200) + 1200) % 1200;
-      for (var i = 0; i < HARMONY_BANNED.length; i++) {
-        if (Math.abs(at - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
-        // A banned interval is also banned across the octave boundary.
-        if (Math.abs(at - 1200 - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
-      }
-      return true;
-    }
+    function allowedCentsInner(c) { return allowedCents(c); }
 
     /* The degree whose interval over `root` is closest to `wantCents`, searching
        both up and down, and only where that interval is allowed in this mode. */
     function openOffset(root, wantCents, tolerance) {
-      var limit = tolerance || HARMONY_TOLERANCE;
-      var bestOffset = 0, bestGap = limit + 1;
-      for (var o = -7; o <= 7; o++) {
-        var interval = centsOf(root + o) - centsOf(root);
-        var gap = Math.abs(interval - wantCents);
-        if (gap < bestGap && allowedCents(interval)) { bestGap = gap; bestOffset = o; }
-      }
-      return bestOffset;
+      return openOffsetIn(mode, root, wantCents, tolerance);
     }
 
     /* The chord under `root`: the root, the fifth if the mode has one, the octave,
@@ -592,38 +658,10 @@
       return out;
     }
 
-    /* ---- The piano's voicing -------------------------------------------
-       Bill Evans did not play a chord and hold it. He played a rootless spread, a
-       little late, rolled from the bottom up, and left the root to the bass: the
-       third and the seventh carry the harmony, a sixth or a ninth colours it, and
-       the notes sit an octave or two apart so they ring separately instead of
-       fusing into a block.
-
-       `compVoicing` answers with degrees to play, lowest first, already spread. */
+    /* The piano's voice, from the one owner at module scope, so the game, the tuner
+      and the checks cannot drift apart. */
     function compVoicing(root) {
-      var out = [];
-      var third = openOffset(root, 400, THIRD_TOLERANCE);
-      if (third === 0) third = openOffset(root, 300, THIRD_TOLERANCE);
-      var seventh = openOffset(root, 1000);
-      if (seventh === 0) seventh = openOffset(root, 1100);
-      var colour = openOffset(root, 1400);
-      if (colour === 0) colour = openOffset(root, 900);
-
-      // Third low, seventh in the middle, colour on top. The spacing is measured in
-      // CENTS, not degrees: a mode can put its seventh below its third, and a
-      // shift of one octave is not always enough to put it above.
-      var a = root + third;
-      var b = root + seventh;
-      var guard = 0;
-      while (centsOf(b) - centsOf(a) < 400 && guard++ < 4) b += 7;
-      var c = root + (colour || seventh);
-      guard = 0;
-      while (centsOf(c) - centsOf(b) < 450 && guard++ < 4) c += 7;
-      out.push(a, b, c);
-
-      // The rootless spread is the voice; the octave stays out of it, and the bass
-      // is what anchors the chord.
-      return out;
+      return voicingFor(mode, root);
     }
 
     /* The nearest tone the chord can hold, octaves either side. Only the tones
@@ -1430,6 +1468,8 @@
     BASS_JUMP: BASS_JUMP,
     FORMS: FORMS,
     LETTER_STYLE: LETTER_STYLE,
+    voicingFor: voicingFor,
+    VOICING_ORDER: VOICING_ORDER,
     slotAt: null,
     SECTION_BARS: SECTION_BARS,
     formFor: formFor,
@@ -5769,7 +5809,7 @@
       line: 'The sand held a fossil and a crust of salt: the sea that used to be here.' },
     { id: 'river', label: 'the river', w: 'par',
       line: 'The river carried a feather down from somewhere I have not walked yet.' },
-    { id: 'sea', label: 'the sea', w: 'satabl',
+    { id: 'sea', label: 'the sea', w: 'sadaf',
       line: 'Out past the shallows the shells were bigger, and the boat knew the way back.' },
     { id: 'beach', label: 'the beach', w: 'chub',
       line: 'The tide left a line of shells, and a piece of wood worn smooth.' },
@@ -7092,6 +7132,18 @@
 
     ctx.fillStyle = C.turquoise;
     ctx.fillRect(cssW / 2 - 28 * s, cssH * 0.295, 56 * s, 2 * s);
+
+    // The island's own two lines, under her name: the world, in the time it takes
+    // to cross a page. This is the only place the myth is stated whole.
+    ctx.fillStyle = C.inkSoft;
+    var myth1 = fitLine(T('The sea took the rest of the world.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
+    ctx.textAlign = 'center';
+    ctx.font = myth1.font;
+    ctx.fillText(myth1.text, cssW / 2, 300);
+    var myth2 = fitLine(T('This is the piece that stayed.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
+    ctx.font = myth2.font;
+    ctx.fillText(myth2.text, cssW / 2, 322);
+    ctx.textAlign = 'left';
 
     // The chapter mark, and the notebook.
     ctx.textAlign = 'left';
@@ -9965,6 +10017,63 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'sow a seed': 'så ett frö',
+      'nothing left to sow': 'inget kvar att så',
+      'a small fish': 'en liten fisk',
+      'a fair fish': 'en lagom fisk',
+      'a good fish': 'en bra fisk',
+      'a big fish': 'en stor fisk',
+      'a fish is on': 'en fisk har nappat',
+      'A fine clutch. Now the sitters.': 'En fin kull. Nu ruvarna.',
+      'A mite is taking honey. Tap it.': 'En kvalster tar honung. Tryck på den.',
+      'A ragged cut. The cells spoil.': 'Ett trasigt snitt. Cellerna fördärvas.',
+      'Cage her before you move her.': 'Bura henne innan du flyttar henne.',
+      'Free the faces first.': 'Fria ytorna först.',
+      'It slipped away.': 'Den slank undan.',
+      'It spills when you move.': 'Det spiller när du rör dig.',
+      'No colony here. Look back at the line.': 'Inget samhälle här. Titta tillbaka på linjen.',
+      'Not the dish. Read the note again.': 'Inte den rätten. Läs lappen igen.',
+      'Not yet: the honey is still thin.': 'Inte än: honungen är tunn.',
+      'Now is not the time for the combs.': 'Nu är det inte tid för kamrarna.',
+      'Only comb and brood. She is deeper.': 'Bara vax och yngel. Hon sitter djupare.',
+      'Record a heading first.': 'Anteckna en bäring först.',
+      'She waits: the next lamp is dark.': 'Hon väntar: nästa lampa är släckt.',
+      'Smoke later, or not at all.': 'Rök senare, eller inte alls.',
+      'That is not the face she is on.': 'Det är inte den sidan hon sitter på.',
+      'That line wanders. Read the three again.': 'Den linjen vindlar. Läs de tre igen.',
+      'That one came back white. Those two are spent.': 'Den kom tillbaka vit. De två är förbrukade.',
+      'The bearings agree. The colony is that way.': 'Bäringarna stämmer. Samhället är åt det hållet.',
+      'The cap set hard. It will fill again.': 'Täckningen stelnade. Det fylls igen.',
+      'The colony scatters into the trees.': 'Samhället skingras ut i träden.',
+      'The entrance is already surveyed.': 'Ingången är redan synad.',
+      'The knife waits.': 'Kniven väntar.',
+      'The nest is bare. They are still laying.': 'Boet är tomt. De värper fortfarande.',
+      'The pot is empty.': 'Grytan är tom.',
+      'Two blooms, one from each side.': 'Två blommor, en från varje sida.',
+      'Two hens, one from each side of the clutch.': 'Två hönor, en från var sida av kullen.',
+      'look closely': 'titta nära',
+      'take it': 'ta den',
+      'watch it': 'titta på den',
+      'watch it from afar': 'titta på den på håll',
+      'net it': 'fånga den i nät',
+      'hear them out': 'lyssna på dem',
+      'tend it': 'sköta den',
+      'harvest it': 'skörda den',
+      'step out of the boat': 'stig ur båten',
+      'go out': 'gå ut',
+      'read the notebook': 'läs i anteckningsboken',
+      'read the word book': 'läs ordboken',
+      'look in the bag': 'titta i väskan',
+      'change her clothes': 'byta kläder',
+      'greet the cat': 'hälsa på katten',
+      'light the lamp': 'tänd lampan',
+      'cross two seeds': 'korsa två frön',
+      'look at the pot': 'titta på krukan',
+      'go into the henhouse': 'gå in i hönshuset',
+      'open this hive': 'öppna den här kupan',
+      'read the tide line': 'läs tidvattenslinjen',
+      'fish the pond': 'fiska i dammen',
+      'fill the can': 'fyll kannan',
       'Tabl': 'Tabl',
       'greet Mâmânbozorg': 'hälsa på Mâmânbozorg',
       'greet Bâbâbozorg': 'hälsa på Bâbâbozorg',
@@ -10397,20 +10506,66 @@ props: islandProps.map(function (p) {
       'draw water': 'hämta vatten',
       'greet Donya': 'hälsa på Donya',
       'hear storyteller out': 'hör berättaren till slut',
-      'look at the clover': 'titta på klövern',
-      'look at the geranium': 'titta på pelargonen',
-      'look at the grass': 'titta på gräset',
-      'look at the persian rose': 'titta på den persiska rosen',
-      'net the ginger cat': 'fånga den röda katten i nät',
-      'net the hedgehog': 'fånga igelkotten i nät',
-      'net the house sparrow': 'fånga gråsparven i nät',
-      'net the songbird': 'fånga sångfågeln i nät',
-      'net the starling': 'fånga staren i nät',
-      'net the swallow': 'fånga svalan i nät',
-      'net the tabby cat': 'fånga den strimmiga katten i nät',
       'read the stone': 'läs stenen',
     },
     fa: {
+      'sow a seed': 'یک دانه بکار',
+      'nothing left to sow': 'دانه‌ای برای کاشتن نمانده',
+      'a small fish': 'یک ماهی کوچک',
+      'a fair fish': 'یک ماهی متوسط',
+      'a good fish': 'یک ماهی خوب',
+      'a big fish': 'یک ماهی بزرگ',
+      'a fish is on': 'ماهی به قلاب افتاد',
+      'A fine clutch. Now the sitters.': 'جوجه‌های خوبی شد. حالا کرچ‌ها.',
+      'A mite is taking honey. Tap it.': 'کنه‌ای عسل می‌برد. رویش بزن.',
+      'A ragged cut. The cells spoil.': 'برش ناهموار. خانه‌ها خراب می‌شوند.',
+      'Cage her before you move her.': 'پیش از جابه‌جایی، قفسش کن.',
+      'Free the faces first.': 'اول وجه‌ها را آزاد کن.',
+      'It slipped away.': 'از دست رفت.',
+      'It spills when you move.': 'وقتی حرکت کنی، می‌ریزد.',
+      'No colony here. Look back at the line.': 'کلنی اینجا نیست. به خط نگاه کن.',
+      'Not the dish. Read the note again.': 'نه این خوراک. یادداشت را دوباره بخوان.',
+      'Not yet: the honey is still thin.': 'هنوز نه: عسل رقیق است.',
+      'Now is not the time for the combs.': 'حالا وقت شانه‌ها نیست.',
+      'Only comb and brood. She is deeper.': 'فقط شانه و نوزاد. او عمیق‌تر است.',
+      'Record a heading first.': 'اول یک جهت ثبت کن.',
+      'She waits: the next lamp is dark.': 'منتظر است: چراغ بعدی خاموش است.',
+      'Smoke later, or not at all.': 'بعداً دود کن، یا هرگز.',
+      'That is not the face she is on.': 'او روی این وجه نیست.',
+      'That line wanders. Read the three again.': 'این خط کج می‌رود. سه را دوباره بخوان.',
+      'That one came back white. Those two are spent.': 'آن یکی سفید برگشت. آن دو مصرف شدند.',
+      'The bearings agree. The colony is that way.': 'جهت‌ها می‌خوانند. کلنی آن‌طرف است.',
+      'The cap set hard. It will fill again.': 'سرپوش سخت شد. دوباره پر می‌شود.',
+      'The colony scatters into the trees.': 'کلنی به درختان پراکنده شد.',
+      'The entrance is already surveyed.': 'ورودی بررسی شده است.',
+      'The knife waits.': 'تیغه منتظر است.',
+      'The nest is bare. They are still laying.': 'لانه خالی است. هنوز تخم می‌گذارند.',
+      'The pot is empty.': 'دیگ خالی است.',
+      'Two blooms, one from each side.': 'دو گل، یکی از هر طرف.',
+      'Two hens, one from each side of the clutch.': 'دو مرغ، یکی از هر طرف کرچ.',
+      'look closely': 'از نزدیک نگاه کن',
+      'take it': 'آن را بردار',
+      'watch it': 'تماشایش کن',
+      'watch it from afar': 'از دور تماشایش کن',
+      'net it': 'با تور بگیرش',
+      'hear them out': 'گوش کن',
+      'tend it': 'نگهداری‌اش کن',
+      'harvest it': 'برداشتش کن',
+      'step out of the boat': 'از قایق بیرون بیا',
+      'go out': 'بیرون برو',
+      'read the notebook': 'دفترچه را بخوان',
+      'read the word book': 'واژه‌نامه را بخوان',
+      'look in the bag': 'داخل کیف را ببین',
+      'change her clothes': 'لباسش را عوض کن',
+      'greet the cat': 'به گربه سلام کن',
+      'light the lamp': 'چراغ را روشن کن',
+      'cross two seeds': 'دو دانه را پیوند بزن',
+      'look at the pot': 'به گلدان نگاه کن',
+      'go into the henhouse': 'به مرغدانی برو',
+      'open this hive': 'این کندو را باز کن',
+      'read the tide line': 'خط جزر و مد را بخوان',
+      'fish the pond': 'در آبگیر ماهی بگیر',
+      'fill the can': 'قوطی را پر کن',
       'Tabl': 'طبل',
       'greet Mâmânbozorg': 'به مادربزرگ سلام کن',
       'greet Bâbâbozorg': 'به پدربزرگ سلام کن',
@@ -10843,20 +10998,66 @@ props: islandProps.map(function (p) {
       'draw water': 'آب بکش',
       'greet Donya': 'به دنیا سلام کن',
       'hear storyteller out': 'قصه‌گو را تا آخر بشنو',
-      'look at the clover': 'به شبدر نگاه کن',
-      'look at the geranium': 'به شمعدانی نگاه کن',
-      'look at the grass': 'به علف نگاه کن',
-      'look at the persian rose': 'به گل محمدی نگاه کن',
-      'net the ginger cat': 'گربه زنجبیلی را با تور بگیر',
-      'net the hedgehog': 'جوجه‌تیغی را با تور بگیر',
-      'net the house sparrow': 'گنجشک خانگی را با تور بگیر',
-      'net the songbird': 'پرنده آوازخوان را با تور بگیر',
-      'net the starling': 'سار را با تور بگیر',
-      'net the swallow': 'پرستو را با تور بگیر',
-      'net the tabby cat': 'گربه راه‌راه را با تور بگیر',
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'sow a seed': 'einen Samen säen',
+      'nothing left to sow': 'kein Samen mehr',
+      'a small fish': 'ein kleiner Fisch',
+      'a fair fish': 'ein mittlerer Fisch',
+      'a good fish': 'ein guter Fisch',
+      'a big fish': 'ein großer Fisch',
+      'a fish is on': 'ein Fisch hängt',
+      'A fine clutch. Now the sitters.': 'Ein gutes Gelege. Jetzt die Brüterinnen.',
+      'A mite is taking honey. Tap it.': 'Eine Milbe nimmt Honig. Tippe sie an.',
+      'A ragged cut. The cells spoil.': 'Ein unsauberer Schnitt. Die Zellen verderben.',
+      'Cage her before you move her.': 'Käfige sie, bevor du sie trägst.',
+      'Free the faces first.': 'Erst die Flächen lösen.',
+      'It slipped away.': 'Es ist entwischt.',
+      'It spills when you move.': 'Es läuft aus, wenn du dich bewegst.',
+      'No colony here. Look back at the line.': 'Kein Volk hier. Sieh die Linie noch einmal an.',
+      'Not the dish. Read the note again.': 'Nicht dieses Gericht. Lies den Zettel noch einmal.',
+      'Not yet: the honey is still thin.': 'Noch nicht: der Honig ist dünn.',
+      'Now is not the time for the combs.': 'Jetzt ist nicht die Zeit für die Waben.',
+      'Only comb and brood. She is deeper.': 'Nur Wabe und Brut. Sie sitzt tiefer.',
+      'Record a heading first.': 'Erst eine Peilung festhalten.',
+      'She waits: the next lamp is dark.': 'Sie wartet: die nächste Lampe ist aus.',
+      'Smoke later, or not at all.': 'Räuchere später, oder gar nicht.',
+      'That is not the face she is on.': 'Auf dieser Fläche sitzt sie nicht.',
+      'That line wanders. Read the three again.': 'Die Linie schweift. Lies die drei noch einmal.',
+      'That one came back white. Those two are spent.': 'Der kam weiß zurück. Die zwei sind verbraucht.',
+      'The bearings agree. The colony is that way.': 'Die Peilungen stimmen. Das Volk ist dort.',
+      'The cap set hard. It will fill again.': 'Der Deckel ist hart geworden. Es füllt sich wieder.',
+      'The colony scatters into the trees.': 'Das Volk zerstreut sich in die Bäume.',
+      'The entrance is already surveyed.': 'Der Eingang ist schon besehen.',
+      'The knife waits.': 'Das Messer wartet.',
+      'The nest is bare. They are still laying.': 'Das Nest ist leer. Sie legen noch.',
+      'The pot is empty.': 'Der Topf ist leer.',
+      'Two blooms, one from each side.': 'Zwei Blüten, eine von jeder Seite.',
+      'Two hens, one from each side of the clutch.': 'Zwei Hennen, eine von jeder Seite des Geleges.',
+      'look closely': 'genau ansehen',
+      'take it': 'nehmen',
+      'watch it': 'beobachten',
+      'watch it from afar': 'aus der Ferne beobachten',
+      'net it': 'mit dem Netz fangen',
+      'hear them out': 'zuhören',
+      'tend it': 'pflegen',
+      'harvest it': 'ernten',
+      'step out of the boat': 'aus dem Boot steigen',
+      'go out': 'hinausgehen',
+      'read the notebook': 'im Notizbuch lesen',
+      'read the word book': 'im Wörterbuch lesen',
+      'look in the bag': 'in die Tasche sehen',
+      'change her clothes': 'Kleidung wechseln',
+      'greet the cat': 'die Katze begrüßen',
+      'light the lamp': 'die Lampe anzünden',
+      'cross two seeds': 'zwei Samen kreuzen',
+      'look at the pot': 'den Topf ansehen',
+      'go into the henhouse': 'in den Hühnerstall gehen',
+      'open this hive': 'diesen Stock öffnen',
+      'read the tide line': 'die Gezeitenlinie lesen',
+      'fish the pond': 'im Teich fischen',
+      'fill the can': 'die Kanne füllen',
       'Tabl': 'Tabl',
       'greet Mâmânbozorg': 'Mâmânbozorg begrüßen',
       'greet Bâbâbozorg': 'Bâbâbozorg begrüßen',
@@ -11289,20 +11490,66 @@ props: islandProps.map(function (p) {
       'draw water': 'Wasser holen',
       'greet Donya': 'Donya begrüßen',
       'hear storyteller out': 'dem Erzähler zuhören',
-      'look at the clover': 'den Klee ansehen',
-      'look at the geranium': 'die Geranie ansehen',
-      'look at the grass': 'das Gras ansehen',
-      'look at the persian rose': 'die persische Rose ansehen',
-      'net the ginger cat': 'die rote Katze mit dem Netz fangen',
-      'net the hedgehog': 'den Igel mit dem Netz fangen',
-      'net the house sparrow': 'den Haussperling mit dem Netz fangen',
-      'net the songbird': 'den Singvogel mit dem Netz fangen',
-      'net the starling': 'den Star mit dem Netz fangen',
-      'net the swallow': 'die Schwalbe mit dem Netz fangen',
-      'net the tabby cat': 'die getigerte Katze mit dem Netz fangen',
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'sow a seed': 'semer une graine',
+      'nothing left to sow': 'plus rien à semer',
+      'a small fish': 'un petit poisson',
+      'a fair fish': 'un poisson moyen',
+      'a good fish': 'un bon poisson',
+      'a big fish': 'un gros poisson',
+      'a fish is on': 'un poisson a mordu',
+      'A fine clutch. Now the sitters.': 'Une belle couvée. Maintenant les couveuses.',
+      'A mite is taking honey. Tap it.': 'Un acarien prend du miel. Touchez-le.',
+      'A ragged cut. The cells spoil.': 'Une coupe déchirée. Les cellules se gâtent.',
+      'Cage her before you move her.': 'Enfermez-la avant de la déplacer.',
+      'Free the faces first.': 'Dégagez d\'abord les faces.',
+      'It slipped away.': 'Il s\'est échappé.',
+      'It spills when you move.': 'Ça se renverse si vous bougez.',
+      'No colony here. Look back at the line.': 'Pas de colonie ici. Revenez à la ligne.',
+      'Not the dish. Read the note again.': 'Pas ce plat. Relisez la note.',
+      'Not yet: the honey is still thin.': 'Pas encore : le miel est clair.',
+      'Now is not the time for the combs.': 'Ce n\'est pas le moment des rayons.',
+      'Only comb and brood. She is deeper.': 'Que du rayon et du couvain. Elle est plus profond.',
+      'Record a heading first.': 'Enregistrez d\'abord un relèvement.',
+      'She waits: the next lamp is dark.': 'Elle attend : la lampe suivante est éteinte.',
+      'Smoke later, or not at all.': 'Fumez plus tard, ou pas du tout.',
+      'That is not the face she is on.': 'Ce n\'est pas la face où elle est.',
+      'That line wanders. Read the three again.': 'Cette ligne dévie. Relisez les trois.',
+      'That one came back white. Those two are spent.': 'Celui-là est revenu blanc. Les deux sont épuisés.',
+      'The bearings agree. The colony is that way.': 'Les relèvements concordent. La colonie est par là.',
+      'The cap set hard. It will fill again.': 'L\'opercule a durci. Ça se remplira.',
+      'The colony scatters into the trees.': 'La colonie se disperse dans les arbres.',
+      'The entrance is already surveyed.': 'L\'entrée est déjà observée.',
+      'The knife waits.': 'La lame attend.',
+      'The nest is bare. They are still laying.': 'Le nid est vide. Elles pondent encore.',
+      'The pot is empty.': 'La marmite est vide.',
+      'Two blooms, one from each side.': 'Deux fleurs, une de chaque côté.',
+      'Two hens, one from each side of the clutch.': 'Deux poules, une de chaque côté de la couvée.',
+      'look closely': 'regarder de près',
+      'take it': 'le prendre',
+      'watch it': 'l\'observer',
+      'watch it from afar': 'l\'observer de loin',
+      'net it': 'l\'attraper au filet',
+      'hear them out': 'l\'écouter',
+      'tend it': 'en prendre soin',
+      'harvest it': 'le récolter',
+      'step out of the boat': 'descendre du bateau',
+      'go out': 'sortir',
+      'read the notebook': 'lire le carnet',
+      'read the word book': 'lire le livre des mots',
+      'look in the bag': 'regarder dans le sac',
+      'change her clothes': 'changer de vêtements',
+      'greet the cat': 'saluer le chat',
+      'light the lamp': 'allumer la lampe',
+      'cross two seeds': 'croiser deux graines',
+      'look at the pot': 'regarder le pot',
+      'go into the henhouse': 'entrer dans le poulailler',
+      'open this hive': 'ouvrir cette ruche',
+      'read the tide line': 'lire la ligne de marée',
+      'fish the pond': 'pêcher dans l\'étang',
+      'fill the can': 'remplir le bidon',
       'Tabl': 'Tabl',
       'greet Mâmânbozorg': 'saluer Mâmânbozorg',
       'greet Bâbâbozorg': 'saluer Bâbâbozorg',
@@ -11734,20 +11981,66 @@ props: islandProps.map(function (p) {
       'draw water': 'puiser de l\'eau',
       'greet Donya': 'saluer Donya',
       'hear storyteller out': 'écouter le conteur',
-      'look at the clover': 'regarder le trèfle',
-      'look at the geranium': 'regarder le géranium',
-      'look at the grass': 'regarder l\'herbe',
-      'look at the persian rose': 'regarder la rose persane',
-      'net the ginger cat': 'attraper le chat roux au filet',
-      'net the hedgehog': 'attraper le hérisson au filet',
-      'net the house sparrow': 'attraper le moineau au filet',
-      'net the songbird': 'attraper l\'oiseau chanteur au filet',
-      'net the starling': 'attraper l\'étourneau au filet',
-      'net the swallow': 'attraper l\'hirondelle au filet',
-      'net the tabby cat': 'attraper le chat tigré au filet',
       'read the stone': 'lire la pierre',
     },
     es: {
+      'sow a seed': 'sembrar una semilla',
+      'nothing left to sow': 'no queda nada que sembrar',
+      'a small fish': 'un pez pequeño',
+      'a fair fish': 'un pez mediano',
+      'a good fish': 'un buen pez',
+      'a big fish': 'un pez grande',
+      'a fish is on': 'un pez ha picado',
+      'A fine clutch. Now the sitters.': 'Una buena nidada. Ahora las cluecas.',
+      'A mite is taking honey. Tap it.': 'Un ácaro se lleva miel. Tócalo.',
+      'A ragged cut. The cells spoil.': 'Un corte irregular. Las celdas se estropean.',
+      'Cage her before you move her.': 'Enciérrala antes de moverla.',
+      'Free the faces first.': 'Libera primero las caras.',
+      'It slipped away.': 'Se escapó.',
+      'It spills when you move.': 'Se derrama si te mueves.',
+      'No colony here. Look back at the line.': 'Aquí no hay colonia. Mira la línea otra vez.',
+      'Not the dish. Read the note again.': 'No es ese plato. Lee la nota otra vez.',
+      'Not yet: the honey is still thin.': 'Todavía no: la miel está clara.',
+      'Now is not the time for the combs.': 'No es el momento de los panales.',
+      'Only comb and brood. She is deeper.': 'Solo panal y cría. Está más adentro.',
+      'Record a heading first.': 'Primero registra un rumbo.',
+      'She waits: the next lamp is dark.': 'Espera: la siguiente lámpara está apagada.',
+      'Smoke later, or not at all.': 'Ahuma más tarde, o nunca.',
+      'That is not the face she is on.': 'No es la cara donde está.',
+      'That line wanders. Read the three again.': 'Esa línea se desvía. Lee los tres otra vez.',
+      'That one came back white. Those two are spent.': 'Ese volvió blanco. Los otros dos están gastados.',
+      'The bearings agree. The colony is that way.': 'Los rumbos coinciden. La colonia está por ahí.',
+      'The cap set hard. It will fill again.': 'La tapa se endureció. Volverá a llenarse.',
+      'The colony scatters into the trees.': 'La colonia se dispersa entre los árboles.',
+      'The entrance is already surveyed.': 'La entrada ya está mirada.',
+      'The knife waits.': 'La hoja espera.',
+      'The nest is bare. They are still laying.': 'El nido está vacío. Todavía ponen.',
+      'The pot is empty.': 'La olla está vacía.',
+      'Two blooms, one from each side.': 'Dos flores, una de cada lado.',
+      'Two hens, one from each side of the clutch.': 'Dos gallinas, una de cada lado de la nidada.',
+      'look closely': 'mirar de cerca',
+      'take it': 'tomarlo',
+      'watch it': 'observarlo',
+      'watch it from afar': 'observarlo de lejos',
+      'net it': 'atraparlo con la red',
+      'hear them out': 'escucharle',
+      'tend it': 'cuidarlo',
+      'harvest it': 'cosecharlo',
+      'step out of the boat': 'bajar de la barca',
+      'go out': 'salir',
+      'read the notebook': 'leer el cuaderno',
+      'read the word book': 'leer el libro de palabras',
+      'look in the bag': 'mirar en la bolsa',
+      'change her clothes': 'cambiar de ropa',
+      'greet the cat': 'saludar al gato',
+      'light the lamp': 'encender la lámpara',
+      'cross two seeds': 'cruzar dos semillas',
+      'look at the pot': 'mirar la maceta',
+      'go into the henhouse': 'entrar al gallinero',
+      'open this hive': 'abrir esta colmena',
+      'read the tide line': 'leer la línea de marea',
+      'fish the pond': 'pescar en el estanque',
+      'fill the can': 'llenar la lata',
       'Tabl': 'Tabl',
       'greet Mâmânbozorg': 'saludar a Mâmânbozorg',
       'greet Bâbâbozorg': 'saludar a Bâbâbozorg',
@@ -12180,20 +12473,66 @@ props: islandProps.map(function (p) {
       'draw water': 'sacar agua',
       'greet Donya': 'saludar a Donya',
       'hear storyteller out': 'escuchar al narrador',
-      'look at the clover': 'mirar el trébol',
-      'look at the geranium': 'mirar el geranio',
-      'look at the grass': 'mirar la hierba',
-      'look at the persian rose': 'mirar la rosa persa',
-      'net the ginger cat': 'atrapar al gato naranja con la red',
-      'net the hedgehog': 'atrapar al erizo con la red',
-      'net the house sparrow': 'atrapar al gorrión con la red',
-      'net the songbird': 'atrapar al pájaro cantor con la red',
-      'net the starling': 'atrapar al estornino con la red',
-      'net the swallow': 'atrapar a la golondrina con la red',
-      'net the tabby cat': 'atrapar al gato atigrado con la red',
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'sow a seed': 'bir tohum ek',
+      'nothing left to sow': 'ekecek tohum kalmadı',
+      'a small fish': 'küçük bir balık',
+      'a fair fish': 'orta boy bir balık',
+      'a good fish': 'iyi bir balık',
+      'a big fish': 'büyük bir balık',
+      'a fish is on': 'balık oltada',
+      'A fine clutch. Now the sitters.': 'Güzel bir kuluçka. Şimdi kuluçkacılar.',
+      'A mite is taking honey. Tap it.': 'Bir akar bal alıyor. Dokun.',
+      'A ragged cut. The cells spoil.': 'Düzensiz bir kesik. Petekler bozulur.',
+      'Cage her before you move her.': 'Taşımadan önce kafese koy.',
+      'Free the faces first.': 'Önce yüzleri aç.',
+      'It slipped away.': 'Elimden kaçtı.',
+      'It spills when you move.': 'Kıpırdarsan dökülür.',
+      'No colony here. Look back at the line.': 'Burada koloni yok. Çizgiye tekrar bak.',
+      'Not the dish. Read the note again.': 'O yemek değil. Notu tekrar oku.',
+      'Not yet: the honey is still thin.': 'Henüz değil: bal hâlâ sulu.',
+      'Now is not the time for the combs.': 'Şimdi peteklerin zamanı değil.',
+      'Only comb and brood. She is deeper.': 'Sadece petek ve yavru. O daha derinde.',
+      'Record a heading first.': 'Önce bir yön kaydet.',
+      'She waits: the next lamp is dark.': 'Bekliyor: sıradaki lamba sönük.',
+      'Smoke later, or not at all.': 'Sonra tütsüle, ya da hiç.',
+      'That is not the face she is on.': 'O, bu yüzde değil.',
+      'That line wanders. Read the three again.': 'O çizgi sapıyor. Üçünü tekrar oku.',
+      'That one came back white. Those two are spent.': 'O beyaz döndü. Diğer ikisi tükendi.',
+      'The bearings agree. The colony is that way.': 'Yönler uyuşuyor. Koloni o tarafta.',
+      'The cap set hard. It will fill again.': 'Sır sertleşti. Yine dolar.',
+      'The colony scatters into the trees.': 'Koloni ağaçlara dağıldı.',
+      'The entrance is already surveyed.': 'Giriş zaten incelendi.',
+      'The knife waits.': 'Bıçak bekliyor.',
+      'The nest is bare. They are still laying.': 'Yuva boş. Hâlâ yumurtluyorlar.',
+      'The pot is empty.': 'Tencere boş.',
+      'Two blooms, one from each side.': 'İki çiçek, her yandan bir tane.',
+      'Two hens, one from each side of the clutch.': 'İki tavuk, kuluçkanın her yanından bir tane.',
+      'look closely': 'yakından bak',
+      'take it': 'al',
+      'watch it': 'izle',
+      'watch it from afar': 'uzaktan izle',
+      'net it': 'kepçeyle al',
+      'hear them out': 'dinle',
+      'tend it': 'bakımını yap',
+      'harvest it': 'hasat et',
+      'step out of the boat': 'tekneden in',
+      'go out': 'dışarı çık',
+      'read the notebook': 'defteri oku',
+      'read the word book': 'kelime kitabını oku',
+      'look in the bag': 'çantaya bak',
+      'change her clothes': 'kıyafetini değiştir',
+      'greet the cat': 'kediyi selamla',
+      'light the lamp': 'lambayı yak',
+      'cross two seeds': 'iki tohumu çaprazla',
+      'look at the pot': 'saksıya bak',
+      'go into the henhouse': 'kümese gir',
+      'open this hive': 'bu kovanı aç',
+      'read the tide line': 'gelgit çizgisini oku',
+      'fish the pond': 'gölette balık tut',
+      'fill the can': 'bidonu doldur',
       'Tabl': 'Tabl',
       'greet Mâmânbozorg': 'Mâmânbozorg ile selamlaş',
       'greet Bâbâbozorg': 'Bâbâbozorg ile selamlaş',
@@ -12626,20 +12965,66 @@ props: islandProps.map(function (p) {
       'draw water': 'su çek',
       'greet Donya': 'Donya\'yı selamla',
       'hear storyteller out': 'hikâyeciyi dinle',
-      'look at the clover': 'yoncaya bak',
-      'look at the geranium': 'sardunyaya bak',
-      'look at the grass': 'otlara bak',
-      'look at the persian rose': 'İran gülüne bak',
-      'net the ginger cat': 'zencefil rengi kediyi kepçeyle al',
-      'net the hedgehog': 'kirpiyi kepçeyle al',
-      'net the house sparrow': 'serçeyi kepçeyle al',
-      'net the songbird': 'ötücü kuşu kepçeyle al',
-      'net the starling': 'sığırcığı kepçeyle al',
-      'net the swallow': 'kırlangıcı kepçeyle al',
-      'net the tabby cat': 'tekir kediyi kepçeyle al',
       'read the stone': 'taşı oku',
     },
     ar: {
+      'sow a seed': 'ازرع بذرة',
+      'nothing left to sow': 'لم يبقَ ما يُزرع',
+      'a small fish': 'سمكة صغيرة',
+      'a fair fish': 'سمكة متوسطة',
+      'a good fish': 'سمكة جيدة',
+      'a big fish': 'سمكة كبيرة',
+      'a fish is on': 'سمكة على الصنارة',
+      'A fine clutch. Now the sitters.': 'حضنة جيدة. الآن الحاضنات.',
+      'A mite is taking honey. Tap it.': 'حلم يأخذ العسل. المسه.',
+      'A ragged cut. The cells spoil.': 'قطع مشقوق. الخلايا تفسد.',
+      'Cage her before you move her.': 'احجزها قبل أن تنقلها.',
+      'Free the faces first.': 'حرّر الأوجه أولًا.',
+      'It slipped away.': 'أفلت.',
+      'It spills when you move.': 'ينسكب إذا تحركت.',
+      'No colony here. Look back at the line.': 'لا مستعمرة هنا. انظر إلى الخط.',
+      'Not the dish. Read the note again.': 'ليس هذا الطبق. اقرأ الملاحظة مرة أخرى.',
+      'Not yet: the honey is still thin.': 'ليس بعد: العسل ما زال رقيقًا.',
+      'Now is not the time for the combs.': 'ليس وقت الأقراص الآن.',
+      'Only comb and brood. She is deeper.': 'قرص وحضنة فقط. هي أعمق.',
+      'Record a heading first.': 'سجّل اتجاهًا أولًا.',
+      'She waits: the next lamp is dark.': 'تنتظر: المصباح التالي مطفأ.',
+      'Smoke later, or not at all.': 'دخّن لاحقًا، أو أبدًا.',
+      'That is not the face she is on.': 'ليست على هذا الوجه.',
+      'That line wanders. Read the three again.': 'هذا الخط ينحرف. اقرأ الثلاثة مرة أخرى.',
+      'That one came back white. Those two are spent.': 'عاد ذلك أبيض. الاثنان الآخران مستهلكان.',
+      'The bearings agree. The colony is that way.': 'الاتجاهات متفقة. المستعمرة من هناك.',
+      'The cap set hard. It will fill again.': 'تصلّب الغطاء. سيمتلئ من جديد.',
+      'The colony scatters into the trees.': 'تتفرق المستعمرة في الأشجار.',
+      'The entrance is already surveyed.': 'المدخل قد فُحص.',
+      'The knife waits.': 'النصل ينتظر.',
+      'The nest is bare. They are still laying.': 'العش فارغ. ما زلن يضعن.',
+      'The pot is empty.': 'القدر فارغ.',
+      'Two blooms, one from each side.': 'زهرتان، واحدة من كل جانب.',
+      'Two hens, one from each side of the clutch.': 'دجاجتان، واحدة من كل جانب من الحضنة.',
+      'look closely': 'انظر عن قرب',
+      'take it': 'خذه',
+      'watch it': 'راقبه',
+      'watch it from afar': 'راقبه من بعيد',
+      'net it': 'امسكه بالشبكة',
+      'hear them out': 'أنصت إليه',
+      'tend it': 'اعتنِ به',
+      'harvest it': 'احصدها',
+      'step out of the boat': 'انزل من القارب',
+      'go out': 'اخرج',
+      'read the notebook': 'اقرأ المفكرة',
+      'read the word book': 'اقرأ كتاب الكلمات',
+      'look in the bag': 'انظر في الحقيبة',
+      'change her clothes': 'غيّر ثيابها',
+      'greet the cat': 'سلّم على القط',
+      'light the lamp': 'أشعل المصباح',
+      'cross two seeds': 'زاوج بذرتين',
+      'look at the pot': 'انظر إلى الأصيص',
+      'go into the henhouse': 'ادخل إلى قن الدجاج',
+      'open this hive': 'افتح هذه الخلية',
+      'read the tide line': 'اقرأ خط المد',
+      'fish the pond': 'اصطد في البركة',
+      'fill the can': 'املأ العلبة',
       'Tabl': 'الطبل',
       'greet Mâmânbozorg': 'سلّم على الجدة',
       'greet Bâbâbozorg': 'سلّم على الجد',
@@ -13072,20 +13457,66 @@ props: islandProps.map(function (p) {
       'draw water': 'اسحب الماء',
       'greet Donya': 'سلّم على دنيا',
       'hear storyteller out': 'استمع إلى الحكواتي',
-      'look at the clover': 'انظر إلى البرسيم',
-      'look at the geranium': 'انظر إلى إبرة الراعي',
-      'look at the grass': 'انظر إلى العشب',
-      'look at the persian rose': 'انظر إلى الورد الفارسي',
-      'net the ginger cat': 'امسك القط الزنجبيلي بالشبكة',
-      'net the hedgehog': 'امسك القنفذ بالشبكة',
-      'net the house sparrow': 'امسك العصفور الدوري بالشبكة',
-      'net the songbird': 'امسك الطائر المغني بالشبكة',
-      'net the starling': 'امسك الزرزور بالشبكة',
-      'net the swallow': 'امسك السنونو بالشبكة',
-      'net the tabby cat': 'امسك القط العتابي بالشبكة',
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'sow a seed': '播一颗种子',
+      'nothing left to sow': '没有种子了',
+      'a small fish': '一条小鱼',
+      'a fair fish': '一条中等的鱼',
+      'a good fish': '一条好鱼',
+      'a big fish': '一条大鱼',
+      'a fish is on': '鱼上钩了',
+      'A fine clutch. Now the sitters.': '一窝好雏。现在该会孵的了。',
+      'A mite is taking honey. Tap it.': '有螨虫在偷蜜。点它。',
+      'A ragged cut. The cells spoil.': '切口不齐。巢房毁了。',
+      'Cage her before you move her.': '搬她之前先关进笼子。',
+      'Free the faces first.': '先把各面松开。',
+      'It slipped away.': '它溜走了。',
+      'It spills when you move.': '一动就洒。',
+      'No colony here. Look back at the line.': '这里没有蜂群。回看那条线。',
+      'Not the dish. Read the note again.': '不是这道菜。再看一遍纸条。',
+      'Not yet: the honey is still thin.': '还不行：蜜还稀。',
+      'Now is not the time for the combs.': '现在不是动巢脾的时候。',
+      'Only comb and brood. She is deeper.': '只有巢脾和子脾。她在更深处。',
+      'Record a heading first.': '先记一个方位。',
+      'She waits: the next lamp is dark.': '她在等：下一盏灯是灭的。',
+      'Smoke later, or not at all.': '晚点再熏，或者不熏。',
+      'That is not the face she is on.': '她不在这一面。',
+      'That line wanders. Read the three again.': '那条线偏了。再看一遍三个方位。',
+      'That one came back white. Those two are spent.': '那个回来是白的。另外两个用完了。',
+      'The bearings agree. The colony is that way.': '方位对上了。蜂群在那边。',
+      'The cap set hard. It will fill again.': '封盖硬了。还会再满。',
+      'The colony scatters into the trees.': '蜂群散进树里了。',
+      'The entrance is already surveyed.': '入口已经看过了。',
+      'The knife waits.': '刀在等着。',
+      'The nest is bare. They are still laying.': '窝是空的。它们还在下蛋。',
+      'The pot is empty.': '锅是空的。',
+      'Two blooms, one from each side.': '两朵花，各从一边来。',
+      'Two hens, one from each side of the clutch.': '两只母鸡，一窝的两边各一只。',
+      'look closely': '仔细看看',
+      'take it': '收下它',
+      'watch it': '观察它',
+      'watch it from afar': '远远观察它',
+      'net it': '用网兜住它',
+      'hear them out': '听他说',
+      'tend it': '照料它',
+      'harvest it': '收获它',
+      'step out of the boat': '下船',
+      'go out': '出去',
+      'read the notebook': '读笔记本',
+      'read the word book': '读词书',
+      'look in the bag': '看看背包',
+      'change her clothes': '换衣服',
+      'greet the cat': '跟猫打招呼',
+      'light the lamp': '点亮灯',
+      'cross two seeds': '让两种种子杂交',
+      'look at the pot': '看看花盆',
+      'go into the henhouse': '进鸡舍',
+      'open this hive': '打开这个蜂箱',
+      'read the tide line': '读潮线',
+      'fish the pond': '在池塘钓鱼',
+      'fill the can': '把罐子装满',
       'Tabl': '大鼓',
       'greet Mâmânbozorg': '向奶奶问好',
       'greet Bâbâbozorg': '向爷爷问好',
@@ -13518,20 +13949,66 @@ props: islandProps.map(function (p) {
       'draw water': '打水',
       'greet Donya': '和多妮娅打招呼',
       'hear storyteller out': '听完说书人的话',
-      'look at the clover': '看三叶草',
-      'look at the geranium': '看天竺葵',
-      'look at the grass': '看草',
-      'look at the persian rose': '看波斯玫瑰',
-      'net the ginger cat': '用网兜住姜黄猫',
-      'net the hedgehog': '用网兜住刺猬',
-      'net the house sparrow': '用网兜住家雀',
-      'net the songbird': '用网兜住鸣鸟',
-      'net the starling': '用网兜住椋鸟',
-      'net the swallow': '用网兜住燕子',
-      'net the tabby cat': '用网兜住虎斑猫',
       'read the stone': '读那块石头',
     },
     fi: {
+      'sow a seed': 'yek dáne bekár',
+      'nothing left to sow': 'dáne-i baráye káshtan namánde',
+      'a small fish': 'yek máhi-ye kuchak',
+      'a fair fish': 'yek máhi-ye motavasset',
+      'a good fish': 'yek máhi-ye khub',
+      'a big fish': 'yek máhi-ye bozorg',
+      'a fish is on': 'máhi be gholáb oftád',
+      'A fine clutch. Now the sitters.': 'joje-há-ye khubi shod. hálá korch-há.',
+      'A mite is taking honey. Tap it.': 'kane-i asal mibarad. ruyash bezan.',
+      'A ragged cut. The cells spoil.': 'boresh-e náhamvár. kháne-há kharáb mishavand.',
+      'Cage her before you move her.': 'pish az jábe-jáyi, ghafasash kon.',
+      'Free the faces first.': 'avval vajh-há rá ázád kon.',
+      'It slipped away.': 'az dast raft.',
+      'It spills when you move.': 'vaghti harekat koni, mirizad.',
+      'No colony here. Look back at the line.': 'koloni injá nist. be khatt negáh kon.',
+      'Not the dish. Read the note again.': 'na in khorák. yáddásht rá dobáre bekhán.',
+      'Not yet: the honey is still thin.': 'hanooz na: asal raghigh ast.',
+      'Now is not the time for the combs.': 'hálá vaght-e sháne-há nist.',
+      'Only comb and brood. She is deeper.': 'faqat sháne va nozád. u amigh-tar ast.',
+      'Record a heading first.': 'avval yek jahat sabt kon.',
+      'She waits: the next lamp is dark.': 'montazer ast: cherágh-e baadi khámush ast.',
+      'Smoke later, or not at all.': 'baadan dud kon, yá hargez.',
+      'That is not the face she is on.': 'u ruye in vajh nist.',
+      'That line wanders. Read the three again.': 'in khatt kaj miravad. se rá dobáre bekhán.',
+      'That one came back white. Those two are spent.': 'án yeki sefid bargasht. án do masraf shodand.',
+      'The bearings agree. The colony is that way.': 'jahat-há mikhánand. koloni án-taraf ast.',
+      'The cap set hard. It will fill again.': 'sarpush sakht shod. dobáre por mishavad.',
+      'The colony scatters into the trees.': 'koloni be derakhtán parákande shod.',
+      'The entrance is already surveyed.': 'vorudi barresi shode ast.',
+      'The knife waits.': 'tigha montazer ast.',
+      'The nest is bare. They are still laying.': 'láne kháli ast. hanooz tokhm migozárand.',
+      'The pot is empty.': 'digh kháli ast.',
+      'Two blooms, one from each side.': 'do gol, yeki az har taraf.',
+      'Two hens, one from each side of the clutch.': 'do morgh, yeki az har taraf-e korch.',
+      'look closely': 'az nazdik negáh kon',
+      'take it': 'án rá bar dár',
+      'watch it': 'tamásháyash kon',
+      'watch it from afar': 'az dur tamásháyash kon',
+      'net it': 'bá tur begirash',
+      'hear them out': 'gush kon',
+      'tend it': 'negahdáriyash kon',
+      'harvest it': 'bardáshtash kon',
+      'step out of the boat': 'az gháyegh birun biá',
+      'go out': 'birun beru',
+      'read the notebook': 'daftarche rá bekhán',
+      'read the word book': 'vázhe-náme rá bekhán',
+      'look in the bag': 'dákhel-e kif rá bebin',
+      'change her clothes': 'lebásash rá avaz kon',
+      'greet the cat': 'be gorbe salám kon',
+      'light the lamp': 'cherágh rá roshan kon',
+      'cross two seeds': 'do dáne rá peyvand bezan',
+      'look at the pot': 'be goldán negáh kon',
+      'go into the henhouse': 'be morghdáni beru',
+      'open this hive': 'in kandu rá báz kon',
+      'read the tide line': 'khatt-e jazr-o-madd rá bekhán',
+      'fish the pond': 'dar ábgir máhi begir',
+      'fill the can': 'ghuti rá por kon',
       'Tabl': 'tabl',
       'greet Mâmânbozorg': 'be Mámánbozorg salám kon',
       'greet Bâbâbozorg': 'be Bábábozorg salám kon',
@@ -13565,12 +14042,12 @@ props: islandProps.map(function (p) {
       'Start': 'Shoru',
       'best: {0} nectar': 'behtarin: {0} shahed',
       'the island': 'jazire',
-      'the notebook': 'tabltar-e yáddásht',
+      'the notebook': 'daftar-e yáddásht',
       'the pages': 'safe-há',
       'the words': 'vázhe-há',
       'the cover': 'jeld',
       'close': 'bastan',
-      'The notebook': 'Tabltar-e yáddásht',
+      'The notebook': 'Daftar-e yáddásht',
       'next: {0}': 'baadi: {0}',
       'nothing written yet': 'hanooz chizi neveshte nashode',
       'the island is named': 'jazire nám gerefte ast',
@@ -13578,7 +14055,7 @@ props: islandProps.map(function (p) {
       'The meadow, the hive, the yard, the island and the old stones: every one of them has a word now, and I have written them all down.': 'Chamanzár, kandu, hiayát, jazire va sang-há-ye kohan: hame-ye ánhá aknun yek vázhe dárand va man hame rá neveshte-am.',
       'It means the sea. It was the name of this place before it was mine, and the keeper before me wrote it here, on the page after the last one.': 'Yáni daryá. Nám-e in makán bood pish az ánke az man báshad, va negahbán-e pish az man án rá injá nevesht, dar safe-ye pas az ákharin safe.',
       'THE KEEPER OF DARYA': 'Negahbán-e Daryá',
-      'tap to close the book': 'baráye bastan-e tabltar bezan',
+      'tap to close the book': 'baráye bastan-e daftar bezan',
       'The map': 'Naghshe',
       'tap a place you have walked to': 'ru-ye jaei ke rafte-i bezan',
       'walk further, and the map fills in': 'bishtar beru, naghshe por mishavad',
@@ -13610,12 +14087,12 @@ props: islandProps.map(function (p) {
       'Gather nectar': 'Shahed jam kon',
       'carry it home to the hive': 'án rá be kandu bebar',
       'The sprouts are thirsty': 'Javáne-há teshne-and',
-      'hold on a sprout to pour': 'ru-ye javáne negah dar tá áb berizi',
+      'hold on a sprout to pour': 'ru-ye javáne negah dár tá áb berizi',
       'The fireflies are out': 'Kerm-há-ye shab-táb birunand',
       'tap a light to keep it': 'ru-ye yek nur bezan tá bemánad',
       'Midday: the sprouts are thirsty': 'Nimruz: javáne-há teshne-and',
       'Dusk: the fireflies are out': 'Ghoroob: kerm-há-ye shab-táb birunand',
-      'The notebook is full': 'tabltar por shode ast',
+      'The notebook is full': 'daftar por shode ast',
       'every errand the island had': 'har kár-e jazire',
       'Errand done: {0}': 'Kár anjám shod: {0}',
       'next · {0}': 'baadi · {0}',
@@ -13641,7 +14118,7 @@ props: islandProps.map(function (p) {
       'dusk': 'ghoroob',
       'tap to walk': 'baráye raftan bezan',
       'go in': 'boru dákhel',
-      'the book is full': 'tabltar por ast',
+      'the book is full': 'daftar por ast',
       'keep it': 'negahash dar',
       'set it aside': 'kenárash begzár',
       'I · the first morning': 'I · nokhostin bámdád',
@@ -13702,7 +14179,7 @@ props: islandProps.map(function (p) {
       'Up high the flowers opened late, and every seed worth keeping was small.': 'dar bolandi gol-há dir báz shodand va har dáne-i ke arzesh dasht kuchak bood.',
       'The sand held a fossil and a crust of salt: the sea that used to be here.': 'Rig yek fosil va yek puste namak dasht: daryáyi ke zamán-i injá bood.',
       'The river carried a feather down from somewhere I have not walked yet.': 'Rud pari rá az jaei ávard ke hanooz narafte-am.',
-      'Out past the shallows the shells were bigger, and the boat knew the way back.': 'Án su-ye kam-áb, sodf-há bozorg-tar boodand va ghayegh ráh-e bargasht rá midanest.',
+      'Out past the shallows the shells were bigger, and the boat knew the way back.': 'Án su-ye kam-áb, sodf-há bozorg-tar boodand va gháyegh ráh-e bargasht rá midanest.',
       'The tide left a line of shells, and a piece of wood worn smooth.': 'Jazr-o-madd khatti az sodf gozasht va teke-i chub ke sáf sayide shode bood.',
       'The stone said: the garden is watered by the water from the channel.': 'sang goft: bágh bá áb-e juy áb mikhorad.',
       'Three fish, and the lake kept its patience.': 'se máhi, va ábgir shekibai-ye-ásh rá negah dasht.',
@@ -13737,10 +14214,10 @@ props: islandProps.map(function (p) {
       'keep going into the dunes': 'be del-e tape-há-ye rigi beru',
       'read the stone at the shrine': 'sang-e kenar-e ziaratgáh rá bekhán',
       'find it among the old stones': 'án rá mian-e sang-há-ye kohan peydá kon',
-      'fish the lake three times over': 'se bar dar daryáche máhigiri kon',
+      'fish the lake three times over': 'se bar dár daryáche máhigiri kon',
       'row out from the sea, to the lake': 'az daryá be daryáche páru bezan',
       'name the seven stars': 'haft setáre rá nám begzár',
-      'look up at night, from anywhere on the island': 'shab az har jáye jazire be bálá negah kon',
+      'look up at night, from anywhere on the island': 'shab az har jáye jazire be bálá negáh kon',
       'walk the rim of the island': 'dour-e jazire rá begard',
       'the cliff and the hedge mark the island’s end': 'sakhre va parchin páyán-e jazire rá neshán midáhand',
       'The shrine': 'Ziaratgáh',
@@ -13776,7 +14253,7 @@ props: islandProps.map(function (p) {
       'the can is full': 'ábpásh por ast',
       'hold it still while it fills': 'tá por mishavad bi-harekat negahash dar',
       'DONYA, MY SISTER': 'Donyá, kháharam',
-      '"I found the low path. Come and see."': '«Ráh-e kam-shib rá peydá kardam. Bia bebin.»',
+      '"I found the low path. Come and see."': '«Ráh-e kam-shib rá peydá kardam. Biá bebin.»',
       'The lake': 'Daryáche',
       'The pond': 'Ábgir',
       'the oars take you out': 'páru-há to rá birun mibarand',
@@ -13882,7 +14359,7 @@ props: islandProps.map(function (p) {
       'hardy': 'sarsakht',
       'her own clothes': 'lebas-e khodash',
       'layers': 'tokhm-gozár',
-      'look at the entrance': 'be vorudi negah kon',
+      'look at the entrance': 'be vorudi negáh kon',
       'nothing here': 'chizi injá nist',
       'nothing yet': 'hanooz chizi nist',
       'queen': 'malake',
@@ -13910,7 +14387,7 @@ props: islandProps.map(function (p) {
       'the mountain cloak': 'shenl-e kuhestan',
       'the old trees keep the ground soft': 'derakhtán-e kohan zamin rá narm negah midárand',
       'the orchard coat': 'paltu-ye bágh',
-      'the sand gives up what it buried': 'shen ánche rá tabln karde pas midahad',
+      'the sand gives up what it buried': 'shen ánche rá dafn karde pas midahad',
       'the sprouts': 'jovane-há',
       'the tide line is where things gather': 'khatt-e jazr jáye gard ámadan-e chiz-hast',
       'the walk': 'ráh-peymáyi',
@@ -13964,17 +14441,6 @@ props: islandProps.map(function (p) {
       'draw water': 'áb bekesh',
       'greet Donya': 'be Donyá salám kon',
       'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
-      'look at the clover': 'be shabdar negah kon',
-      'look at the geranium': 'be shamadáni negah kon',
-      'look at the grass': 'be alaf negah kon',
-      'look at the persian rose': 'be gol-e mohammadi negah kon',
-      'net the ginger cat': 'gorbe-ye zanjebili rá bá tur begir',
-      'net the hedgehog': 'joje-tighi rá bá tur begir',
-      'net the house sparrow': 'gonjeshk-e khaneghi rá bá tur begir',
-      'net the songbird': 'parande-ye avaz-khan rá bá tur begir',
-      'net the starling': 'sar rá bá tur begir',
-      'net the swallow': 'parastu rá bá tur begir',
-      'net the tabby cat': 'gorbe-ye ráh-ráh rá bá tur begir',
       'read the stone': 'sang rá bekhán',
     },
   };
@@ -14290,26 +14756,26 @@ props: islandProps.map(function (p) {
       'ghonche', 'khár', 'khák', 'áftáb',
       'sáye', 'bárán', 'ruz', 'shab',
       'kháne', 'mámán', 'bábá', 'kháhar',
-      'dust', 'kháneváde', 'mádarbozorg', 'pedarbozorg', 'barádar',
-      'khále', 'amme', 'dái', 'amu', 'bád', 'ráh',
-      'jazire', 'ásemán', 'áftábi', 'ábri',
-      'tufán', 'garmá', 'barf', 'setáre',
-      'Dob-e Akbar', 'Shekárchi', 'Zat al-Korsi', 'Ghu',
-      'Chang', 'Kazhdom', 'Shir', 'Gáv',
-      'Dopeykar', 'Ogháb', 'Sag-e Bozorg', 'Gávrán',
-      'Dob-e Asghar', 'Asb-e Bál-dar', 'Zan-e Barzanjir', 'Barsávosh',
-      'Arábe-ran', 'Barre', 'Sag-e Kuchak', 'Kharchang',
-      'Dushize', 'Tarázu', 'Kamán', 'Bozghále',
-      'daryá', 'sáf', 'nime ábri', 'kámelan ábri',
-      'meh alud', 'ghobar alud', 'báráni', 'nám nám',
-      'ragbár', 'bárán-e shadid', 'barfi', 'kulák',
-      'tagarg', 'makhlut', 'bádi', 'nasim',
-      'tondbád', 'tufáni', 'rad va bargh', 'gerdbád',
-      'dágh', 'garm', 'khonak', 'sard',
-      'yakhbandán', 'martub', 'khoshk', 'pish-bini-ye hava',
-      'daraje-ye hararat', 'moj-e garmá', 'jebhe-ye sarma', 'sang',
-      'kanal, qanát',
-      'tabl'
+      'dust', 'kháneváde', 'mádarbozorg', 'pedarbozorg',
+      'barádar', 'khále', 'amme', 'dái',
+      'amu', 'bád', 'ráh', 'jazire',
+      'ásemán', 'áftábi', 'ábri', 'tufán',
+      'garmá', 'barf', 'setáre', 'Dob-e Akbar',
+      'Shekárchi', 'Zat al-Korsi', 'Ghu', 'Chang',
+      'Kazhdom', 'Shir', 'Gáv', 'Dopeykar',
+      'Ogháb', 'Sag-e Bozorg', 'Gávrán', 'Dob-e Asghar',
+      'Asb-e Bál-dar', 'Zan-e Barzanjir', 'Barsávosh', 'Arábe-ran',
+      'Barre', 'Sag-e Kuchak', 'Kharchang', 'Dushize',
+      'Tarázu', 'Kamán', 'Bozghále', 'daryá',
+      'sáf', 'nime ábri', 'kámelan ábri', 'meh alud',
+      'ghobar alud', 'báráni', 'nám nám', 'ragbár',
+      'bárán-e shadid', 'barfi', 'kulák', 'tagarg',
+      'makhlut', 'bádi', 'nasim', 'tondbád',
+      'tufáni', 'rad va bargh', 'gerdbád', 'dágh',
+      'garm', 'khonak', 'sard', 'yakhbandán',
+      'martub', 'khoshk', 'pish-bini-ye hava', 'daraje-ye hararat',
+      'moj-e garmá', 'jebhe-ye sarma', 'sang', 'kanal, qanát',
+      'tabl',
     ],
   };
 
@@ -18929,17 +19395,17 @@ props: islandProps.map(function (p) {
       ]
     },
     {
-      id: 'sea', label: 'the sea', verb: 'row out past the shallows', word: 'satabl',
+      id: 'sea', label: 'the sea', verb: 'row out past the shallows', word: 'sadaf',
       sky: '#CEE0E8', ground: '#82A9AB', deep: '#4C7B85', feature: 'sea', boat: true,
       finds: [
-        { f: 'satabl', x: 118, y: 636 }, { f: 'chub', x: 264, y: 676 }, { f: 'sang', x: 196, y: 730 }
+        { f: 'sadaf', x: 118, y: 636 }, { f: 'chub', x: 264, y: 676 }, { f: 'sang', x: 196, y: 730 }
       ]
     },
     {
       id: 'beach', label: 'the beach', verb: 'the tide line is where things gather',
       sky: '#EAE6D4', ground: '#E3D3AC', deep: '#C8B38A', feature: 'sand', word: 'chub',
       finds: [
-        { f: 'satabl', x: 104, y: 596 }, { f: 'par', x: 240, y: 646 }, { f: 'chub', x: 172, y: 712 }
+        { f: 'sadaf', x: 104, y: 596 }, { f: 'par', x: 240, y: 646 }, { f: 'chub', x: 172, y: 712 }
       ]
     }
   ];
@@ -19264,7 +19730,7 @@ props: islandProps.map(function (p) {
       ctx.strokeStyle = 'rgba(180,200,210,0.9)';
       ctx.lineWidth = 1 * s;
       ctx.stroke();
-    } else if (f === 'satabl') {
+    } else if (f === 'sadaf') {
       ctx.fillStyle = '#F0DCD2';
       ctx.beginPath();
       ctx.moveTo(0, 6 * s);
@@ -19478,7 +19944,7 @@ props: islandProps.map(function (p) {
       {"id":"plant-mulberry","f":"tut","e":"mulberry","p":"توت","sh":"plant","ps":"round"},
       {"id":"plant-chenar","f":"chenár","e":"plane tree","p":"چنار","sh":"plant","ps":"round"},
       {"id":"fungus-capstem","f":"ghárch-e sahráyi","e":"field mushroom","p":"قارچ صحرایی","sh":"fungus"},
-      {"id":"fungus-bracket","f":"ghárch-e satabli","e":"oyster mushroom","p":"قارچ صدفی","sh":"fungus"},
+      {"id":"fungus-bracket","f":"ghárch-e sadafi","e":"oyster mushroom","p":"قارچ صدفی","sh":"fungus"},
       {"id":"fungus-coral","f":"ghárch-e marjáni","e":"coral fungus","p":"قارچ مرجانی","sh":"fungus"},
       {"id":"fungus-morel","f":"samárugh","e":"morel","p":"سماروغ","sh":"fungus"},
       {"id":"fungus-truffle","f":"donbalán","e":"desert truffle","p":"دنبلان کوهی","sh":"fungus"},
@@ -19604,7 +20070,7 @@ props: islandProps.map(function (p) {
       {"id":"creature-flamingo","f":"flámingo","e":"flamingo","p":"فلامینگو","sh":"bird"},
     ],
     beach: [
-      {"id":"pickup-shell","f":"satabl","e":"shell","p":"صدف","sh":"find"},
+      {"id":"pickup-shell","f":"sadaf","e":"shell","p":"صدف","sh":"find"},
     ],
   };
 
@@ -21279,6 +21745,40 @@ var ANIMAL_SIZES = {
     return { foot: -Math.cos(Math.PI * u), lift: Math.sin(Math.PI * u) * liftShare };
   }
 
+  /* THE BOUND. 0 at take-off, 1 at landing.
+
+     A quadruped does not move all four legs together: the hind pair drives and the
+     fore pair follows, so the hind pair leads by HOP_LEAD of the arc. Each limb passes
+     through four moments - push off, gather, reach, plant - which is why this cannot
+     be the walk cycle with a lift added. */
+  function jumpLegPose(k, hind) {
+    var t = hind ? k : Math.max(0, (k - HOP_LEAD) / (1 - HOP_LEAD));
+    t = Math.max(0, Math.min(1, t));
+    var foot, lift;
+    if (t < 0.18) {
+      // Push off: the foot sweeps back and stays down until it leaves.
+      foot = -1.10 * (t / 0.18);
+      lift = 0;
+    } else if (t < 0.55) {
+      // Gather: the foot sweeps forward and tucks up under the body.
+      var u2 = (t - 0.18) / 0.37;
+      foot = -1.10 + u2 * 1.45;
+      lift = Math.sin(Math.PI * u2) * JUMP_TUCK;
+    } else if (t < 0.82) {
+      // Reach: the legs come forward for the landing, still off the ground.
+      var u3 = (t - 0.55) / 0.27;
+      foot = 0.35 + u3 * 0.60;
+      lift = (1 - u3) * JUMP_TUCK * 0.42;
+    } else {
+      // Plant: the foot comes back under the body and meets the ground as the standing
+      // pose, so the landing does not snap.
+      var u4 = (t - 0.82) / 0.18;
+      foot = 0.95 * (1 - u4);
+      lift = (1 - u4) * JUMP_TUCK * 0.16;
+    }
+    return { foot: foot, lift: lift };
+  }
+
   function walkDipAt(at) {
     return (1 - Math.cos(2 * Math.PI * at / 2)) * 0.5;
   }
@@ -22248,7 +22748,7 @@ var ANIMAL_SIZES = {
     return outline;
   }
 
-  function paintLeg(g, f, leg, still, walk, reach, pal, dip, stretch) {
+  function paintLeg(g, f, leg, still, walk, reach, pal, dip, stretch, jumpK) {
     var hind = leg.hind;
     var plan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
     // The top of the limb is inside the mass it hangs under - the haunch at the
@@ -22271,7 +22771,11 @@ var ANIMAL_SIZES = {
     var legLen = topY;
     if (legLen < 0.02) return;
 
-    var posed = still ? { foot: 0, lift: 0 } : walkLegPose(walk, leg.index, 1);
+    // A jump is its own gait: calling the walk cycle in mid-air is what made a
+    // bounding animal look like it was running with nothing holding it up.
+    var posed = (jumpK === null || jumpK === undefined)
+      ? (still ? { foot: 0, lift: 0 } : walkLegPose(walk, leg.index, 1))
+      : jumpLegPose(jumpK, hind);
     var footX = hipX0 + posed.foot * reach;
     // The foot lifts off the ground, and the whole limb follows it: a lifted leg
     // that does not shorten its stride is a leg sliding along the floor.
@@ -22771,12 +23275,15 @@ var ANIMAL_SIZES = {
     // A stride is a share of the LEG: a walking quadruped's foot travels about 0.44
     // of its own limb length forward and back from standing.
     var reachNow = Math.max(0.055, m.leg * 0.44);
+    // 0 at take-off, 1 at landing; null when this animal is not in the air.
+    var jumpK = (a && a.gait === 'hop' && a.leapK !== undefined) ? a.leapK : null;
 
     function paintLegsBySide(far) {
       for (var li = 0; li < f.legs.length; li++) {
         if (f.legs[li].far !== far) continue;
         paintLeg(g, f, f.legs[li], still, walk, reachNow, pal,
-          dip + (pose.crouch || 0), pose.stretch === undefined ? 1 : pose.stretch);
+          dip + (pose.crouch || 0), pose.stretch === undefined ? 1 : pose.stretch,
+          jumpK);
       }
     }
 
@@ -23541,6 +24048,47 @@ var ANIMAL_SIZES = {
      or sunken foot is obvious rather than argued about. */
   /* What the stride maths says for one animal, so the moonwalk is measurable
      rather than a matter of opinion. */
+  /* One bound, frame by frame: the leg gait and the rise of the arc together.
+     The ground line is drawn under each frame so a foot that floats shows. */
+  window.__animalJump = function (id, size) {
+    size = size || 200;
+    var n = 8;
+    var c = document.createElement('canvas');
+    c.width = size * n;
+    c.height = size;
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, c.width, c.height);
+    var prev = ctx;
+    ctx = g;
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    for (var i = 0; i < n; i++) {
+      var k = i / (n - 1);
+      var ox = size * (i + 0.5);
+      var ground = size * 0.80;
+      g.save();
+      g.strokeStyle = 'rgba(60,50,40,0.28)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(ox - size * 0.44, ground + 0.5);
+      g.lineTo(ox + size * 0.44, ground + 0.5);
+      g.stroke();
+      g.fillStyle = '#6b6154';
+      g.font = '10px ui-monospace, Consolas, monospace';
+      g.textAlign = 'center';
+      g.fillText(k.toFixed(2), ox, 14);
+      // The arc: the same sine the update uses, at a nominal 60 px bound.
+      var lift = Math.sin(Math.PI * k) * Math.max(2.5, Math.min(26, 60 * 0.20));
+      g.translate(ox, ground - lift * (size / 200));
+      paintAnimal(g, e, { moving: true, walk: 0, facing: 1, seed: 3, gait: 'hop', leapK: k },
+        size * 0.60);
+      g.restore();
+    }
+    ctx = prev;
+    return c;
+  };
+
+
   window.__animalStride = function (id) {
     var e = findSpecies(id) || { id: id, sh: 'beast' };
     var shape = animalShapeOf(e.id);
@@ -25901,6 +26449,13 @@ var ANIMAL_SIZES = {
 
   var FAUNA_IDLE = 0.24;       // a wish weaker than this leaves it standing
   var FAUNA_LEAP = 0.25;       // seconds in the air on one hop
+  // A bound's arc: how high it rises per pixel it covers, and how the hind pair
+  // leads the fore pair through it.
+  var HOP_RISE = 0.20;         // height as a share of the jump's own length
+  var HOP_MIN = 2.5;           // never flatter than this, or a short hop slides
+  var HOP_MAX = 26;            // never taller than this, or a flee becomes a vault
+  var HOP_LEAD = 0.10;         // how far the hind pair leads the fore pair
+  var JUMP_TUCK = 3.2;         // the foot's height at the gather, in limb lengths
   var FAUNA_GROUP = 150;       // how far its own kind still counts as a herd
 
   /* Which drawings are living things that move. A plant sways but stays put,
@@ -25992,8 +26547,6 @@ var ANIMAL_SIZES = {
       // The stride his own legs and his own drawn size allow. Without it the phase
       // runs on a clock unrelated to the ground and the animal skates.
       stridePx: animalStridePx(sp),
-      // How high this animal's bound lifts it, in world pixels.
-      liftAmp: Math.max(5, Math.min(20, beastHeight(sp) * 0.42)),
       thirst: 14 + seeded(seed + 11)() * 26,
       thirsty: false,
       drinking: 0,
@@ -26113,6 +26666,9 @@ var ANIMAL_SIZES = {
       var reach = (panic > 0 ? t.flee : t.wander) * t.period * strength;
       if (a.sp.sh === 'bird') reach *= 0.55;
       a.leapTo = { x: a.x + dirX * reach, y: a.y + dirY * reach };
+      // THE ARC'S HEIGHT COMES FROM ITS LENGTH: a flat share of the animal's
+      // height made a short hop and a long bound rise the same.
+      a.leapLift = Math.max(HOP_MIN, Math.min(HOP_MAX, Math.abs(reach) * HOP_RISE));
       return;
     }
     a.gait = panic > 0 ? 'run' : 'walk';
@@ -26166,7 +26722,9 @@ var ANIMAL_SIZES = {
         a.y = a.leapFrom.y + (a.leapTo.y - a.leapFrom.y) * done;
         // A share of the animal's own height: a flat 14 px threw a hare a body-length
         // into the air and barely lifted a bear.
-        a.lift = Math.sin(Math.PI * done) * (a.liftAmp || 12);
+        a.lift = Math.sin(Math.PI * done) * (a.leapLift || 8);
+        // Where in the arc this frame is, so the painter can draw the leg gait.
+        a.leapK = done;
         a.moving = true;
         a.walk += dt * 8;
         if (a.leap <= 0) { a.leap = 0; a.gait = 'still'; a.moving = false; }
@@ -26479,7 +27037,7 @@ var ANIMAL_SIZES = {
       // The doors and doors-of-the-yard.
       if (d.kind === 'yard') {
         out.push({ k: 'house', x: W * 0.29, y: H * 0.19, verb: 'go in', act: 'inside', to: 'house', name: '' });
-        out.push({ k: 'well', x: W * 0.22, y: H * 0.74, verb: 'draw water', act: 'word', word: 'ab', name: '' });
+        out.push({ k: 'well', x: W * 0.22, y: H * 0.74, verb: 'look at the well', act: 'well', name: '' });
         out.push({ k: 'sister', x: W * 0.68, y: H * 0.40, verb: 'greet Donya', act: 'sister', name: '' });
       } else if (d.kind === 'henhouse') {
         out.push({ k: 'coopdoor', x: W * 0.5, y: H * 0.22, verb: 'go into the henhouse', act: 'enter', to: 'hens', name: '' });
@@ -26552,8 +27110,8 @@ var ANIMAL_SIZES = {
           if (sp3) bed.species = sp3;
           var v;
           if (!bed.step) v = garden.seeds > 0 ? 'sow a seed' : 'nothing left to sow';
-          else if (bed.step < BED_STEPS) v = 'tend the ' + (sp3 ? shortName(sp3) : 'bed');
-          else v = 'harvest the ' + (sp3 ? shortName(sp3) : 'bed');
+          else if (bed.step < BED_STEPS) v = 'tend it';
+          else v = 'harvest it';
           out.push({
             k: 'bed', sp: sp3, row: row, bedW: gardenRowAt(row, W, H).w * 0.92,
             // How far along it is: a sprout, a plant, a plant in fruit.
@@ -26588,7 +27146,7 @@ var ANIMAL_SIZES = {
             y: H * (0.24 + Math.floor(i / 3) * 0.26 + rnd() * 0.07) - (isBird ? 26 : 0),
             // A bird is high over the water; a fish is under it.
             flight: isBird ? 54 : 0,
-            verb: 'watch the ' + shortName(ows),
+            verb: 'watch it',
             act: 'species', name: ''
           });
         }
@@ -26849,20 +27407,18 @@ var ANIMAL_SIZES = {
      an animal is watched, a person is met, a plant is looked at. Every species prop
      asks this, so no caller invents its own verb. */
   function propVerbFor(e) {
-    if (!e) return 'look';
-    if (e.sh === 'find') return 'take the ' + shortName(e);
+    if (!e) return 'look closely';
+    if (e.sh === 'find') return 'take it';
     if (e.sh === 'fish' || e.sh === 'seal') {
       // Water: she can see it, she cannot chase it.
-      return 'watch the ' + shortName(e);
+      return 'watch it';
     }
     if (e.sh === 'bird' || e.sh === 'insect' || e.sh === 'frog' ||
       e.sh === 'beast' || e.sh === 'cat' || e.sh === 'dog' || e.sh === 'hen') {
-      return tooLargeToNet(e) ? 'watch the ' + shortName(e) + ' from afar'
-        : 'net the ' + shortName(e);
+      return tooLargeToNet(e) ? 'watch it from afar' : 'net it';
     }
-    if (e.sh === 'being') return 'hear ' + shortName(e) + ' out';
-    if (e.sh === 'fungus') return 'look at the ' + shortName(e);
-    return 'look at the ' + shortName(e);
+    if (e.sh === 'being') return 'hear them out';
+    return 'look closely';
   }
 
   function shortName(e) {
@@ -27094,9 +27650,30 @@ var ANIMAL_SIZES = {
       donyaLine = clock;
       donyaMet = true;
       teachWord('khahar');
-      addFloater(p.x, p.y - 60, T('Donya, my sister'), C.inkSoft);
+      // She went first, and she says so once: this is the handoff from the sister
+      // who was found to the sister who finds.
+      beingSaid = {
+        at: clock, who: T('Donya'),
+        line: T('I went down first. You came after me. Now I find them and you write them down.')
+      };
       addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
       checkErrand();
+      return;
+    }
+    if (p.act === 'well') {
+      // The well is capped, and the cap is the whole of the rule: a man whose
+      // daughter fell down a well put a lid on it.
+      teachWord('ab');
+      beingSaid = {
+        at: clock, who: T('the well'),
+        line: T('The lid is on. Baba put it there the week we came back.')
+      };
+      addParticles(p.x, p.y - 10, '#E8E2D2', 8, 50);
+      // The last errand is to come back here and close the book.
+      if (errandAt >= ERRANDS.length - 1) {
+        closedAtWell = true;
+        checkErrand();
+      }
       return;
     }
     if (p.act === 'family') {
@@ -27108,6 +27685,15 @@ var ANIMAL_SIZES = {
       for (var mw in metFamily) if (metFamily.hasOwnProperty(mw) && metFamily[mw]) kinMet++;
       addFloater(p.x, p.y - 150, T(p.line), C.inkSoft);
       addParticles(p.x, p.y - 60, '#FFF3D0', 10, 70);
+      // The grandmother carries the keeper before, the sea and the reason the
+      // house is here, in one line, once.
+      if (p.who === 'grandmother' && !metFamily.saidGrandmother) {
+        metFamily.saidGrandmother = true;
+        beingSaid = {
+          at: clock, who: T('Mâmânbozorg'),
+          line: T('She kept it before me. She went out to the water and the water kept her.')
+        };
+      }
       if (kinMet >= 4) teachWord('khanevade');
       checkErrand();
       return;
@@ -28240,6 +28826,9 @@ var ANIMAL_SIZES = {
   var chipHit = null;
   var donyaLine = -99;
   var donyaMet = false;
+  /* The day closes at the well she started at: set when she reads the capped well
+     after every other errand is done. */
+  var closedAtWell = false;
   /* Who in the house has been greeted. Both of them teaches the word for the
      family itself, which is why it is a pair of names and not one flag. */
   var metFamily = { mother: false, father: false };
