@@ -375,7 +375,7 @@
     bgPattern = ctx.createPattern(tile, 'repeat');
   }
 
-  /* 5. AUDIO - soft WebAudio tones, created on first gesture. */
+  /* 5. AUDIO - the score and the effects, created on first gesture. */
   var audio = null;
   function ensureAudio() {
     if (audio) return;
@@ -384,6 +384,7 @@
       if (!AC) return;
       audio = new AC();
       if (audio.state === 'suspended') { var p = audio.resume(); if (p && p.catch) p.catch(function () {}); }
+      score.start();
     } catch (e) { audio = null; }
   }
   function tone(freq, dur, type, vol, slide, delay) {
@@ -412,6 +413,43 @@
     lose: function () { tone(392, 0.3, 'sine', 0.04, 294); tone(294, 0.4, 'sine', 0.035, 220, 0.2); }
   };
 
+  /* 5b. THE SCORE - the island's own band.
+   *
+   * The music lives in score.js, one owner shared with the tuner page
+   * (tools/score-tuner.html). This block is the adapter and nothing else: what the
+   * score cannot know - that the game exists, where she is, how light it is, and
+   * whether the player muted it - is supplied here, and the score does the rest.
+   */
+  var score = window.DaryaScore.create({
+    audio: function () { return audio; },
+    // Where she is, as a palette key. A place is its own room; the quiet pages
+    // (a look at a thing, the bag, the map) leave the tune to breathe.
+    where: function () {
+      if (phase === 'title') return 'menu';
+      if (scene !== 'island') {
+        if (scene === 'look' || scene === 'bag' || scene === 'map') return 'quiet';
+        return scene;
+      }
+      if (interior) return 'room';
+      var def = sectionDef();
+      return def ? def.kind : 'yard';
+    },
+    light: function () { return dayLight(); },
+    muted: function () { return muted; },
+    // The ear's settings, written by the two tools and inlined at build time: the
+    // instruments, the counts, and each place's composition.
+    tuning: (GAME.scoreTuning || {}).tuning,
+    instruments: (GAME.scoreTuning || {}).instruments,
+    composition: (GAME.scoreTuning || {}).composition
+  });
+  window.__score = function () { return JSON.stringify(score.report()); };
+  /* What the game is actually playing its notes on, so a probe can confirm that a
+     sound edited in the tool reached the island and was not silently defaulted. */
+  window.__instruments = function () { return JSON.stringify(score.instruments()); };
+  /* The phrase being played now, so a probe can prove the material changes with
+     the canon and not only the intonation. */
+  window.__scorePhrase = function () { return JSON.stringify(score.phraseNow()); };
+
   /* 6. INPUT */
   var MOVE_KEYS = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'];
 
@@ -419,7 +457,7 @@
     ensureAudio();
     var lower = (e.key || '').toLowerCase();
     if (lower === 'arrowup' || lower === 'arrowdown' || lower === 'arrowleft' || lower === 'arrowright' || lower === ' ' || lower === 'spacebar' || lower === 'tab') e.preventDefault();
-    if (lower === 'm') { muted = !muted; return; }
+    if (lower === 'm') { muted = !muted; score.mute(muted); return; }
     if (lower === 'escape') {
       // Esc closes the book if it is open, then leaves a place for the island.
       if (BOOK.open) { closeBook(); return; }
@@ -1436,16 +1474,71 @@
   /* How far from her a piece must be before it stops leaning: a stride. */
   var PUSH_REACH = 46;
 
-  /* The quiet ground, painted once per section onto its own canvas. It holds
-     every piece she cannot touch, so the frame only pays for the few she can. */
+  /* ---- The wind on the ground ------------------------------------------------
+     The same line that shakes a crown's heaps pushes what grows at arm's height:
+     blades, clover, thatch, daisies, and the flower stems of the species table.
+     A stem is not wood, so it bends - and it bends the way the line travels, to
+     the right, with a quick flutter on top so no plant is a rigid lever. The
+     amount is a share of the plant's own height, so a blade nods and a stem
+     leans without either being told how tall it is. */
+  function plantBend(x, y, h, t, phase) {
+    var g = gustAt(x, y, t);
+    if (g <= 0.001) return 0;
+    var fl = WIND.flutter * Math.sin(t * 9.0 * WIND.tremble + (phase || 0) * 6.0);
+    return g * (WIND.bend * h + fl);
+  }
+
+  /* A piece of dressing that never moves: the bake may hold it, and does. A rock
+     is stone and a patch is ground - neither stem nor leaf. Everything else leans,
+     so it is drawn live, every frame. */
+  var STILL_DRESSING = { patch: 1, stone: 1 };
+
+  /* The quiet ground, painted once per section onto its own canvas. It holds the
+     verge, the patches and the stones - the pieces the wind cannot move - so the
+     frame only pays for what leans. */
   var quietGround = { canvas: null, dirty: true };
+  var groundCost = { last: 0, avg: 0 };
+
+  /* What the ground pass costs, in milliseconds: the plants, their wind, their
+     shadows. Measured, not guessed - it is the one part of the frame that draws
+     hundreds of things. */
+  window.__groundCost = function () {
+    return JSON.stringify({ last: Math.round(groundCost.last * 100) / 100, avg: Math.round(groundCost.avg * 100) / 100 });
+  };
+
+  /* A health check on the ground this frame: the largest piece of each kind, and
+     the first piece whose numbers are not finite. A bucket with a bad coordinate
+     fills half the page with one colour, so it has to be findable. */
+  window.__groundAudit = function () {
+    var pieces = scenery.pieces || [];
+    var big = {}, bad = [], i, b;
+    for (i = 0; i < pieces.length; i++) {
+      var pc = pieces[i];
+      var size = Math.max(pc.r || 0, pc.s || 0, pc.rx || 0);
+      if (!big[pc.k] || size > big[pc.k]) big[pc.k] = size;
+      if (!isFinite(pc.x) || !isFinite(pc.y)) {
+        if (bad.length < 12) bad.push({ k: pc.k, x: String(pc.x), y: String(pc.y) });
+      }
+    }
+    var counts = [];
+    for (b = 0; b < GROUND_BUCKETS; b++) if (groundBuckets[b].length) counts.push(b + ':' + groundBuckets[b].length);
+    return JSON.stringify({ biggest: big, bad: bad, buckets: counts.join(' '), pieces: pieces.length });
+  };
 
   /* How many pieces the last frame drew into the bake and how many live above it.
      The pair must always add up to every piece: a piece in neither is one that
      vanished, and a piece in both is one drawn twice. */
   window.__sceneryCount = function () {
-    var n = (scenery.pieces || []).length;
-    return JSON.stringify({ pieces: n, baked: quietGround.baked, live: quietGround.live, bakes: quietGround.bakes, nearSig: quietGround.nearSig });
+    var pieces = scenery.pieces || [];
+    var kinds = {};
+    for (var i = 0; i < pieces.length; i++) {
+      var k = pieces[i].k || '?';
+      kinds[k] = (kinds[k] || 0) + 1;
+    }
+    return JSON.stringify({
+      pieces: pieces.length, baked: quietGround.baked, live: quietGround.live,
+      bakes: quietGround.bakes, nearSig: quietGround.nearSig, kinds: kinds
+    });
   };
 
   function quietGroundCanvas() {
@@ -1455,7 +1548,7 @@
     return quietGround.canvas;
   }
 
-  function drawScenery() {
+  function drawScenery(t) {
     var pieces = scenery.pieces || [];
     var i;
     if (pieces.dirty) {
@@ -1463,32 +1556,13 @@
       pieces.dirty = false;
       quietGround.dirty = true;
     }
-    var hx = hero.x, hy = hero.y;
-    var near = [];
-    var nearKey = [];
-    for (i = 0; i < pieces.length; i++) {
-      var pc = pieces[i];
-      if (Math.abs(pc.x - hx) + Math.abs(pc.y - hy) < PUSH_REACH * 2) {
-        near.push(pc);
-        nearKey.push(i);
-      }
-    }
 
-    // The bake leaves out the pieces near enough to lean, and the set of those is a
-    // function of where SHE is. Repainting it only when the sort changes meant the
-    // set could be frozen while she walked: a piece that was near when it was painted
-    // was left out of the bake, and once she walked away nothing drew it at all, so
-    // the ground lost its plants as she passed. Its opposite happened too - a piece
-    // she walked up to was in the bake and drawn live as well, so it doubled.
-    // The near set is the second reason to repaint, and it changes only when she
-    // crosses a piece's boundary, not every frame.
-    var nearSig = nearKey.join(',');
-    if (quietGround.nearSig !== undefined && quietGround.nearSig !== nearSig) {
-      quietGround.dirty = true;
-    }
-    quietGround.nearSig = nearSig;
-
-    // The quiet ground: painted once, blitted every frame.
+    // The quiet ground: the verge, the patches and the stones, painted once per
+    // section. Everything that leans is drawn above it - ALL of it, not just what
+    // is near her: the wind is everywhere, and a plant that stops bending because
+    // she walked away is a plant that flickers. That also removes the old trap
+    // where the bake and the live pass had to agree about which pieces to leave
+    // out, and a piece could be drawn twice or not at all.
     if (quietGround.dirty) {
       quietGround.bakes = (quietGround.bakes || 0) + 1;
       var qc = quietGroundCanvas();
@@ -1505,64 +1579,34 @@
       if (secD && DRESSING_VERGE[secD.kind] !== undefined) {
         drawVerge(world.w, world.h, DRESSING_VERGE[secD.kind].inset, DRESSING_VERGE[secD.kind].tone);
       }
+      var baked = 0;
       for (i = 0; i < pieces.length; i++) {
-        // Only the quiet ones: the near ones are drawn live, above this image.
-        if (nearKey.indexOf(i) >= 0) continue;
-        drawGroundPiece(pieces[i]);
+        if (!STILL_DRESSING[pieces[i].k]) continue;
+        drawStillPiece(pieces[i]);
+        baked++;
       }
-      quietGround.baked = pieces.length - nearKey.length;
+      quietGround.baked = baked;
       ctx = prev;
       quietGround.dirty = false;
     }
-    quietGround.live = near.length;
     ctx.drawImage(quietGround.canvas, 0, 0);
-
-    // And the few she can touch, live.
-    for (i = 0; i < near.length; i++) drawGroundPiece(near[i]);
+    // And everything that leans: collected into STYLE batches, then drawn a batch
+    // at a time. Five hundred plants drawn one by one cost 34 ms a frame; the same
+    // five hundred in a couple of dozen paths cost what one screenful should.
+    var g0 = performance.now();
+    var live = groundCollect(pieces, t);
+    groundDraw(t);
+    groundCost.last = performance.now() - g0;
+    groundCost.avg = groundCost.avg ? groundCost.avg * 0.9 + groundCost.last * 0.1 : groundCost.last;
+    quietGround.live = live;
   }
 
-  /* One piece of ground dressing. Depth order is the caller's, so a painter only
-     has to know how to draw itself. */
-  /* The ground in shade: a pool under whatever stands tall, and the verge
-     darkening toward the edges, where the trees are. Drawn after the dressing and
-     before the props, with the same sun as the shadows, so the shade and the
-     shadows cannot disagree. */
-  function drawGroundShade() {
-    var L = dayLight();
-    if (L.night) return;
-    var W = world.w, H = world.h;
-    var strength = 0.15 + 0.11 * (1 - Math.min(1, L.up * 1.6));
-    var i;
-
-    var vg = ctx.createLinearGradient(0, 0, 0, H);
-    vg.addColorStop(0, 'rgba(26,38,22,' + (strength * 0.95).toFixed(3) + ')');
-    vg.addColorStop(0.24, 'rgba(26,38,22,0)');
-    vg.addColorStop(0.78, 'rgba(26,38,22,0)');
-    vg.addColorStop(1, 'rgba(26,38,22,' + (strength * 1.2).toFixed(3) + ')');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, W, H);
-
-    var side = ctx.createLinearGradient(0, 0, W, 0);
-    side.addColorStop(0, 'rgba(26,38,22,' + (strength * 0.8).toFixed(3) + ')');
-    side.addColorStop(0.18, 'rgba(26,38,22,0)');
-    side.addColorStop(0.82, 'rgba(26,38,22,0)');
-    side.addColorStop(1, 'rgba(26,38,22,' + (strength * 0.8).toFixed(3) + ')');
-    ctx.fillStyle = side;
-    ctx.fillRect(0, 0, W, H);
-
-    // Nothing else here. A tree's shadow is castShadow's, with every other shadow on
-    // the island; a second soft pool under the same tree was a separate answer to
-    // the same question, and the two never agreed.
-  }
-
-  function drawGroundPiece(pc) {
+  /* A piece of ground dressing that never moves: bare earth, or a rock. Both are
+     painted into the section's bake and never asked to draw again. */
+  function drawStillPiece(pc) {
     var k = pc.k;
-    var push = pushFrom(pc.x, pc.y, k === 'patch' ? 0 : 46);
-    var lean = push ? push.lean : 0;
-    var drop = push ? push.drop : 0;
 
     if (k === 'patch') {
-      // Bare earth or coarse thatch: a soft tone, never an outline.
       // Bare earth or a worn patch: a soft gradient, never a flat disc, so the
       // ground changes tone without a visible shape drawn on it.
       var warmPatch = pc.tone > 0.62;
@@ -1573,74 +1617,6 @@
       ctx.beginPath();
       ctx.ellipse(pc.x, pc.y, pc.rx, pc.ry, pc.a, 0, TAU);
       ctx.fill();
-      return;
-    }
-
-    if (k === 'blade') {
-      // A TUFT: five to nine blades from one root, the middle taller, in two
-      // tones so the clump has a lit side and a shaded one.
-      var h = (7 + pc.s * 9) * 1.15;
-      var blades = 5 + Math.floor((pc.s * 7) % 5);
-      var dark = pc.tone > 0.72 ? 'rgba(96,124,58,0.95)'
-        : pc.tone > 0.46 ? 'rgba(74,102,46,0.95)'
-          : pc.tone > 0.22 ? 'rgba(56,84,38,0.95)' : 'rgba(40,64,30,0.95)';
-      var lite = pc.tone > 0.72 ? 'rgba(128,158,76,0.95)'
-        : pc.tone > 0.46 ? 'rgba(102,132,60,0.95)'
-          : pc.tone > 0.22 ? 'rgba(80,110,50,0.95)' : 'rgba(58,86,40,0.95)';
-      ctx.lineCap = 'round';
-      for (var bi = 0; bi < blades; bi++) {
-        var bt = (bi / (blades - 1 || 1)) - 0.5;          // -0.5 .. 0.5 across the root
-        var bh = h * (0.72 + 0.5 * Math.cos(bt * 2.2));   // the middle stands tallest
-        var bx = pc.x + bt * h * 0.55;
-        // The near blades are lit, the far ones in shade: the clump has a sun side.
-        ctx.strokeStyle = bt > 0 ? lite : dark;
-        ctx.lineWidth = 1.5 + pc.s * 0.4;
-        ctx.beginPath();
-        ctx.moveTo(bx, pc.y);
-        ctx.quadraticCurveTo(
-          bx + bt * 6 + pc.a * 3 + lean * 5,
-          pc.y - bh * 0.60,
-          bx + bt * 12 + pc.a * (4 + pc.s * 3) + lean * (8 + bi),
-          pc.y - bh
-        );
-        ctx.stroke();
-      }
-      return;
-    }
-
-    if (k === 'clover') {
-      // Three round leaves on a stem: something under the grass.
-      var cr = 2.0 + pc.s * 2.2;
-      ctx.fillStyle = pc.tone > 0.5 ? 'rgba(96,130,66,0.80)' : 'rgba(74,108,52,0.80)';
-      for (var c = 0; c < 3; c++) {
-        var ca = pc.a + c * TAU / 3;
-        ctx.beginPath();
-        ctx.ellipse(
-          pc.x + Math.cos(ca) * cr * 0.9 + lean * 3,
-          pc.y - 2 - pc.s * 2 + Math.sin(ca) * cr * 0.6,
-          cr, cr * 0.82, ca, 0, TAU
-        );
-        ctx.fill();
-      }
-      return;
-    }
-
-    if (k === 'thatch') {
-      // A few dry stems leaning together, so the ground has age in it.
-      ctx.strokeStyle = 'rgba(158,142,98,0.55)';
-      ctx.lineWidth = 1.4;
-      ctx.lineCap = 'round';
-      for (var t = -1; t <= 1; t++) {
-        ctx.beginPath();
-        ctx.moveTo(pc.x + t * 3, pc.y);
-        ctx.quadraticCurveTo(
-          pc.x + t * 6 + pc.a * 4 + lean * 4,
-          pc.y - 8 * pc.s,
-          pc.x + t * 9 + pc.a * 7 + lean * 7,
-          pc.y - 15 * pc.s
-        );
-        ctx.stroke();
-      }
       return;
     }
 
@@ -1689,70 +1665,267 @@
       ctx.lineTo(pc.x + r * 0.30, pc.y + r * sq * 0.30);
       ctx.closePath();
       ctx.fill();
-      return;
     }
+  }
 
-    if (k === 'daisy') {
-      var col = ['#F6F1E2', '#EFD98A', '#D9A9BE', '#CFD9F0'][pc.c || 0];
-      ctx.strokeStyle = 'rgba(90,120,62,0.75)';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(pc.x, pc.y);
-      ctx.lineTo(pc.x + lean * 4, pc.y - pc.r * 3.2);
-      ctx.stroke();
-      var fx = pc.x + lean * 4, fy = pc.y - pc.r * 3.2;
-      ctx.fillStyle = col;
-      for (var pt = 0; pt < 6; pt++) {
-        var pa = pc.a + pt * TAU / 6;
-        ctx.beginPath();
-        ctx.ellipse(fx + Math.cos(pa) * pc.r, fy + Math.sin(pa) * pc.r,
-          pc.r * 0.75, pc.r * 0.55, pa, 0, TAU);
-        ctx.fill();
+  /* ---- The ground's wind, in batches ----------------------------------------
+     A canvas fill or stroke is the expensive call, not the geometry in it: five
+     hundred plants drawn one by one cost 34 ms a frame and the same five hundred
+     in a couple of dozen paths cost about a millisecond. So every plant that leans
+     is put into a bucket by its KIND, its TONE and (for a tuft) its thickness, and
+     each bucket is one path painted once. A plant keeps its own height, its own
+     lean, its own bend and its own wind phase - what is shared is the paint call.
+
+     Depth: the pieces are sorted by y and collected in that order, so a bucket is
+     built front to back. Two DIFFERENT buckets cannot interleave - all shaded
+     blades paint before all lit ones - which shows only where two tufts of
+     different tones overlap, and at these sizes one stroke of similar green over
+     another is not an edge anybody can see. */
+  var BLADE_DARK = ['rgba(96,124,58,0.95)', 'rgba(74,102,46,0.95)',
+    'rgba(56,84,38,0.95)', 'rgba(40,64,30,0.95)'];
+  var BLADE_LITE = ['rgba(128,158,76,0.95)', 'rgba(102,132,60,0.95)',
+    'rgba(80,110,50,0.95)', 'rgba(58,86,40,0.95)'];
+  var BLADE_WIDTHS = [1.55, 1.9, 2.35];
+  var DAISY_PETAL = ['#F6F1E2', '#EFD98A', '#D9A9BE', '#CFD9F0'];
+
+  // 24 blade buckets (tone 0-3 x shade/lit x thickness 0-2), then thatch, two
+  // clover tones, daisy stems, four petal colours, daisy centres, and the shadows.
+  var GROUND_BUCKETS = 34;
+  var groundBuckets = [];
+  for (var gbi = 0; gbi < GROUND_BUCKETS; gbi++) groundBuckets.push([]);
+
+  /* How tall a piece of dressing is drawn, in pixels. The wind bends a plant by a
+     share of ITS OWN height, so this is the one number every bend needs. */
+  function groundHeight(pc) {
+    if (pc.k === 'blade') return (7 + pc.s * 9) * 1.15;
+    if (pc.k === 'thatch') return 15 * pc.s;
+    if (pc.k === 'daisy') return pc.r * 3.2;
+    return (2.0 + pc.s * 2.2) * 3.0;
+  }
+
+  /* Sort the leaning pieces into their buckets, working out each one's lean and
+     its bend once. Returns how many were drawn. */
+  function groundCollect(pieces, t) {
+    var b, i;
+    for (b = 0; b < GROUND_BUCKETS; b++) if (groundBuckets[b].length) groundBuckets[b].length = 0;
+    var live = 0;
+    for (i = 0; i < pieces.length; i++) {
+      var pc = pieces[i];
+      if (STILL_DRESSING[pc.k]) continue;
+      var push = pushFrom(pc.x, pc.y, 46);
+      pc._lean = push ? push.lean : 0;
+      var g = gustAt(pc.x, pc.y, t);
+      pc._g = g;
+      pc._bend = g > 0.001
+        ? g * (WIND.bend * groundHeight(pc)
+          + WIND.flutter * Math.sin(t * 9.0 * WIND.tremble + (pc.a || 0) * 6.0))
+        : 0;
+      live++;
+      if (pc.k === 'blade') {
+        var tone = pc.tone > 0.72 ? 0 : pc.tone > 0.46 ? 1 : pc.tone > 0.22 ? 2 : 3;
+        var wb = pc.s < 0.9 ? 0 : (pc.s < 1.6 ? 1 : 2);
+        groundBuckets[tone * 6 + wb].push(pc);        // the shaded half
+        groundBuckets[tone * 6 + 3 + wb].push(pc);    // the lit half
+      } else if (pc.k === 'thatch') {
+        groundBuckets[24].push(pc);
+        groundBuckets[33].push(pc);
+      } else if (pc.k === 'clover') {
+        groundBuckets[pc.tone > 0.5 ? 25 : 26].push(pc);
+        groundBuckets[33].push(pc);
+      } else if (pc.k === 'daisy') {
+        groundBuckets[27].push(pc);
+        groundBuckets[28 + (pc.c || 0)].push(pc);
+        groundBuckets[32].push(pc);
+        groundBuckets[33].push(pc);
       }
-      ctx.fillStyle = '#E0A32A';
-      ctx.beginPath();
-      ctx.arc(fx, fy, pc.r * 0.55, 0, TAU);
-      ctx.fill();
-      return;
     }
+    return live;
+  }
 
-    // Every standing piece sits in a tight dark contact shadow at its root. That
-    // patch is what makes it stand in the ground instead of on top of it.
-    if (k === 'tuft' || k === 'clover' || k === 'thatch' || k === 'daisy') {
-      var L0 = dayLight();
-      var cw = (k === 'tuft' ? 13 : k === 'thatch' ? 12 : k === 'daisy' ? 6 : 7) * (pc.s || 1);
-      if (!L0.night) {
+  /* A daisy's head, where the stem has carried it to and where it bobs. Read by
+     both the stem and the petals, so the two cannot part. */
+  function daisyHead(pc, t) {
+    var stemH = pc.r * 3.2;
+    var wd = pc._bend;
+    var bob = pc._g * Math.sin(t * 7.4 * WIND.tremble + pc.a * 5) * 1.1;
+    return {
+      x: pc.x + pc._lean * 4 + wd,
+      y: pc.y - stemH + bob - Math.abs(wd) * 0.18
+    };
+  }
+
+  function groundDraw(t) {
+    var i, arr, sb;
+    var L0 = dayLight();
+
+    // The root shadows first: every standing plant sits in a tight dark contact
+    // patch, and that patch is what makes it stand in the ground.
+    if (!L0.night) {
+      arr = groundBuckets[33];
+      if (arr.length) {
         var ca = Math.atan2(L0.sy, L0.sx);
         var fall = clamp(L0.len, 0.7, 2.2);
         ctx.fillStyle = 'rgba(32,42,26,' + (0.20 + 0.10 * (1 - Math.min(1, L0.warm))).toFixed(3) + ')';
+        // One path per plant. A single path holding hundreds of ellipses makes this
+        // canvas fill huge slabs across the page - a fault of the fill, not of the
+        // geometry, which was measured sane. The old per-piece drawing never did it.
+        for (i = 0; i < arr.length; i++) {
+          var sc = arr[i];
+          if (sc.k !== 'thatch' && sc.k !== 'daisy' && sc.k !== 'clover') continue;
+          var cw = (sc.k === 'thatch' ? 12 : sc.k === 'daisy' ? 6 : 7) * (sc.s || 1);
+          ctx.beginPath();
+          ctx.ellipse(sc.x + Math.cos(ca) * cw * 0.25 * fall, sc.y + 1.4,
+            cw * (0.62 + 0.22 * fall), cw * 0.30, 0, 0, TAU);
+          ctx.fill();
+        }
+      }
+    }
+
+    // The tufts, by tone and thickness.
+    ctx.lineCap = 'round';
+    for (sb = 0; sb < 24; sb++) {
+      arr = groundBuckets[sb];
+      if (!arr.length) continue;
+      var tone = (sb / 6) | 0;
+      var side = ((sb % 6) / 3) | 0;
+      var wb = sb % 3;
+      ctx.strokeStyle = side ? BLADE_LITE[tone] : BLADE_DARK[tone];
+      ctx.lineWidth = BLADE_WIDTHS[wb];
+      ctx.beginPath();
+      for (i = 0; i < arr.length; i++) {
+        var pc = arr[i];
+        var h = groundHeight(pc);
+        var blades = 5 + Math.floor((pc.s * 7) % 5);
+        var wind = pc._bend, gust = pc._g, lean = pc._lean;
+        for (var bi = 0; bi < blades; bi++) {
+          var bt = (bi / (blades - 1 || 1)) - 0.5;
+          if ((bt > 0 ? 1 : 0) !== side) continue;
+          var bh = h * (0.72 + 0.5 * Math.cos(bt * 2.2));
+          var bx = pc.x + bt * h * 0.55;
+          ctx.moveTo(bx, pc.y);
+          ctx.quadraticCurveTo(
+            bx + bt * 6 + pc.a * 3 + lean * 5 + wind * 0.45,
+            pc.y - bh * 0.60 * (1 - gust * 0.06),
+            bx + bt * 12 + pc.a * (4 + pc.s * 3) + lean * (8 + bi) + wind,
+            pc.y - bh * (1 - gust * 0.10)
+          );
+        }
+      }
+      ctx.stroke();
+    }
+
+    // Dry thatch: the stiffest thing on the ground and the last to take the wind.
+    arr = groundBuckets[24];
+    if (arr.length) {
+      ctx.strokeStyle = 'rgba(158,142,98,0.55)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      for (i = 0; i < arr.length; i++) {
+        var th = arr[i];
+        for (var t2 = -1; t2 <= 1; t2++) {
+          ctx.moveTo(th.x + t2 * 3, th.y);
+          ctx.quadraticCurveTo(
+            th.x + t2 * 6 + th.a * 4 + th._lean * 4 + th._bend * 0.45,
+            th.y - 8 * th.s,
+            th.x + t2 * 9 + th.a * 7 + th._lean * 7 + th._bend,
+            th.y - 15 * th.s
+          );
+        }
+      }
+      ctx.stroke();
+    }
+
+    // Clover: three round leaves, lifted and drifted by the line.
+    for (sb = 25; sb <= 26; sb++) {
+      arr = groundBuckets[sb];
+      if (!arr.length) continue;
+      ctx.fillStyle = sb === 25 ? 'rgba(96,130,66,0.80)' : 'rgba(74,108,52,0.80)';
+      for (i = 0; i < arr.length; i++) {
+        var cl = arr[i];
+        var cr = 2.0 + cl.s * 2.2;
         ctx.beginPath();
-        ctx.ellipse(pc.x + Math.cos(ca) * cw * 0.25 * fall,
-          pc.y + 1.4,
-          cw * (0.62 + 0.22 * fall), cw * 0.30, 0, 0, TAU);
+        for (var c = 0; c < 3; c++) {
+          var cang = cl.a + c * TAU / 3;
+          ctx.ellipse(
+            cl.x + Math.cos(cang) * cr * 0.9 + cl._lean * 3 + cl._bend * 0.6,
+            cl.y - 2 - cl.s * 2 + Math.sin(cang) * cr * 0.6 - Math.abs(cl._bend) * 0.35,
+            cr, cr * 0.82, cang, 0, TAU
+          );
+        }
         ctx.fill();
       }
     }
 
-    // The tuft: the bigger clump, still the old drawing, still parts for her.
-    ctx.save();
-    ctx.translate(pc.x, pc.y);
-    ctx.scale(pc.s, pc.s);
-    if (push) {
-      ctx.rotate(pc.a * 0.25 + lean * 0.55);
-      ctx.scale(1 - drop * 0.10, 1 - drop * 0.22);
-    } else {
-      ctx.rotate(pc.a * 0.25);
-    }
-    ctx.strokeStyle = 'rgba(88,120,58,0.62)';
-    ctx.lineWidth = 2.4;
-    ctx.lineCap = 'round';
-    for (var b = -1; b <= 1; b++) {
+    // Daisies: stem, then petals, then the golden eye over them.
+    arr = groundBuckets[27];
+    if (arr.length) {
+      ctx.strokeStyle = 'rgba(90,120,62,0.75)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.moveTo(b * 5, 4);
-      ctx.quadraticCurveTo(b * 7 + Math.sin(clock * 1.2 + pc.x) * 3, -8, b * 9 + b * 4, -22);
+      for (i = 0; i < arr.length; i++) {
+        var ds = arr[i];
+        var hp = daisyHead(ds, t);
+        var stemH = ds.r * 3.2;
+        ctx.moveTo(ds.x, ds.y);
+        ctx.quadraticCurveTo(ds.x + ds._lean * 2 + ds._bend * 0.45, ds.y - stemH * 0.55,
+          hp.x, hp.y);
+      }
       ctx.stroke();
     }
-    ctx.restore();
+    for (sb = 28; sb <= 31; sb++) {
+      arr = groundBuckets[sb];
+      if (!arr.length) continue;
+      ctx.fillStyle = DAISY_PETAL[sb - 28];
+      for (i = 0; i < arr.length; i++) {
+        var dp = arr[i];
+        var dh = daisyHead(dp, t);
+        ctx.beginPath();
+        for (var pt = 0; pt < 6; pt++) {
+          var pa = dp.a + pt * TAU / 6;
+          ctx.ellipse(dh.x + Math.cos(pa) * dp.r, dh.y + Math.sin(pa) * dp.r,
+            dp.r * 0.75, dp.r * 0.55, pa, 0, TAU);
+        }
+        ctx.fill();
+      }
+    }
+    arr = groundBuckets[32];
+    if (arr.length) {
+      ctx.fillStyle = '#E0A32A';
+      for (i = 0; i < arr.length; i++) {
+        var dc = arr[i];
+        var ch = daisyHead(dc, t);
+        ctx.beginPath();
+        ctx.arc(ch.x, ch.y, dc.r * 0.55, 0, TAU);
+        ctx.fill();
+      }
+    }
+  }
+
+  /* The ground in shade: a pool under whatever stands tall, and the verge
+     darkening toward the edges, where the trees are. Drawn after the dressing and
+     before the props, with the same sun as the shadows, so the shade and the
+     shadows cannot disagree. */
+  function drawGroundShade() {
+    var L = dayLight();
+    if (L.night) return;
+    var W = world.w, H = world.h;
+    var strength = 0.15 + 0.11 * (1 - Math.min(1, L.up * 1.6));
+
+    var vg = ctx.createLinearGradient(0, 0, 0, H);
+    vg.addColorStop(0, 'rgba(26,38,22,' + (strength * 0.95).toFixed(3) + ')');
+    vg.addColorStop(0.24, 'rgba(26,38,22,0)');
+    vg.addColorStop(0.78, 'rgba(26,38,22,0)');
+    vg.addColorStop(1, 'rgba(26,38,22,' + (strength * 1.2).toFixed(3) + ')');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    var side = ctx.createLinearGradient(0, 0, W, 0);
+    side.addColorStop(0, 'rgba(26,38,22,' + (strength * 0.8).toFixed(3) + ')');
+    side.addColorStop(0.18, 'rgba(26,38,22,0)');
+    side.addColorStop(0.82, 'rgba(26,38,22,0)');
+    side.addColorStop(1, 'rgba(26,38,22,' + (strength * 0.8).toFixed(3) + ')');
+    ctx.fillStyle = side;
+    ctx.fillRect(0, 0, W, H);
   }
 
   function buildMotes() {
@@ -2400,7 +2573,7 @@
     ctx.setTransform(dpr * fitScale, 0, 0, dpr * fitScale, dpr * ox + shX, dpr * oy + shY);
 
     drawGround();
-    drawScenery();
+    drawScenery(clock);
     drawSprouts();
     drawHive();
     drawPickups();
@@ -3431,7 +3604,8 @@
     for (var i = 0; i < sprouts.length; i++) {
       var s = sprouts[i];
       var w = s.water;
-      var sway = Math.sin(clock * 1.4 + s.sway) * (1.5 + w * 2.5);
+      var sway = Math.sin(clock * 1.4 + s.sway) * (1.5 + w * 2.5)
+        + plantBend(s.x, s.y, 44, clock, s.sway) / 1.45;
 
       ctx.save();
       ctx.translate(s.x, s.y);
@@ -4318,7 +4492,13 @@
       return;
     }
     if (h.act === 'lang') { setLanguage(h.arg); return; }
-    if (h.act === 'soundtoggle') { muted = !muted; return; }
+    if (h.act === 'soundtoggle') {
+      // One switch, two owners is a bug: the book's row and the M key both ask
+      // the score, and the score owns the mute.
+      muted = !muted;
+      score.mute(muted);
+      return;
+    }
     if (h.act === 'wipe') { wipeIsland(); return; }
   }
 
@@ -6393,7 +6573,7 @@
      at the same joints. What is ported by hand is only the arithmetic that
      moves those joints: KeeperStride and WalkCycle, in design units. */
   var KEEPER_PARTS = {
-    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
+    "front": [{"bone": "Head","shade": 1,"markup": "<path d=\"M 13.79 56.74 L 13.99 53.97 L 14.58 51.23 L 15.56 48.55 L 16.92 45.96 L 18.64 43.49 L 20.70 41.16 L 23.09 39.01 L 25.77 37.05 L 28.72 35.30 L 31.89 33.79 L 35.27 32.53 L 38.81 31.54 L 42.47 30.82 L 46.21 30.39 L 50.00 30.24 L 53.79 30.39 L 57.53 30.82 L 61.19 31.54 L 64.73 32.53 L 68.11 33.79 L 71.28 35.30 L 74.23 37.05 L 76.91 39.01 L 79.30 41.16 L 81.36 43.49 L 83.08 45.96 L 84.44 48.55 L 85.42 51.23 L 86.01 53.97 L 86.21 56.74 L 86.19 58.71 L 86.08 60.66 L 85.87 62.59 L 85.53 64.48 L 85.05 66.32 L 84.41 68.10 L 83.60 69.80 L 82.62 71.40 L 81.45 72.90 L 80.07 74.29 L 78.50 75.55 L 76.71 76.66 L 74.69 77.62 L 72.45 78.41 L 67.96 83.64 L 63.47 88.36 L 58.98 92.11 L 54.49 94.51 L 50.00 95.34 L 45.51 94.51 L 41.02 92.11 L 36.53 88.36 L 32.04 83.64 L 27.55 78.41 L 25.31 77.62 L 23.29 76.66 L 21.50 75.55 L 19.93 74.29 L 18.55 72.90 L 17.38 71.40 L 16.40 69.80 L 15.59 68.10 L 14.95 66.32 L 14.47 64.48 L 14.13 62.59 L 13.92 60.66 L 13.81 58.71 Z\" fill=\"#2e3344\"></path> <path d=\"M 42.81664 35.39200000000001 Q 37.66464 39.44000000000001 39.13664 47.16800000000001\" stroke=\"#3c4358\" stroke-width=\"2.0240000000000005\" fill=\"none\" stroke-linecap=\"round\"></path>"},{"bone": "LegLeft","shade": 1,"markup": "<rect x=\"40.730000000000004\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 40.730000000000004 148.8 L 49.1 148.8 L 49.1 158.8 L 37.0265 158.8 Q 34.6265 158.8 34.6265 153.28 Q 34.6265 148.8 40.730000000000004 148.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\" y=\"137.76000000000005\" width=\"8.37\" height=\"12.039999999999964\" rx=\"2.5109999999999997\" fill=\"#f5c9a0\"></rect> <path d=\"M 50.9 148.8 L 59.269999999999996 148.8 Q 65.3735 148.8 65.3735 153.28 Q 65.3735 158.8 62.9735 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"></path>"},{"bone": "Skirt","shade": 1,"markup": "<path d=\"M 35.96 118.52000000000004 L 35.117599999999996 139.76000000000005 Q 50 143.44000000000005 64.8824 139.76000000000005 L 64.04 118.52000000000004 Z\" fill=\"#1b1e26\"></path>"},{"bone": "ArmLeft","shade": 1,"markup": "<rect x=\"34.232\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"37.067\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16000000000004\" width=\"5.67\" height=\"26.400000000000002\" rx=\"2.835\" fill=\"#4a93ac\"></rect> <circle cx=\"62.933\" cy=\"126.56000000000004\" r=\"2.9484\" fill=\"#f5c9a0\"></circle>"},{"bone": "Torso","shade": 1,"markup": "<path d=\"M 46.9824 81.76000000000002 L 53.0176 81.76000000000002 L 53.68 90.59200000000003 L 46.32 90.59200000000003 Z\" fill=\"#f5c9a0\"></path> <path d=\"M 36.5 119.52000000000004 L 36.635 93.53600000000003 Q 36.635 89.12000000000003 42.17 89.12000000000003 L 57.83 89.12000000000003 Q 63.365 89.12000000000003 63.365 93.53600000000003 L 63.5 119.52000000000004 Q 50 123.20000000000005 36.5 119.52000000000004 Z\" fill=\"#4a93ac\"></path> <rect x=\"36.5675\" y=\"99.45600000000003\" width=\"26.865\" height=\"11.040000000000001\" fill=\"#eef2f3\"></rect>"},{"bone": "Head","shade": 1,"markup": "<ellipse cx=\"50.736\" cy=\"61.152000000000015\" rx=\"24.288000000000004\" ry=\"22.816000000000003\" fill=\"#f5c9a0\"></ellipse> <\!-- the fringe: the front hair falls over the forehead, which the face\r\n drew away. A middle parting, two swags over the temples, ending above the brows so they stay\r\n visible. --> <path d=\"M 27.5 57 Q 29 40 42 35 Q 50.7 33.5 59.5 35 Q 72.5 40 74 57 Q 70 44 61 48 Q 55 51 50.7 45 Q 46 51 40 48 Q 31 44 27.5 57 Z\" fill=\"#2e3344\"></path> <ellipse cx=\"39.327999999999996\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <ellipse cx=\"60.672000000000004\" cy=\"65.56800000000001\" rx=\"4.968000000000001\" ry=\"5.464800000000001\" fill=\"#23262e\"></ellipse> <\!-- brows: one short arc over each eye, the same ink as the hair, drawn on the face like the mouth is and never cut out of it. --> <path d=\"M 34.5 58.1 Q 39.328 54.5 44.2 57.9\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 55.8 57.9 Q 60.672 54.5 65.5 58.1\" stroke=\"#2e3344\" stroke-width=\"1.55\" fill=\"none\" stroke-linecap=\"round\"></path> <path d=\"M 47.976 77.34400000000002 Q 50.736 80.28800000000003 53.495999999999995 77.34400000000002\" stroke=\"#9a6650\" stroke-width=\"1.6560000000000001\" fill=\"none\" stroke-linecap=\"round\"></path>"}],"side": [{"bone": "LegLeft","shade": 0.8,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<\!-- the leg, then the boot: the toe reaches forward of the shaft --> <rect x=\"45.30\" y=\"142.90\" width=\"8.20\" height=\"8.90\" fill=\"#f5c9a0\"/> <path d=\"M 44.50 151.60 L 58.40 151.60 L 61.00 152.80 Q 61.00 158.60 58.20 158.60 L 45.00 158.60 Q 43.30 158.60 43.30 156.60 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt --> <path d=\"M 43.50 122.00 L 38.30 141.30 Q 50.45 144.50 62.60 141.30 L 57.30 122.00 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- torso --> <path d=\"M 41.50 121.80 L 41.50 91.10 Q 41.50 88.10 44.90 88.10 L 55.90 88.10 Q 59.30 88.10 59.30 91.10 L 59.30 121.80 Q 50.40 124.20 41.50 121.80 Z\" fill=\"#4a93ac\"/> <\!-- the band wraps her, so it shows only forward of the arm --> <rect x=\"51.90\" y=\"99.30\" width=\"7.40\" height=\"11.30\" fill=\"#eef2f3\"/> <\!-- the throat --> <rect x=\"44.40\" y=\"80.00\" width=\"8.00\" height=\"9.00\" fill=\"#f5c9a0\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<\!-- the near arm: same colour as the torso, over the band's back half --> <rect x=\"41.50\" y=\"89.30\" width=\"10.40\" height=\"38.40\" rx=\"3.74\" fill=\"#4a93ac\"/> <\!-- the hand at the arm's end, over the skirt --> <path d=\"M 43.90 125.30 Q 46.70 126.90 49.50 125.30 L 49.30 132.70 Q 46.70 135.90 44.10 132.70 Z\" fill=\"#f5c9a0\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the head: the hair, then the face over it --> <path d=\"M 48.00 95.00 Q 20.00 94.00 21.50 62.00 Q 23.00 38.00 44.00 30.20 Q 62.00 27.00 66.60 43.00 Q 58.00 48.00 52.60 55.00 L 49.20 57.00  Z\" fill=\"#2e3344\"/> <path d=\"M 49.20 57.00 L 66.60 43.00 Q 69.60 45.00 69.80 51.60 Q 70.20 55.00 71.00 58.00 Q 75.00 63.00 74.00 66.20 Q 72.00 68.60 70.40 69.00 Q 69.40 73.00 68.20 75.60 Q 66.00 79.00 58.00 81.60 Q 50.00 82.00 49.20 79.00  Z\" fill=\"#f5c9a0\"/> <\!-- one eye, one mouth, drawn ON the face like the front's are, never cut out of it --> <ellipse cx=\"65.60\" cy=\"59.40\" rx=\"1.79\" ry=\"5.46\" fill=\"#23262e\"/> <\!-- the brow: the same arc as the front's, over the one eye. Drawn on the face, not cut into it. --> <path d=\"M 60.95 53.60 Q 63.90 51.40 66.80 53.20\" stroke=\"#2e3344\" stroke-width=\"1.90\" fill=\"none\" stroke-linecap=\"round\"/> <path d=\"M 64.60 72.40 Q 66.40 73.80 68.20 72.10\" stroke=\"#9a6650\" stroke-width=\"1.30\" fill=\"none\" stroke-linecap=\"round\"/>"}],"back": [{"bone": "LegLeft","shade": 1,"markup": "<\!-- legs. From behind both show, and the boot heel is the whole boot. --> <rect x=\"40.73\" y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 40.73 148.8 L 49.1 148.8 L 49.1 158.8 L 37.03 158.8 Q 34.63 158.8 34.63 153.28 Q 34.63 148.8 40.73 148.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "LegRight","shade": 1,"markup": "<rect x=\"50.9\"  y=\"137.76\" width=\"8.37\" height=\"12.08\" fill=\"#f5c9a0\"/> <path d=\"M 50.9 148.8 L 59.27 148.8 Q 65.37 148.8 65.37 153.28 Q 65.37 158.8 62.97 158.8 L 50.9 158.8 Z\" fill=\"#a63d8b\"/>"},{"bone": "Skirt","shade": 1,"markup": "<\!-- skirt, back panel: the front's own outline --> <path d=\"M 35.96 118.52 L 35.12 139.76 Q 50 143.46 64.88 139.76 L 64.04 118.52 Z\" fill=\"#1b1e26\"/>"},{"bone": "Torso","shade": 1,"markup": "<\!-- the top, unbroken: the band is on her chest and stays there --> <path d=\"M 36.5 119.52 L 36.635 93.12 Q 36.635 89.12 42.17 89.12 L 57.83 89.12 Q 63.365 89.12 63.365 93.12 L 63.5 119.52 Q 50 123.22 36.5 119.52 Z\" fill=\"#4a93ac\"/>"},{"bone": "ArmLeft","shade": 1,"markup": "<\!-- the sleeves alone: the back of an arm, no hand --> <rect x=\"34.232\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "ArmRight","shade": 1,"markup": "<rect x=\"60.098\" y=\"100.16\" width=\"5.67\" height=\"26.4\" rx=\"2.835\" fill=\"#4a93ac\"/>"},{"bone": "Head","shade": 1,"markup": "<\!-- the hair: the front's own silhouette with no face cut into it --> <path d=\"M 50.00 30.24 L 39.69 31.40 L 35.37 32.56 L 32.20 33.72 L 29.60 34.88 L 27.48 36.04 L 25.57 37.20 L 23.98 38.36 L 22.51 39.53 L 21.23 40.69 L 20.10 41.85 L 19.07 43.01 L 18.17 44.17 L 17.36 45.33 L 16.64 46.49 L 16.03 47.65 L 15.49 48.81 L 15.04 49.97 L 14.62 51.13 L 14.35 52.29 L 14.13 53.45 L 14.03 54.61 L 13.93 55.78 L 13.83 56.94 L 13.86 58.10 L 13.95 59.26 L 14.04 60.42 L 14.13 61.58 L 14.21 62.74 L 14.39 63.90 L 14.63 65.06 L 14.97 66.22 L 15.33 67.38 L 15.80 68.54 L 16.38 69.70 L 17.05 70.86 L 17.88 72.03 L 18.84 73.19 L 20.01 74.35 L 21.51 75.51 L 23.42 76.67 L 26.02 77.83 L 27.96 78.99 L 29.04 80.15 L 30.04 81.31 L 31.04 82.47 L 32.06 83.63 L 33.14 84.79 L 34.24 85.95 L 35.34 87.11 L 36.46 88.28 L 37.82 89.44 L 39.21 90.60 L 40.64 91.76 L 42.53 92.92 L 44.70 94.08 L 49.46 95.24 L 50.54 95.24 L 55.30 94.08 L 57.47 92.92 L 59.36 91.76 L 60.79 90.60 L 62.18 89.44 L 63.54 88.28 L 64.66 87.11 L 65.76 85.95 L 66.86 84.79 L 67.94 83.63 L 68.96 82.47 L 69.96 81.31 L 70.96 80.15 L 72.04 78.99 L 73.98 77.83 L 76.58 76.67 L 78.49 75.51 L 79.99 74.35 L 81.16 73.19 L 82.12 72.03 L 82.95 70.86 L 83.62 69.70 L 84.20 68.54 L 84.67 67.38 L 85.03 66.22 L 85.37 65.06 L 85.61 63.90 L 85.79 62.74 L 85.87 61.58 L 85.96 60.42 L 86.05 59.26 L 86.14 58.10 L 86.17 56.94 L 86.07 55.78 L 85.97 54.61 L 85.87 53.45 L 85.65 52.29 L 85.38 51.13 L 84.96 49.97 L 84.51 48.81 L 83.97 47.65 L 83.36 46.49 L 82.64 45.33 L 81.83 44.17 L 80.93 43.01 L 79.90 41.85 L 78.77 40.69 L 77.49 39.53 L 76.02 38.36 L 74.43 37.20 L 72.52 36.04 L 70.40 34.88 L 67.80 33.72 L 64.63 32.56 L 60.31 31.40 L 50.00 30.24 Z\" fill=\"#2e3344\"/> <\!-- the parting, down the back of the head --> <path d=\"M 45.84 36.24 Q 44.84 50.24 46.34 64.24\" stroke=\"#3c4358\" stroke-width=\"2.02\" fill=\"none\" stroke-linecap=\"round\"/>"}]
   };
 
   /* The design box every view is authored in. */
@@ -7015,6 +7195,10 @@
     fpsFrames++;
     fpsAccum += dt;
     if (fpsAccum >= 0.5) { fps = Math.round(fpsFrames / fpsAccum); fpsFrames = 0; fpsAccum = 0; }
+    // The score runs on its own clock, ahead of the frame, so a stall costs a note
+    // rather than the beat. It is aimed at the place she is in and the hour on the
+    // island every frame, and slides there.
+    score.aim(dt);
     if (!paused) update(dt);
     render();
     if (previewPage) {
@@ -17911,31 +18095,331 @@ props: islandProps.map(function (p) {
     return { lean: (dx / d) * k, drop: k };
   }
 
+  /* ---- The wind ------------------------------------------------------------
+     A line of wind crosses the ground, and what it moves is LEAVES. A trunk is
+     wood: it does not lean because the air moved, and a crown that shifts as one
+     piece reads as the whole tree swaying. So the line is a band travelling one
+     way across the section, it reaches the top of the page a moment after the
+     bottom, and it finds each PILE of leaves on its own: a pile it has not
+     reached stands still, one it is crossing is thrown about, and one behind it
+     settles again. No two piles are thrown on the same phase, so a crown shakes
+     rather than leans. */
+  /* EVERY NUMBER THE WIND AND THE LEAVES OBEY, in one place, so a tuning page can
+     move them and nothing else has to know where they live.
+       period   seconds for one line to cross the section
+       band     how wide the gust is, in world units
+       slant    how far the line tips across the page's height
+       swing    radians a pile is turned at the peak of a gust
+       swingVar how much more some piles are, each its own
+       spread   how far a heap's leaves open as the line crosses it
+       tremble  rate of the leaves' own shake; 1 is the shipping speed
+       rows     rows of heaps down a broad crown
+       step     heap spacing, as a share of the crown's radius
+       heapR    a heap's radius, as a share of the crown's radius */
+  var WIND = {
+    period: 22.2, band: 150, slant: 0.47,
+    swing: 0.07, swingVar: 0.065, spread: 0.04, tremble: 1.75,
+    rows: 8, step: 0.76, heapR: 0.48,
+    bend: 0.45, flutter: 1.6
+  };
+
+  /* A gust front held at one x, so a still picture can show the line at a chosen
+     place across a crown. Null in the game: the line then travels by the clock. */
+  var WIND_FRONT = null;
+
+  /* How hard the wind blows at a point, 0 to 1: nothing until the line arrives,
+     a smooth rise and fall as it crosses. */
+  var WIND_FIXED = null;    // a fixed moment, for a screenshot taken on purpose
+  var windMute = false;     // measurement draws a crown still, so heights are stable
+
+  function gustAt(x, y, t) {
+    if (windMute) return 0;
+    if (WIND_FIXED !== null) t = WIND_FIXED;
+    var front;
+    if (WIND_FRONT !== null) {
+      front = WIND_FRONT;
+    } else {
+      var span = world.w + WIND.band * 2;
+      var phase = (t / WIND.period) % 1;
+      if (phase < 0) phase += 1;
+      front = -WIND.band + phase * span
+        - (y / Math.max(1, world.h) - 0.5) * world.w * WIND.slant;
+    }
+    var d = Math.abs(x - front) / WIND.band;
+    if (d >= 1) return 0;
+    var k = 1 - d;
+    return k * k * (3 - 2 * k);
+  }
+
+  /* Hold the wind at one moment, so two photographs differ only by the front's
+     position. Console: __windFixed(3.2), and __windFixed(null) to let it run. */
+  window.__windFixed = function (t) { WIND_FIXED = (t === null || t === undefined) ? null : t; return WIND_FIXED; };
+
+  /* Where the wind is and how hard, so a screenshot at a chosen moment can be
+     taken on purpose instead of by luck. Console: __windAt(200, 700, 3.2). */
+  window.__windAt = function (x, y, t) { return gustAt(x, y, t); };
+  window.__windPeak = function (x, y) {
+    var best = 0, at = 0;
+    for (var s = 0; s < 400; s++) {
+      var tt = s * 0.05;
+      var g = gustAt(x, y, tt);
+      if (g > best) { best = g; at = tt; }
+    }
+    return { gust: best, at: at };
+  };
+
+  /* The piles of leaves one crown is made of, laid out once per species and
+     kept: the drawing reads them every frame, so building them again each time
+     would be a new array per tree per frame for no change on the page.
+     `crownRev` moves whenever a tuning page changes the layout, so an edit is
+     seen at once and the cache is not a lie. */
+  var crownCache = {};
+  var crownRev = 0;
+
+  window.__windForget = function () { crownCache = {}; crownRev++; };
+
+
+  function crownPiles(kind, h, crownR, crownY) {
+    var key = kind + ':' + h + ':' + crownRev;
+    if (crownCache[key]) return crownCache[key];
+
+    var leaf = h % 3 === 0 ? '#4E7139' : (h % 3 === 1 ? '#5C7F42' : '#456636');
+    var leafLt = h % 2 === 0 ? '#7FA35C' : '#6E9150';
+    var leafDark = h % 2 === 0 ? '#2E4523' : '#334B28';
+    var leafTop = h % 2 === 0 ? '#93B76C' : '#88AB62';
+    // The brightest leaf on a heap, where the sky reaches it: lighter than any of
+    // the three tones above, because a leaf ON a green heap must read as a leaf
+    // and not as a hole in it.
+    var leafGlow = h % 2 === 0 ? '#A9C77E' : '#9DBC72';
+    var rnd = seeded(977 + h * 6197);
+    var out = [];
+
+    function pile(x, y, rx, ry, dark, mid, lit) {
+      out.push({
+        x: x, y: y, rx: rx, ry: ry, dark: dark, mid: mid, lit: lit, hi: leafGlow,
+        ph: rnd() * TAU,          // its own beat in the wind
+        lean: rnd() * TAU,        // which way its leaves lie
+        amp: WIND.swing + rnd() * WIND.swingVar,
+        r: rnd()                  // its own share, kept for a live retune
+      });
+    }
+
+    if (kind === 'tall') {
+      // A cypress: a spire, filled with heaps in rows that follow the spire's own
+      // width, so the outline is one body with a lumpy edge and the widest part is
+      // the shoulder. Top rows are the sun's, the lowest are in shade.
+      // A cypress: a spire filled with heaps, row on row. The rows are close
+      // enough that the heaps overlap vertically as well as sideways, so the spire
+      // is one body and not a stack of separate rings, and the widest rows are the
+      // shoulder. Top rows take the sun, the lowest are in shade.
+      var topY2 = -120, botY2 = -26;
+      var spireH = botY2 - topY2;
+      for (var cy2 = topY2; cy2 <= botY2; cy2 += 10) {
+        var v = (cy2 - topY2) / spireH;                   // 0 at the top, 1 at the foot
+        var tC = 1 - v;
+        // A cypress is narrowest at the tip and widest a hand above the ground.
+        var halfC = 5 + 19 * Math.sin(Math.min(1, v * 1.06) * Math.PI * 0.62);
+        var nC = Math.max(1, Math.round((2 * halfC) / 8) + 1);
+        for (var ck = 0; ck < nC; ck++) {
+          var cxp = nC === 1 ? 0 : (-halfC + (2 * halfC) * (ck / (nC - 1)));
+          cxp += (rnd() - 0.5) * 4;
+          var cyp = cy2 + (rnd() - 0.5) * 5;
+          var crx = 8.5 * (0.88 + rnd() * 0.30);
+          var cDark = tC > 0.55 ? leaf : leafDark;
+          var cMid = tC > 0.55 ? leafLt : leaf;
+          var cLit = tC > 0.55 ? leafTop : leafLt;
+          pile(cxp, cyp, crx, crx * 0.92, cDark, cMid, cLit);
+        }
+      }
+    } else if (kind === 'droop') {
+      // A willow: a compact crown, and fronds hanging off it. A frond is a CHAIN of
+      // small heaps, each overlapping the one above, because a chain of separate
+      // balls reads as beads on a wire and not as a hanging branch of leaves. There
+      // is no shade recess here: the crown is small and the rows already touch, so a
+      // recess under them would show as a hole in the middle of the tree.
+      var ovalRyW = crownR * 0.52;
+      var rowsW = [-0.88, -0.52, -0.16, 0.20, 0.56];
+      for (var wi = 0; wi < rowsW.length; wi++) {
+        var dyW = rowsW[wi] * ovalRyW;
+        var halfW2 = crownR * 0.56 * Math.sqrt(Math.max(0.06, 1 - rowsW[wi] * rowsW[wi]));
+        var nW = Math.max(1, Math.round((2 * halfW2) / (crownR * 0.26)) + 1);
+        for (var wk = 0; wk < nW; wk++) {
+          var wxp = nW === 1 ? 0 : (-halfW2 + (2 * halfW2) * (wk / (nW - 1)));
+          var wrx = crownR * 0.25 * (0.88 + rnd() * 0.26);
+          var wDark = wi >= 2 ? leafDark : leaf;
+          var wMid = wi >= 2 ? leaf : leafLt;
+          var wLit = wi === 0 ? leafGlow : (wi <= 2 ? leafTop : leafLt);
+          pile(wxp + (rnd() - 0.5) * 5, crownY + dyW + (rnd() - 0.5) * 5,
+            wrx, wrx * 0.74, wDark, wMid, wLit);
+        }
+      }
+      // The fronds hang CLEAR of the crown, each its own narrow strand with a gap
+      // beside it, so the tree reads as a willow and not as a dome of leaves with a
+      // fringe. They are the part of a willow that moves most in the wind.
+      for (var fd = 0; fd < 7; fd++) {
+        var fu = (fd / 6) - 0.5;
+        var bx = fu * crownR * 1.62;
+        var topY3 = crownY + 6 + Math.abs(fu) * crownR * 0.10;
+        var fall = crownR * (1.30 - Math.abs(fu) * 0.55);
+        var swayF = fu * crownR * 0.55;
+        for (var fj = 0; fj < 9; fj++) {
+          var u2 = (fj + 1) / 9;
+          var fx2 = bx + swayF * u2 * u2;
+          var fy2 = topY3 + fall * u2;
+          var fr2 = crownR * 0.155 * (1 - u2 * 0.22);
+          pile(fx2 + (rnd() - 0.5) * 2.5, fy2, fr2, fr2 * 0.95,
+            leafDark, u2 > 0.45 ? leaf : leafLt, u2 > 0.45 ? leaf : leafTop);
+        }
+      }
+    } else {
+      // A broad crown: heaps of leaves packed in rows that follow an oval, the
+      // heaps overlapping in both directions so the crown is one mass with a lumpy
+      // edge and not a scattering of clumps. The sun comes from above, so the
+      // lowest rows are the shade under the leaves and the highest are lit. Every
+      // heap is its own piece with its own beat in the wind, which is the point:
+      // what shakes is the leaves, never the tree. There is no drawn "inside":
+      // the rows themselves are the crown, so nothing shows as a hole in it.
+      var ovalRy = crownR * 0.70;
+      var rowsN = Math.max(1, Math.round(WIND.rows));
+      var rowsAt = [];
+      for (var rq = 0; rq < rowsN; rq++) rowsAt.push(rowsN === 1 ? 0 : -0.72 + 1.20 * (rq / (rowsN - 1)));
+      for (var ri = 0; ri < rowsAt.length; ri++) {
+        var dy = rowsAt[ri] * crownR;
+        var t01 = clamp((dy / ovalRy + 1) / 2, 0, 1);       // 0 at the top, 1 at the foot
+        var halfW = crownR * Math.sqrt(Math.max(0.05, 1 - Math.pow(dy / ovalRy, 2)));
+        var step = crownR * WIND.step;
+        var n = Math.max(1, Math.round((2 * halfW) / step) + 1);
+        for (var k = 0; k < n; k++) {
+          var fx = n === 1 ? 0 : (-halfW + (2 * halfW) * (k / (n - 1)));
+          var px = fx + (rnd() - 0.5) * crownR * 0.10;
+          var py = crownY + dy + (rnd() - 0.5) * crownR * 0.08;
+          var prx = crownR * WIND.heapR * (0.88 + rnd() * 0.24);
+          var pry = prx * (0.66 + rnd() * 0.18);
+          var dark, mid, lit;
+          if (t01 > 0.80) { dark = leafDark; mid = leafDark; lit = leaf; }
+          else if (t01 > 0.55) { dark = leafDark; mid = leaf; lit = leafLt; }
+          else if (t01 > 0.28) { dark = leaf; mid = leafLt; lit = leafTop; }
+          else { dark = leafLt; mid = leafTop; lit = leafGlow; }
+          pile(px, py, prx, pry, dark, mid, lit);
+        }
+      }
+    }
+
+    // Painter's order: a heap nearer the foot of the crown covers the one behind
+    // it. Without this a heap laid first stays on top of everything later.
+    out.sort(function (a, b) { return a.y - b.y; });
+
+    crownCache[key] = out;
+    return out;
+  }
+
+  /* One pile of leaves: a handful of leaves heaped together, seen from the side.
+     It is drawn as LEAVES - an ellipse for each - over a soft body, so the heap's
+     edge is a run of leaf points and the eye reads a pile rather than a dome.
+     That matters because a smooth dome beside another smooth dome is one mass,
+     and a mass cannot be seen to shake.
+     `gust` is how hard the wind is on it right now: the leaves SPREAD and their
+     angles change as it rises, so a pile the line is crossing comes apart a little
+     and gathers again behind it. That is the wiggle, and it is the leaves' own
+     motion - the heap does not lean as one piece.
+     COST: three fills a pile and not ten. Every leaf of one tone goes into ONE
+     path and is filled once, because a canvas fill is the expensive call and a
+     subpath is nearly free. Nine separate fills a pile cost 26 ms a frame in the
+     woods against 4.9 for the old crown. */
+  function drawLeafPile(g, p, gust, t) {
+    var rx = p.rx, ry = p.ry, i;
+    var shake = gust || 0;
+    // A heap's leaves open by `WIND.spread` at a full gust; `sf` is that against
+    // the shipped 0.26, and `tr` is the leaves' own clock (WIND.tremble times it).
+    var sf = WIND.spread / 0.26;
+    var tr = (t || 0) * WIND.tremble;
+
+    // Dark: the body, and the leaves in shade on it.
+    g.fillStyle = p.dark;
+    g.beginPath();
+    g.ellipse(0, -ry * 0.10, rx * (0.92 + shake * 0.10 * sf), ry * (0.82 - shake * 0.06 * sf), 0, 0, TAU);
+    g.fill();
+
+    for (var tone = 0; tone < 2; tone++) {
+      var any = false;
+      g.beginPath();
+      for (i = 0; i < 7; i++) {
+        if ((i % 3 === 0) !== (tone === 1)) continue;
+        var a = p.lean + i * (TAU / 7) + shake * Math.sin(tr * 11.0 + p.ph + i * 1.7) * 0.45 * sf;
+        var spread = 0.58 + shake * (0.10 + 0.16 * Math.sin(tr * 13.0 + p.ph * 1.3 + i)) * sf;
+        var big = 1 - 0.28 * (i / 7);
+        g.ellipse(Math.cos(a) * rx * spread,
+          -ry * 0.34 + Math.sin(a) * ry * (0.52 + shake * 0.10 * sf),
+          rx * 0.30 * big, ry * 0.24 * big,
+          a * 0.7 + shake * Math.sin(tr * 12.0 + i) * 0.6 * sf, 0, TAU);
+        any = true;
+      }
+      if (tone === 1) {
+        // The crest: the leaf on top, catching the sky.
+        g.ellipse(rx * (0.10 + shake * Math.sin(tr * 10.0 + p.ph) * 0.22 * sf),
+          -ry * (0.70 + shake * 0.10 * sf), rx * 0.26, ry * 0.20, -0.4, 0, TAU);
+        any = true;
+      }
+      if (!any) continue;
+      g.fillStyle = tone === 1 ? p.lit : p.mid;
+      g.fill();
+    }
+  }
+
+  /* A crown, shaken by whatever the wind is doing where it stands, and by her
+     shoulder when she passes. Each pile is thrown about its own foot, on its own
+     phase, only while the line is on it. */
+  function drawCrown(kind, h, x, y, s, t, crownR, crownY) {
+    var piles = crownPiles(kind, h, crownR, crownY);
+    var tr = t * WIND.tremble;
+    for (var i = 0; i < piles.length; i++) {
+      var p = piles[i];
+      var wx = x + p.x * s, wy = y + p.y * s;
+      var gust = gustAt(wx, wy, t);
+      // She brushes the leaves too, but only the lowest ones: her shoulder is
+      // nowhere near the top of a crown.
+      var shove = pushFrom(wx, wy, 80);
+      if (shove) gust = Math.max(gust, shove.drop * 0.5);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if (gust > 0.02) {
+        // Amp is read here and not from the cache: a tuning page moves `swing`
+        // and the crown must obey without being rebuilt.
+        var k = gust * (WIND.swing + p.r * WIND.swingVar), ph = p.ph;
+        ctx.rotate((Math.sin(tr * 9.1 + ph) * 0.62 + Math.sin(tr * 13.7 + ph * 1.9) * 0.38) * k * 1.1);
+        ctx.translate((Math.sin(tr * 11.3 + ph * 2.1) * 0.5 + Math.sin(tr * 7.1 + ph) * 0.5) * k * 2.0,
+          Math.sin(tr * 12.9 + ph * 0.6) * k * 1.3);
+      }
+      drawLeafPile(ctx, p, gust, t);
+      ctx.restore();
+    }
+  }
+
   function drawPlant(e, x, y, t, s) {
-    var sway = Math.sin(t * 1.3 + x * 0.01) * 2.2;
     var ps = e.ps || 'stem';
     var h = hueOf(e.id);
     var leaf = h % 3 === 0 ? '#4E7139' : (h % 3 === 1 ? '#5C7F42' : '#456636');
-    var leafLt = h % 2 === 0 ? '#7FA35C' : '#6E9150';
-    // The crown's three depths: its underside, its body, and its top in the sun.
-    var leafDark = h % 2 === 0 ? '#2E4523' : '#334B28';
-    var leafTop = h % 2 === 0 ? '#93B76C' : '#88AB62';
     var flowerC = ['#D0658A', '#C9A54A', '#B4553F', '#8E7BC0', '#E0A24A', '#C4557C'][h % 6];
+    // A ground plant takes the same line as a crown: its stem bends the way the
+    // line travels, its height is its own. A tree is the exception - see below.
+    var bend = plantBend(x, y, ps === 'tuft' ? 38 : (ps === 'vine' ? 30 : 34), t, x * 0.013);
 
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(s, s);
     // She pushes through: the nearer she is, the further the plant leans away,
-    // and the more it shortens as its stem gives.
+    // and the more it shortens as its stem gives. A TREE is the exception: wood
+    // does not bend for a passer-by, and a whole crown that shifts reads as the
+    // tree swaying, which is the thing this drawing must not do. Her shoulder
+    // still moves its leaves - drawCrown counts her as a second gust.
     var isTree = ps === 'tree' || ps === 'round' || ps === 'tall' || ps === 'droop';
-    var push = pushFrom(x, y, isTree ? 80 : 60);
+    var push = isTree ? null : pushFrom(x, y, 60);
     if (push) {
       // A plant bends from its root: a shear does that, and a rotation about
       // the base does not move the head far enough to be seen.
-      var amount = isTree ? 0.10 : 0.50;
       ctx.translate(0, 0);
-      ctx.transform(1, 0, push.lean * amount, 1, 0, 0);
-      ctx.scale(1, 1 - push.drop * (isTree ? 0.04 : 0.20));
+      ctx.transform(1, 0, push.lean * 0.50, 1, 0, 0);
+      ctx.scale(1, 1 - push.drop * 0.20);
     }
 
     if (ps === 'tree' || ps === 'round' || ps === 'tall' || ps === 'droop') {
@@ -17960,71 +18444,25 @@ props: islandProps.map(function (p) {
       ctx.lineTo(-6.0, 0);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = leaf;
+      // THE CROWN IS PILES OF LEAVES, not one mass. The trunk below is wood and
+      // does not move with the air; only the heaps of leaf are thrown, and only
+      // the ones the wind's line is crossing. See drawCrown.
       if (tall) {
-        ctx.beginPath();
-        ctx.moveTo(0, -122);
-        ctx.quadraticCurveTo(24, -66, 15, -30);
-        ctx.lineTo(-15, -30);
-        ctx.quadraticCurveTo(-24, -66, 0, -122);
-        ctx.fill();
+        drawCrown('tall', h, x, y, s, t, 22, -80);
       } else if (droop) {
-        ctx.beginPath();
-        ctx.ellipse(0, -62, 36, 32, 0, 0, TAU);
-        ctx.fill();
-        ctx.strokeStyle = leaf;
-        ctx.lineWidth = 4;
-        for (var d = -2; d <= 2; d++) {
-          ctx.beginPath();
-          ctx.moveTo(d * 12, -50);
-          ctx.quadraticCurveTo(d * 17 + sway, -20, d * 14 + sway, -4);
-          ctx.stroke();
-        }
+        drawCrown('droop', h, x, y, s, t, 36, -62);
       } else {
-        // A crown is a mass of leaf clusters, not one shape: a dark underside, a
-        // mid body, and lit clumps on top. Each clump is its own path, because two
-        // ellipses in one path are joined by a chord and the chord fills.
-        var crownY = -78, crownR = 40;
-        var clumps = [
-          // The dark underside first, so it sits behind everything.
-          { x: 0, y: crownY + 16, rx: crownR * 0.94, ry: 22, c: leafDark },
-          { x: -crownR * 0.62, y: crownY + 6, rx: crownR * 0.58, ry: 20, c: leafDark },
-          { x: crownR * 0.60, y: crownY + 8, rx: crownR * 0.56, ry: 19, c: leafDark },
-          // The body.
-          { x: -crownR * 0.46, y: crownY - 6, rx: crownR * 0.62, ry: 26, c: leaf },
-          { x: crownR * 0.44, y: crownY - 4, rx: crownR * 0.60, ry: 25, c: leaf },
-          { x: 0, y: crownY - 18, rx: crownR * 0.66, ry: 24, c: leaf },
-          // The lit clumps on top, where the sun is.
-          { x: -crownR * 0.30, y: crownY - 30, rx: crownR * 0.42, ry: 16, c: leafLt },
-          { x: crownR * 0.22, y: crownY - 34, rx: crownR * 0.38, ry: 15, c: leafLt },
-          { x: crownR * 0.02, y: crownY - 44, rx: crownR * 0.30, ry: 12, c: leafTop }
-        ];
-        for (var lo = 0; lo < clumps.length; lo++) {
-          var cl = clumps[lo];
-          ctx.fillStyle = cl.c;
-          ctx.beginPath();
-          ctx.ellipse(cl.x + sway * 0.4, cl.y, cl.rx, cl.ry, 0, 0, TAU);
-          ctx.fill();
-        }
-        // A few leaf tips at the crown's edge, so the outline is not a smooth oval.
-        ctx.fillStyle = leaf;
-        for (var lt = 0; lt < 10; lt++) {
-          var la = -Math.PI * 0.95 + lt * 0.19;
-          ctx.beginPath();
-          ctx.ellipse(Math.cos(la) * crownR * 0.92 + sway * 0.4,
-            crownY + Math.sin(la) * crownR * 0.66,
-            7, 5, la, 0, TAU);
-          ctx.fill();
-        }
+        drawCrown('round', h, x, y, s, t, 40, -78);
       }
     } else if (ps === 'tuft') {
       ctx.strokeStyle = leaf;
       ctx.lineWidth = 3;
       ctx.lineCap = 'round';
-      for (var g = -4; g <= 4; g++) {
+      for (var g2 = -4; g2 <= 4; g2++) {
         ctx.beginPath();
-        ctx.moveTo(g * 5, 0);
-        ctx.quadraticCurveTo(g * 7 + sway, -20, g * 9 + sway * 1.6, -38 - Math.abs(g) * -2);
+        ctx.moveTo(g2 * 5, 0);
+        ctx.quadraticCurveTo(g2 * 7 + bend * 0.45, -20,
+          g2 * 9 + bend * (1 - Math.abs(g2) * 0.06), -38 + Math.abs(g2) * 2);
         ctx.stroke();
       }
     } else if (ps === 'vine') {
@@ -18032,36 +18470,39 @@ props: islandProps.map(function (p) {
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.moveTo(-30, 4);
-      ctx.quadraticCurveTo(-6, -26, 22, -12);
-      ctx.quadraticCurveTo(38, -2, 30, 12);
+      ctx.quadraticCurveTo(-6 + bend * 0.4, -26, 22 + bend * 0.7, -12);
+      ctx.quadraticCurveTo(38 + bend, -2, 30 + bend * 0.8, 12);
       ctx.stroke();
       ctx.fillStyle = flowerC;
       ctx.beginPath();
-      ctx.ellipse(6, -18, 20, 16, 0.2, 0, TAU);
+      ctx.ellipse(6 + bend * 0.7, -18, 20, 16, 0.2, 0, TAU);
       ctx.fill();
       ctx.strokeStyle = 'rgba(255,255,255,0.35)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(-2, -22);
-      ctx.quadraticCurveTo(6, -14, 16, -20);
+      ctx.moveTo(-2 + bend * 0.6, -22);
+      ctx.quadraticCurveTo(6 + bend * 0.7, -14, 16 + bend * 0.8, -20);
       ctx.stroke();
     } else if (ps === 'stem') {
       ctx.strokeStyle = leaf;
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, 6);
-      ctx.quadraticCurveTo(2 + sway * 0.3, -14, sway * 0.6, -30);
+      ctx.quadraticCurveTo(2 + bend * 0.35, -14, bend, -30);
       ctx.stroke();
+      // The flowers sit ON the stem's head and go where it goes; each one is a
+      // touch slower than the stem, so the head turns as it is pushed.
       for (var p2 = 0; p2 < 5; p2++) {
         var a = p2 * TAU / 5 + 0.3;
+        var lag = bend * (1 + 0.10 * Math.sin(t * 8.0 * WIND.tremble + p2));
         ctx.fillStyle = flowerC;
         ctx.beginPath();
-        ctx.ellipse(sway * 0.6 + Math.cos(a) * 8, -34 + Math.sin(a) * 8, 7, 6, a, 0, TAU);
+        ctx.ellipse(lag + Math.cos(a) * 8, -34 + Math.sin(a) * 8, 7, 6, a, 0, TAU);
         ctx.fill();
       }
       ctx.fillStyle = '#E8C275';
       ctx.beginPath();
-      ctx.arc(sway * 0.6, -34, 4.5, 0, TAU);
+      ctx.arc(bend, -34, 4.5, 0, TAU);
       ctx.fill();
     }
     ctx.restore();
@@ -18401,7 +18842,7 @@ props: islandProps.map(function (p) {
      themselves. A boot-time measurement refines these, but these are the values
      that hold if the measurement cannot run. */
   var SPECIES_NATURAL = {
-    tree: 103, tall: 121, droop: 93, round: 103,
+    tree: 118, tall: 131, droop: 88, round: 118,
     tuft: 41, stem: 54, vine: 47, reed: 41, plant: 54,
     fungus: 41, bird: 26, fish: 17, hen: 46,
     cat: 40, dog: 38, being: 55, find: 16, insect: 19,
@@ -18438,6 +18879,8 @@ props: islandProps.map(function (p) {
     var prev = ctx;
     var ax = box / 2, ay = box - 100;
     var out = NO_INK;
+    var wasMute = windMute;
+    windMute = true;   // the ink box must be the drawing's own, not a gust's
     try {
       ctx = g;
       g.save();
@@ -18463,10 +18906,188 @@ props: islandProps.map(function (p) {
         };
       }
     } catch (err) { /* the fallback box still fits something sane */ }
+    windMute = wasMute;
     ctx = prev;
     inkBoxCache[key] = out;
     return out;
   }
+
+  /* One species drawn large on a page of its own, as a data URL, so a drawing can
+     be looked at without walking to it. Console: __speciesCard('plant-chenar'). */
+  window.__speciesCard = function (id, cssSize, t, scale) {
+    var sp = null;
+    var all = [];
+    for (var kind in SPECIES) if (SPECIES.hasOwnProperty(kind)) all = all.concat(SPECIES[kind]);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) { sp = all[i]; break; }
+    if (!sp) return null;
+    var box = cssSize || 420;
+    var at = t === undefined ? 0.4 : t;
+    var sc = scale === undefined ? box / 220 : scale;
+    var c = document.createElement('canvas');
+    c.width = box; c.height = box;
+    var g = c.getContext('2d');
+    var prev = ctx;
+    g.fillStyle = '#F2EEE4';
+    g.fillRect(0, 0, box, box);
+    // Little scene: a ground line and a shadow, so the drawing is read as standing.
+    g.fillStyle = 'rgba(40,60,40,0.10)';
+    g.beginPath();
+    g.ellipse(box * 0.5, box * 0.90, box * 0.30, box * 0.04, 0, 0, TAU);
+    g.fill();
+    ctx = g;
+    g.save();
+    g.translate(box * 0.5, box * 0.90);
+    g.scale(sc, sc);
+    try { drawSpeciesRaw(sp, 0, 0, at, 1); } catch (e) { ctx = prev; return 'threw ' + e.message; }
+    g.restore();
+    ctx = prev;
+    return c.toDataURL('image/png');
+  };
+
+  /* A sheet of one species drawn at several moments of the wind, side by side, so
+     a shake can be seen as a shake and not as one still frame.
+     Console: __windSheet('plant-chenar', [0, 0.05, 0.1, 0.15], 2). */
+  window.__windSheet = function (id, times, scale) {
+    var sp = null;
+    var all = [];
+    for (var kind in SPECIES) if (SPECIES.hasOwnProperty(kind)) all = all.concat(SPECIES[kind]);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) { sp = all[i]; break; }
+    if (!sp) return null;
+    times = times || [0, 0.05, 0.1, 0.15];
+    var sc = scale || 2.0;
+    var cell = 560, cols = Math.min(2, times.length), rows = Math.ceil(times.length / cols);
+    var c = document.createElement('canvas');
+    c.width = cell * cols; c.height = cell * rows;
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2EEE4';
+    g.fillRect(0, 0, c.width, c.height);
+    var prev = ctx;
+    ctx = g;
+    for (var n = 0; n < times.length; n++) {
+      var cxp = (n % cols) * cell + cell * 0.5;
+      var cyp = Math.floor(n / cols) * cell + cell * 0.86;
+      g.save();
+      g.translate(cxp, cyp);
+      g.scale(sc, sc);
+      try { drawSpeciesRaw(sp, 0, 0, times[n], 1); } catch (e) { ctx = prev; return 'threw ' + e.message; }
+      g.restore();
+      g.fillStyle = 'rgba(60,50,40,0.55)';
+      g.font = '16px monospace';
+      g.fillText('t=' + times[n], (n % cols) * cell + 12, Math.floor(n / cols) * cell + 24);
+    }
+    ctx = prev;
+    return c.toDataURL('image/png');
+  };
+
+  /* ---- Driving the wind from a page of sliders ------------------------------
+     A tuning page must move the shipping numbers, never a copy of them: a page
+     with its own copy tunes something nobody plays. So the row is read, written
+     and drawn through these three hooks, and the game's own drawing does the rest. */
+
+  /* Where a CROWN stands on the PAGE, in css pixels, so a tuning page can point
+     its magnifier at leaves instead of at grass. The nearest tree to the keeper,
+     or null when the section has none. The height is read from the same numbers
+     drawPlant uses, in its own scaled space, and not guessed. */
+  window.__windSpot = function () {
+    var best = null, bestD = Infinity;
+    // A tree close to the page's edge is a poor thing to magnify: its crown is
+    // half off the frame. Prefer one that has room, and fall back to the nearest.
+    for (var pass = 0; pass < 2 && !best; pass++) {
+      for (var i = 0; i < islandProps.length; i++) {
+        var p = islandProps[i];
+        if (!p.sp || p.sp.sh !== 'plant') continue;
+        var ps = p.sp.ps;
+        if (ps !== 'round' && ps !== 'tree' && ps !== 'tall' && ps !== 'droop') continue;
+        var s0 = speciesScale(p.sp);
+        var pageX = p.x * fitScale + ox;
+        var pageY = (p.y - 80 * s0) * fitScale + oy;
+        if (pass === 0 && (pageX < 70 || pageX > cssView.w - 70
+          || pageY < 70 || pageY > cssView.h - 70)) continue;
+        var dx = p.x - hero.x, dy = p.y - hero.y;
+        var d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; best = p; }
+      }
+    }
+    if (!best) return null;
+    var s = speciesScale(best.sp);
+    var kind = (best.sp.ps === 'tall') ? 'tall' : (best.sp.ps === 'droop' ? 'droop' : 'round');
+    var crownY = kind === 'tall' ? -80 : (kind === 'droop' ? -62 : -78);
+    return {
+      x: best.x * fitScale + ox,
+      y: (best.y + crownY * s) * fitScale + oy,
+      w: 40 * s * fitScale,
+      h: 44 * s * fitScale
+    };
+  };
+
+  /* Every wind number, as a fresh object: the page may keep and edit it. */
+  window.__windRow = function () {
+    var out = {};
+    for (var k in WIND) if (Object.prototype.hasOwnProperty.call(WIND, k)) out[k] = WIND[k];
+    return out;
+  };
+
+  /* Write any of them. The crown's layout is cached per species, so a change to
+     rows, step, heapR or swing drops that cache and every tree takes the edit at
+     once. Returns the row as it now stands. */
+  window.__windTune = function (patch) {
+    var layout = false;
+    for (var k in patch) {
+      if (!Object.prototype.hasOwnProperty.call(patch, k)) continue;
+      if (!Object.prototype.hasOwnProperty.call(WIND, k)) continue;
+      if (patch[k] === WIND[k]) continue;
+      WIND[k] = patch[k];
+      layout = true;
+    }
+    if (layout) { crownCache = {}; crownRev++; }
+    return window.__windRow();
+  };
+
+  /* Hold the gust front still at one x on the page, so a tuning page can walk the
+     line across a crown a step at a time. Pass null to let the wind travel again. */
+  window.__windFront = function (x) {
+    WIND_FRONT = (x === null || x === undefined) ? null : x;
+    return WIND_FRONT;
+  };
+
+  /* One tree, drawn into a canvas with the wind held at (t, front) - the game's
+     own drawPlant, so the tuner sees the shipping drawing and not a copy.
+     `kind` is 'round', 'tall' or 'droop'; `hue` picks the crown's greens.
+     `into` is an existing canvas to draw on (a tuning page calls this every
+     frame); without one a fresh canvas is made and returned.
+     Returns the canvas it drew on. */
+  window.__windCrown = function (kind, hue, size, t, front, into) {
+    var box = size || 320;
+    var c = into || document.createElement('canvas');
+    if (c.width !== box) c.width = box;
+    if (c.height !== box) c.height = box;
+    var g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#F2EEE4';
+    g.fillRect(0, 0, box, box);
+    var prevCtx = ctx, prevFront = WIND_FRONT, prevFixed = WIND_FIXED;
+    ctx = g;
+    WIND_FRONT = (front === null || front === undefined) ? null : front;
+    WIND_FIXED = (t === null || t === undefined) ? null : t;
+    // A tree at scale 1 is 118 units tall; the box puts it on the same rule the
+    // species card uses, so two crowns are drawn at one size.
+    var sc = box / 220;
+    var hh = hue === undefined ? 0 : hue;
+    g.save();
+    g.translate(box * 0.5, box * 0.92);
+    g.scale(sc, sc);
+    try {
+      drawPlant({ id: 'tune' + kind + ':' + hh, sh: 'plant', ps: kind, f: '', e: '' }, 0, 0,
+        WIND_FIXED === null ? 0 : WIND_FIXED, 1);
+    } catch (e) {
+      g.fillStyle = '#a03020';
+      g.font = '12px monospace';
+      g.fillText(String(e.message).slice(0, 40), 8, 16);
+    }
+    g.restore();
+    ctx = prevCtx; WIND_FRONT = prevFront; WIND_FIXED = prevFixed;
+    return c;
+  };
 
   /* Re-take the table: draw one of each kind raw, at scale 1, on a scratch canvas
      and report the ink's height. Console: __probeNaturals(). */
@@ -18476,6 +19097,8 @@ props: islandProps.map(function (p) {
     probe.width = box; probe.height = box;
     var g = probe.getContext('2d');
     var prev = ctx;
+    var wasMute = windMute;
+    windMute = true;   // a crown mid-gust is taller or shorter than its rest shape
     var out = {};
     for (var key in SPECIES_HEIGHT) {
       if (!Object.prototype.hasOwnProperty.call(SPECIES_HEIGHT, key)) continue;
@@ -18498,6 +19121,7 @@ props: islandProps.map(function (p) {
       }
       out[key] = bot > top ? (bot - top) : 0;
     }
+    windMute = wasMute;
     return out;
   };
 
@@ -18619,14 +19243,14 @@ props: islandProps.map(function (p) {
   var ANIMAL_LOOKS = {
     // A wolf: high on its legs, a shallow barrel, a deep narrow chest, a head
     // carried well forward on a thick neck, level with the back.
-    wolf: { depth: 0.369, leg: 0.451, neckRun: 0.200, neckRise: 0.134,
+    wolf: { breadth: 0.280, depth: 0.369, leg: 0.451, neckRun: 0.200, neckRise: 0.134,
       thigh: 0.260,headR: 0.208, muzzle: 1.200, headPitch: -8,
       horn: 0, ear: 0.105, earKind: 'up', tail: 0.44, tailKind: 'bush',
       hump: -0.02, tuck: 0.30, skullH: 1.11,
       muzzleTop: 0.29, muzzleBot: 0.27,
       cheek: 0.40, deep: 0.20 },
     // A yard dog: the same plan, a heavier barrel, a shorter muzzle.
-    dog: { depth: 0.374, leg: 0.406, neckRun: 0.180, neckRise: 0.092,
+    dog: { breadth: 0.284, depth: 0.374, leg: 0.406, neckRun: 0.180, neckRise: 0.092,
       thigh: 0.270,headR: 0.238, muzzle: 1.080, headPitch: -6,
       horn: 0, ear: 0.115, earKind: 'up', tail: 0.36, tailKind: 'bush',
       hump: 0.02, tuck: 0.28, skullH: 0.89,
@@ -18634,14 +19258,14 @@ props: islandProps.map(function (p) {
       cheek: 0.44, deep: 0.20 },
     // A fox: low and long, a narrow chest, a sharp wedge of a head carried out on
     // a neck so short the head seems to lead, and a brush as long as its body.
-    fox: { depth: 0.330, leg: 0.330, neckRun: 0.190, neckRise: 0.088,
+    fox: { breadth: 0.238, depth: 0.330, leg: 0.330, neckRun: 0.190, neckRise: 0.088,
       thigh: 0.220,headR: 0.163, muzzle: 1.280, headPitch: -10,
       horn: 0, ear: 0.150, earKind: 'fox', tail: 0.62, tailKind: 'brush',
       hump: 0.00, tuck: 0.30, skullH: 1.19,
       muzzleTop: 0.31, muzzleBot: 0.28,
       cheek: 0.34, deep: 0.16 },
     // A hyena: high at the shoulder and low at the hip, a crest down the neck.
-    hyena: { depth: 0.360, leg: 0.440, neckRun: 0.190, neckRise: 0.103,
+    hyena: { breadth: 0.277, depth: 0.360, leg: 0.440, neckRun: 0.190, neckRise: 0.103,
       thigh: 0.270,headR: 0.240, muzzle: 1.100, headPitch: -8,
       horn: 0, ear: 0.130, earKind: 'up', tail: 0.24, tailKind: 'bush',
       hump: 0.14, tuck: 0.38, skullH: 0.85,
@@ -18649,14 +19273,14 @@ props: islandProps.map(function (p) {
       cheek: 0.46, deep: 0.22 },
     // A big cat: a deep chest, a level back, a broad short skull carried low and
     // forward on a short thick neck, a long round tail.
-    bigcat: { depth: 0.350, leg: 0.350, neckRun: 0.130, neckRise: 0.052,
+    bigcat: { breadth: 0.265, depth: 0.350, leg: 0.350, neckRun: 0.130, neckRise: 0.052,
       thigh: 0.310,headR: 0.296, muzzle: 0.940, headPitch: -5,
       horn: 0, ear: 0.080, earKind: 'round', tail: 0.60, tailKind: 'streamer',
       hump: 0.02, tuck: 0.26, skullH: 0.69,
       muzzleTop: 0.18, muzzleBot: 0.17,
       cheek: 0.52, deep: 0.26 },
     // A house cat: the same plan softer, a rounder barrel, a short tail held up.
-    smallcat: { depth: 0.346, leg: 0.294, neckRun: 0.110, neckRise: 0.040,
+    smallcat: { breadth: 0.281, depth: 0.346, leg: 0.294, neckRun: 0.110, neckRise: 0.040,
       thigh: 0.270,headR: 0.282, muzzle: 0.900, headPitch: -4,
       horn: 0, ear: 0.090, earKind: 'round', tail: 0.50, tailKind: 'up',
       hump: 0.00, tuck: 0.22, skullH: 0.67,
@@ -18664,35 +19288,35 @@ props: islandProps.map(function (p) {
       cheek: 0.50, deep: 0.22 },
     // A gazelle: the leggiest animal here, a shallow barrel, a long neck held
     // nearly upright, a small head kept level above it, a lyre of horns.
-    gazelle: { depth: 0.386, leg: 0.534, neckRun: 0.100, neckRise: 0.174,
+    gazelle: { breadth: 0.301, depth: 0.386, leg: 0.534, neckRun: 0.100, neckRise: 0.174,
       thigh: 0.300,headR: 0.326, muzzle: 1.000, headPitch: -16,
       horn: 0.30, ear: 0.105, earKind: 'up', tail: 0.12, tailKind: 'stub',
       hump: 0.06, tuck: 0.36, skullH: 0.73,
       muzzleTop: 0.19, muzzleBot: 0.17,
       cheek: 0.36, deep: 0.14 },
     // A red deer or a maral: the longest legs and neck here, an antler.
-    longneck: { depth: 0.440, leg: 0.560, neckRun: 0.150, neckRise: 0.222,
+    longneck: { breadth: 0.328, depth: 0.440, leg: 0.560, neckRun: 0.150, neckRise: 0.222,
       thigh: 0.290,headR: 0.287, muzzle: 1.120, headPitch: -14,
       horn: 0.34, ear: 0.115, earKind: 'up', tail: 0.16, tailKind: 'stub',
       hump: 0.02, tuck: 0.32, skullH: 0.85,
       muzzleTop: 0.22, muzzleBot: 0.20,
       cheek: 0.40, deep: 0.20 },
     // An onager: the same neck a little more forward, no antlers, a streamer tail.
-    equid: { depth: 0.440, leg: 0.560, neckRun: 0.160, neckRise: 0.204,
+    equid: { breadth: 0.318, depth: 0.440, leg: 0.560, neckRun: 0.160, neckRise: 0.204,
       thigh: 0.280,headR: 0.262, muzzle: 1.160, headPitch: -12,
       horn: 0, ear: 0.125, earKind: 'up', tail: 0.24, tailKind: 'streamer',
       hump: 0.02, tuck: 0.30, skullH: 0.94,
       muzzleTop: 0.24, muzzleBot: 0.23,
       cheek: 0.40, deep: 0.18 },
     // A bezoar ibex: a deep barrel on sturdy legs, a short head carriage, scimitars.
-    ibex: { depth: 0.440, leg: 0.440, neckRun: 0.120, neckRise: 0.119,
+    ibex: { breadth: 0.353, depth: 0.440, leg: 0.440, neckRun: 0.120, neckRise: 0.119,
       thigh: 0.320,headR: 0.283, muzzle: 1.020, headPitch: -10,
       horn: 0.36, ear: 0.105, earKind: 'up', tail: 0.10, tailKind: 'stub',
       hump: 0.10, tuck: 0.26, skullH: 0.74,
       muzzleTop: 0.19, muzzleBot: 0.18,
       cheek: 0.42, deep: 0.22 },
     // A urial: a heavy woolly barrel on short legs, curled horns, a head carried low.
-    sheep: { depth: 0.451, leg: 0.369, neckRun: 0.100, neckRise: 0.084,
+    sheep: { breadth: 0.325, depth: 0.451, leg: 0.369, neckRun: 0.100, neckRise: 0.084,
       thigh: 0.330,headR: 0.251, muzzle: 0.980, headPitch: -6,
       horn: 0.20, ear: 0.105, earKind: 'up', tail: 0.08, tailKind: 'stub',
       hump: 0.06, tuck: 0.22, skullH: 0.66,
@@ -18700,7 +19324,7 @@ props: islandProps.map(function (p) {
       cheek: 0.46, deep: 0.26 },
     // A brown bear: the deepest barrel here on the shortest legs, a shoulder mound,
     // a head carried almost on the shoulder, a small round ear.
-    bear: { depth: 0.475, leg: 0.245, neckRun: 0.070, neckRise: 0.052,
+    bear: { breadth: 0.446, depth: 0.475, leg: 0.245, neckRun: 0.070, neckRise: 0.052,
       thigh: 0.340,headR: 0.212, muzzle: 1.020, headPitch: -4,
       horn: 0, ear: 0.070, earKind: 'round', tail: 0.06, tailKind: 'stub',
       hump: 0.16, tuck: 0.18, skullH: 1.18,
@@ -18708,28 +19332,28 @@ props: islandProps.map(function (p) {
       cheek: 0.50, deep: 0.30 },
     // A wild boar: a barrel that is most of the animal, tiny legs, a huge head
     // carried LEVEL on a neck too short to lift it, a mane, tusks.
-    boar: { depth: 0.449, leg: 0.211, neckRun: 0.050, neckRise: 0.014,
+    boar: { breadth: 0.358, depth: 0.449, leg: 0.211, neckRun: 0.050, neckRise: 0.014,
       thigh: 0.330,headR: 0.220, muzzle: 1.160, headPitch: -2,
       horn: 0, ear: 0.090, earKind: 'up', tail: 0.09, tailKind: 'stub',
       hump: 0.18, tuck: 0.16, mane: 1, skullH: 0.93,
       muzzleTop: 0.24, muzzleBot: 0.22,
       cheek: 0.56, deep: 0.24 },
     // A hare: long ears laid back, a rump higher than the shoulder, long hinds.
-    hare: { depth: 0.335, leg: 0.205, neckRun: 0.090, neckRise: 0.091,
+    hare: { breadth: 0.253, depth: 0.335, leg: 0.205, neckRun: 0.090, neckRise: 0.091,
       thigh: 0.320,headR: 0.200, muzzle: 0.980, headPitch: -6,
       horn: 0, ear: 0.340, earKind: 'hare', tail: 0.09, tailKind: 'puff',
       hump: -0.06, tuck: 0.24, skullH: 0.75,
       muzzleTop: 0.20, muzzleBot: 0.18,
       cheek: 0.44, deep: 0.18 },
     // A rabbit: the same plan rounder and lower.
-    rabbit: { depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.057,
+    rabbit: { breadth: 0.240, depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.057,
       thigh: 0.290,headR: 0.186, muzzle: 0.940, headPitch: -4,
       horn: 0, ear: 0.250, earKind: 'hare', tail: 0.08, tailKind: 'puff',
       hump: -0.04, tuck: 0.22, skullH: 0.72,
       muzzleTop: 0.19, muzzleBot: 0.17,
       cheek: 0.46, deep: 0.20 },
     // A dormouse: a round body on short legs, round ears, a tail as long as itself.
-    rodent: { depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.032,
+    rodent: { breadth: 0.245, depth: 0.322, leg: 0.138, neckRun: 0.060, neckRise: 0.032,
       thigh: 0.190,headR: 0.167, muzzle: 1.060, headPitch: -4,
       horn: 0, ear: 0.100, earKind: 'round', tail: 0.78, tailKind: 'thin',
       hump: 0.00, tuck: 0.18, skullH: 0.86,
@@ -18737,14 +19361,14 @@ props: islandProps.map(function (p) {
       cheek: 0.46, deep: 0.18 },
     // A hedgehog: a low dome of spines on almost no leg at all, a snout that
     // reaches, round ears.
-    hedgehog: { depth: 0.370, leg: 0.070, neckRun: 0.080, neckRise: 0.015,
+    hedgehog: { breadth: 0.344, depth: 0.370, leg: 0.070, neckRun: 0.080, neckRise: 0.015,
       thigh: 0.160,headR: 0.147, muzzle: 1.100, headPitch: -4,
       horn: 0, ear: 0.050, earKind: 'round', tail: 0.05, tailKind: 'stub',
       hump: 0.10, tuck: 0.12, spines: 1, skullH: 1.13,
       muzzleTop: 0.29, muzzleBot: 0.27,
       cheek: 0.40, deep: 0.16 },
     // A Caspian seal: no legs, a torpedo lying on the ground, no ears.
-    seal: { depth: 0.288, leg: 0.012, neckRun: 0.100, neckRise: 0.051,
+    seal: { breadth: 0.211, depth: 0.288, leg: 0.012, neckRun: 0.100, neckRise: 0.051,
       thigh: 0.000,headR: 0.093, muzzle: 1.000, headPitch: -6,
       horn: 0, ear: 0.000, earKind: 'none', tail: 0.20, tailKind: 'flipper',
       hump: 0.00, tuck: 0.10, skullH: 0.76,
@@ -19963,7 +20587,324 @@ var ANIMAL_SIZES = {
      it too, then the one trunk silhouette, then the ears and horns off the crown,
      then the face on the head.
      --------------------------------------------------------------------------- */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same rule the keeper
+     follows. Heights come from `animalFrame`, which is the side view's own frame;
+     only the lateral axis is new, and it comes from the row's derived `breadth`.
+
+     `a.view` is 'front', 'back' or 'side'. Everything below assumes y up, ground at
+     y = 0, and the animal's centre line at x = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical in here comes from `animalFrame`, the side
+     view's own frame: the socket heights, the belly, the back, the head's centre, the
+     skull's radius, the horns' reach. Only the lateral axis is new, and it comes from
+     the row's derived `breadth` (Tools/_derive_breadth.py). The two views therefore
+     cannot disagree about stance or size - and the fit uses the side view's bounds for
+     both, so an animal does not change size when it turns.
+
+     `a.view` is 'front', 'back' or 'side'. y is up, the ground is y = 0, and the
+     animal's centre line is x = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical in here comes from `animalFrame`, the side
+     view's own frame: the socket heights, the belly, the back, the head's centre, the
+     skull's radius, the horns' reach. Only the lateral axis is new, and it comes from
+     the row's derived `breadth` (Tools/_derive_breadth.py). The two views therefore
+     cannot disagree about stance or size - and the fit uses the side view's bounds for
+     both, so an animal does not change size when it turns.
+
+     `a.view` is 'front', 'back' or 'side'. y is up, the ground is y = 0, and the
+     animal's centre line is x = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+/* ------------------------------ FRONT AND BACK --------------------------------
+     The world is seen from above, so an animal walking toward the camera is drawn
+     front-on and one walking away is drawn from behind - the same three drawings the
+     keeper has.
+
+     HEIGHTS ARE SHARED. Every vertical comes from `animalFrame`, the side view's own
+     frame: socket heights, belly, back, the head's centre, the skull's radius, the
+     horns' reach. Only the lateral axis is new, and it comes from the row's derived
+     `breadth`. The fit uses the side view's bounds for both, so an animal does not
+     change size when it turns.
+
+     THE ORDER IS THE DEPTH. In a front view the head is nearer than the body; in a
+     back view it is further, so the body paints OVER it and only the crown shows.
+     `a.view` is 'front', 'back' or 'side'; y is up, the ground is y = 0. */
+  function paintAnimalFront(g, e, view, a, S) {
+    var shape = animalShapeOf(e.id);
+    var m = animalRow(shape);
+    var f = animalFrame(shape);
+    var pal = beastLook(e, shape);
+    pal.hoof = pal.hoof || shadeHex(pal.fur, 0.42);
+
+    var fur = pal.fur, belly = pal.belly, ink = pal.ink, far = pal.far;
+    var front = view === 'front';
+
+    var b = f.bounds;
+    var sc = S / Math.max(1e-6, b.h);
+    g.save();
+    g.scale(sc, -sc);
+    g.translate(0, -b.y0);
+
+    var halfW = (m.breadth || 0.28) * 0.5;      // half the barrel's width
+    var legW = f.legW;
+    var socketY = front ? f.legTop.fore : f.legTop.hind;
+    var bellyY = f.bellyY;
+    var topEdge = f.edges.top;
+    var withersY = Math.max(topEdge.a[1], topEdge.b[1], topEdge.c[1]);
+    // The brisket hangs BELOW the belly line - the chest, which is what comes down
+    // between the forelegs in a front view.
+    var brisketY = front ? bellyY * 0.80 : bellyY;
+    var hoofC = pal.hoof;
+
+    /* One limb. `side` is -1 (the animal's far side) or +1; the far limb is a darker
+       tone, which is how a drawing puts one leg behind another. Heavy animals get
+       thicker limbs from the same rule, because legW is a share of the body. */
+    function limb(side, isFar, halfBody) {
+      var hipX = side * halfW * 0.62;
+      var footX = side * halfW * 0.52;
+      var w = legW * (isFar ? 0.44 : 0.52);
+      g.fillStyle = isFar ? far : fur;
+      g.beginPath();
+      g.moveTo(hipX - w, socketY);
+      g.quadraticCurveTo(hipX - w * 1.04, socketY * 0.55, footX - w * 0.88, w * 0.55);
+      g.lineTo(footX + w * 0.88, w * 0.55);
+      g.quadraticCurveTo(hipX + w * 1.04, socketY * 0.55, hipX + w, socketY);
+      g.closePath();
+      g.fill();
+      if (!isFar) {
+        g.strokeStyle = shadeHex(fur, 0.78);
+        g.lineWidth = Math.max(0.005, w * 0.22);
+        g.stroke();
+      }
+      g.fillStyle = hoofC;
+      g.beginPath();
+      g.ellipse(footX, w * 0.20, w * 0.95, w * 0.32, 0, 0, TAU);
+      g.fill();
+    }
+
+    function barrel(top, bottom, wide) {
+      var span = Math.max(0.02, top - bottom);
+      var w = halfW * (wide || 1);
+      g.fillStyle = fur;
+      g.beginPath();
+      g.ellipse(0, bottom + span * 0.5, w, span * 0.5, 0, 0, TAU);
+      g.fill();
+      // The pale underside shows only from the FRONT. From behind there is no
+      // underside to see, and the band painted a light stripe across the rump.
+      if (!front) return;
+      g.save();
+      g.beginPath();
+      g.ellipse(0, bottom + span * 0.5, w, span * 0.5, 0, 0, TAU);
+      g.clip();
+      g.fillStyle = belly;
+      g.globalAlpha = 0.55;
+      g.beginPath();
+      g.ellipse(0, bottom + span * 0.16, w * 1.35, span * 0.42, 0, 0, TAU);
+      g.fill();
+      g.globalAlpha = 1;
+      g.restore();
+    }
+
+    // ---- the head --------------------------------------------------------------
+    var headR = f.headR;
+    var headW = headR * ((m.mlen || 1.0) + 0.10) * 0.42;
+    // In a front view the skull sits above the chest; in a back view it only just
+    // clears the withers, because the body is drawn over it.
+    // A back view sees the CROWN of the skull clearing the withers, not a head on a
+    // neck: the body is drawn over everything below that, so the head is placed low
+    // enough that only its top and the ears show.
+    var headY = front
+      ? Math.max(withersY + headR * 0.30, withersY + (f.head.y - withersY) * 0.85)
+      : withersY + headW * 0.42;
+
+    function head() {
+      // No neck in a back view: it is behind the rump, and drawing it was what made
+      // the head look like a column standing on the animal's back.
+      var neckFoot = front ? withersY - headR * 0.10 : headY - headW * 0.9;
+      // A neck NARROWER than the head it carries. At the head's own width there was
+      // no break between chest, neck and skull, and the three merged into one column
+      // that read as the animal's body.
+      var neckHalf = headW * 0.58;
+      g.fillStyle = fur;
+      g.beginPath();
+      g.moveTo(-neckHalf, neckFoot);
+      g.quadraticCurveTo(-neckHalf * 0.94, headY - headR * 0.60, -headW * 0.94, headY);
+      g.lineTo(headW * 0.94, headY);
+      g.quadraticCurveTo(neckHalf * 0.94, headY - headR * 0.60, neckHalf, neckFoot);
+      g.closePath();
+      g.fill();
+
+      g.fillStyle = fur;
+      g.beginPath();
+      g.ellipse(0, headY, headW, headW * 0.90, 0, 0, TAU);
+      g.fill();
+
+      if (front) {
+        var noseY = headY - headW * 0.62;
+        g.fillStyle = mixHex(fur, belly, 0.18);
+        g.beginPath();
+        g.ellipse(0, noseY + headW * 0.34, headW * 0.60, headW * 0.54, 0, 0, TAU);
+        g.fill();
+        g.fillStyle = shadeHex(fur, 0.32);
+        g.beginPath();
+        g.ellipse(0, noseY - headW * 0.08, headW * 0.26, headW * 0.16, 0, 0, TAU);
+        g.fill();
+        var eyeY = headY + headW * 0.12;
+        var eyeX = headW * 0.54;
+        g.fillStyle = ink;
+        g.beginPath();
+        g.ellipse(-eyeX, eyeY, headW * 0.15, headW * 0.14, 0, 0, TAU);
+        g.ellipse(eyeX, eyeY, headW * 0.15, headW * 0.14, 0, 0, TAU);
+        g.fill();
+      }
+
+      var earLen = (f.ears.len || 0);
+      if (earLen > 0.01) {
+        for (var es = -1; es <= 1; es += 2) {
+          var ex = es * headW * 1.02, ey = headY + headW * 0.78;
+          g.fillStyle = es > 0 ? fur : shadeHex(fur, 0.90);
+          g.beginPath();
+          g.ellipse(ex, ey + earLen * 0.30, Math.max(0.010, earLen * 0.42),
+            Math.max(0.012, earLen * 0.52), es * 0.30, 0, 0, TAU);
+          g.fill();
+        }
+      }
+      if ((f.horns.len || 0) > 0.01) {
+        // Clamped to the ink height the two views share, so the fit cannot push a
+        // horn off the top of the drawing.
+        var hornBaseY = headY + headW * 0.74;
+        var hl = Math.min(f.horns.len, Math.max(0, (b.y1 - hornBaseY) / 1.15));
+        if (hl > 0.01) {
+          g.strokeStyle = pal.horn;
+          g.lineCap = 'round';
+          g.lineWidth = Math.max(0.011, hl * 0.22);
+          for (var hs = -1; hs <= 1; hs += 2) {
+            g.beginPath();
+            g.moveTo(hs * headW * 0.50, hornBaseY);
+            g.quadraticCurveTo(hs * headW * 1.45, hornBaseY + hl * 0.62,
+              hs * headW * 1.05, hornBaseY + hl * 1.15);
+            g.stroke();
+          }
+        }
+      }
+    }
+
+    if (front) {
+      // The head is NEARER than the body, so it paints last.
+      limb(-1, true);
+      barrel(withersY, brisketY, 1.0);
+      limb(1, false);
+      head();
+    } else {
+      // The head is FURTHER than the body: it paints first and the rump covers it,
+      // leaving only the crown above the withers - which is what a back view shows.
+      head();
+      limb(-1, true);
+      barrel(withersY * 0.99, bellyY, 1.06);
+      if (f.tail.len > 0.02) {
+        var tl = Math.min(f.tail.len, (withersY - bellyY) * 1.5);
+        var tTop = withersY * 0.80;
+        g.strokeStyle = shadeHex(fur, 0.84);
+        g.lineCap = 'round';
+        g.lineWidth = Math.max(0.016, legW * (f.tail.kind === 'bush' ? 1.25 : 0.85));
+        g.beginPath();
+        g.moveTo(0, tTop);
+        g.quadraticCurveTo(halfW * 0.26, tTop - tl * 0.55, 0, tTop - tl);
+        g.stroke();
+      }
+      limb(1, false);
+    }
+
+    g.restore();
+  }
+
   function paintAnimal(g, e, a, S) {
+
+    // A front or back view is a different projection, not a turn of the same
+    // drawing: heights are shared, the lateral axis is new. It has its own
+    // painter so the side view keeps one owner.
+    if (a && a.view && a.view !== 'side') {
+      paintAnimalFront(g, e, a.view, a, S);
+      return;
+    }
     var shape = animalShapeOf(e.id);
     var m = animalRow(shape);
     var f = animalFrame(shape);
@@ -20832,6 +21773,71 @@ var ANIMAL_SIZES = {
      They exist because a proportion is read against something or not at all, and
      because a blank canvas has to say WHY it is blank.
      --------------------------------------------------------------------------- */
+
+  /* The three views of one animal at one size. The ground line is drawn so a raised
+     or sunken foot is obvious rather than argued about. */
+  window.__animalViews = function (id, size) {
+    size = size || 240;
+    var views = ['side', 'front', 'back'];
+    var c = document.createElement('canvas');
+    c.width = size * views.length;
+    c.height = size;
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, c.width, c.height);
+    var prev = ctx;
+    ctx = g;
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    for (var i = 0; i < views.length; i++) {
+      var ox = size * (i + 0.5);
+      var ground = size * 0.86;
+      g.save();
+      g.strokeStyle = 'rgba(60,50,40,0.28)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(ox - size * 0.46, ground + 0.5);
+      g.lineTo(ox + size * 0.46, ground + 0.5);
+      g.stroke();
+      g.fillStyle = '#6b6154';
+      g.font = '11px ui-monospace, Consolas, monospace';
+      g.textAlign = 'center';
+      g.fillText(views[i], ox, 18);
+      g.translate(ox, ground);
+      paintAnimal(g, e, { moving: false, walk: 0, facing: 1, seed: 3, view: views[i] },
+        size * 0.70);
+      g.restore();
+    }
+    ctx = prev;
+    return c;
+  };
+
+  /* Front and back for a list of species, in rows. */
+  window.__animalViewGrid = function (ids, size) {
+    size = size || 230;
+    ids = ids || null;
+    var list = ids && ids.length ? ids : Object.keys(ANIMAL_BY_SPECIES || {});
+    var c = document.createElement('canvas');
+    c.width = size * 2;
+    c.height = size * Math.ceil(list.length / 2);
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, c.width, c.height);
+    var prev = ctx;
+    ctx = g;
+    for (var i = 0; i < list.length; i++) {
+      var e = findSpecies(list[i]) || { id: list[i], sh: 'beast', f: list[i], e: list[i] };
+      var ox = size * (i % 2 + 0.5), oy = size * (Math.floor(i / 2) + 0.86);
+      var view = i % 2 === 0 ? 'front' : 'back';
+      g.save();
+      g.translate(ox, oy);
+      try { paintAnimal(g, e, { moving: false, walk: 0, facing: 1, seed: 3, view: view }, size * 0.68); }
+      catch (err) { g.fillStyle = '#a03020'; g.font = '11px monospace'; g.fillText('x', ox, oy); }
+      g.restore();
+    }
+    ctx = prev;
+    return c;
+  };
+
   window.__animalSketch = function (ids, size, skeleton) {
     if (skeleton) window.ANIMAL_SKELETON = true;
     ids = ids || SHEET_IDS;
@@ -23094,6 +24100,25 @@ var ANIMAL_SIZES = {
     var strength = Math.min(1, len);
     a.heading = { x: dirX, y: dirY };
     a.facing = dirX >= 0 ? 1 : -1;
+
+    // ---- WHICH DRAWING ------------------------------------------------------
+    // The same three the keeper has: toward the camera, away from it, and side-on.
+    // Chosen from the heading, with a DEAD BAND - an animal's heading is a sum of
+    // jittering pulls, so a bare comparison would flip between views several times a
+    // second. It takes a clear margin on the other axis to change, and keeps the
+    // current view in between.
+    var ax = Math.abs(dirX), ay = Math.abs(dirY);
+    var want;
+    if (ay > ax * 1.6) {
+      want = dirY < 0 ? 'back' : 'front';
+    } else if (ax > ay * 1.6) {
+      want = 'side';
+    } else {
+      want = a.view || 'side';
+    }
+    // On open water the world is seen from above and a beast is swimming, not
+    // standing: the profile says that better than a front view ever could.
+    a.view = waterSection() ? 'side' : want;
     a.grazing = false;
 
     var roll = seeded(a.seed + Math.floor(clock * 7))();
@@ -24217,6 +25242,8 @@ var ANIMAL_SIZES = {
     ctx.save();
     ctx.lineCap = 'round';
     var sway = Math.sin(clock * 1.4 + x * 0.05) * 0.05;
+    // The wind reaches the beds too: a crop bends where the line crosses it.
+    var wb = plantBend(x, y, step === 1 ? 14 : 32, clock, x * 0.02);
 
     if (step === 1) {
       // A sprout: a short stem and two seed leaves.
@@ -24224,7 +25251,7 @@ var ANIMAL_SIZES = {
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.moveTo(x, y + 14);
-      ctx.lineTo(x + sway * 10, y + 1);
+      ctx.lineTo(x + sway * 10 + wb, y + 1);
       ctx.stroke();
       ctx.fillStyle = leaf;
       ctx.beginPath();
@@ -24240,17 +25267,18 @@ var ANIMAL_SIZES = {
       ctx.lineWidth = 2.6;
       ctx.beginPath();
       ctx.moveTo(x, y + 16);
-      ctx.quadraticCurveTo(x + sway * 12, y + 2, x + sway * 20, y - h + 16);
+      ctx.quadraticCurveTo(x + sway * 12 + wb * 0.45, y + 2, x + sway * 20 + wb, y - h + 16);
       ctx.stroke();
       for (var i = 0; i < 3; i++) {
         var ly = y + 6 - i * 9;
         var lw = 9 - i * 1.4;
+        var lshift = wb * (0.25 + i * 0.22);
         ctx.fillStyle = i === 2 ? leafDark : leaf;
         ctx.beginPath();
-        ctx.ellipse(x - lw * 0.8, ly, lw, 3.6, -0.42, 0, TAU);
+        ctx.ellipse(x - lw * 0.8 + lshift, ly, lw, 3.6, -0.42, 0, TAU);
         ctx.fill();
         ctx.beginPath();
-        ctx.ellipse(x + lw * 0.9, ly - 2, lw, 3.6, 0.42, 0, TAU);
+        ctx.ellipse(x + lw * 0.9 + lshift, ly - 2, lw, 3.6, 0.42, 0, TAU);
         ctx.fill();
       }
       if (step >= 3) {
@@ -25007,7 +26035,7 @@ var ANIMAL_SIZES = {
     if (!interior) drawSectionEdges(d);
     if (!interior) drawStepRing();
     if (!interior && d.kind !== 'sea') {
-      drawScenery();
+      drawScenery(clock);
     }
     islandProps = buildProps();
     if (!interior && d.kind !== 'sea') drawGroundShade();
@@ -25937,5 +26965,7 @@ var ANIMAL_SIZES = {
   hero.y = world.h * 0.64;
   requestAnimationFrame(frame);
 })();
+
+
 </script>
 </body></html>
