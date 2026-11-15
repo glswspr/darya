@@ -64,6 +64,9 @@
     thirdChance: 1.0,    // scales how often a plain third joins the chord
     ornamentRate: 1.0,   // scales how often a mode decorates a note
     returnPhrases: 1,    // phrases spent coming home before a mode changes
+    // The piano's hand: how far a chord is rolled, and how late it sits.
+    roll: 0.045,         // seconds between the notes of one chord, bottom to top
+    laidBack: 0.02,      // seconds the whole chord sits behind the beat
     // Where the chord lands in a bar. The bass and the brushes hold the beat, so
     // the chord does not have to state it every time: it may anticipate a beat
     // early, or wait for beat two, and the bar still has a downbeat.
@@ -91,13 +94,15 @@
     raised seventh sits a tritone under its own third, and no taste makes that a
     chord.
 
-    So the accompaniment sounds only these intervals over the root, and only where
-    the mode actually has one. The third is checked harder than the rest: a neutral
-    third is 50 cents from both a minor and a major third, so a wide tolerance
-    would let it in as "a third" while meaning the wrong thing. */
-  var OPEN_CENTS = [0, 300, 400, 500, 700, 800, 900, 1200];
-  var HARMONY_TOLERANCE = 55;
-  var THIRD_TOLERANCE = 30;
+    The rule is a banned list, not an allowed one: a minor second, a major second
+    and a tritone are the intervals that make a voicing sour in any mode, and
+    everything else - thirds, fourths, fifths, sixths, sevenths, ninths - is a
+    colour a jazz voicing may use. That is also what lets the piano sound like a
+    piano: a rootless spread of third, seventh and ninth is only possible if the
+    seventh is allowed. */
+  var HARMONY_BANNED = [100, 200, 600];
+  var HARMONY_TOLERANCE = 45;
+  var THIRD_TOLERANCE = 45;
 
   /* The tune's shared head: eight phrases of two bars. Each mode keeps the SHAPE
     of the first bar, so a place is recognised when it is walked into again. */
@@ -259,8 +264,64 @@
     hens:     { dastgah: 0, movement: 0.50, register: 0.58, tempo: 1.04, kit: 1.20, ornament: 1.1, chordOnBeat: 0.50, chordPush: 0.30, bass: 0.32, chord: 0.50, lead: 0.55, beat: 0.28, figures: [0, 2] }
   };
 
+  /* ---- The arrangement ----------------------------------------------------
+    A place is not a loop, and not a run of eight new sections either. It is a
+    SONG FORM: sections that come back.
+
+      A  the tune: the island's head stated at the top of the section and again
+         half way, answered by the mode's own figures
+      B  the middle: no head, the other figures, an octave up, busier, more
+         ornament - the contrast that makes A's return audible
+      C  the break: the tune mostly rests, low and slow, chord and bass carry it
+      D  the close: the head high, once
+
+    A section is sixteen bars - one whole turn of the canon's progression - so an
+    A really is the same tune the second time: same chords, same phrases, same
+    register. The letters are the place's character, and every place orders them
+    its own way: AABA, AABAA, ABACA, AABCA.
+
+    Nothing here decides pitch or harmony - those belong to the canon - so an
+    arrangement can be changed without breaking the seam. */
+  var FORMS = {
+    woods:    ['A', 'A', 'B', 'A'],
+    steppe:   ['A', 'B', 'A', 'A'],
+    meadow:   ['A', 'A', 'B', 'A'],
+    heights:  ['A', 'B', 'A', 'C', 'A'],
+    desert:   ['A', 'B', 'A', 'C', 'A'],
+    beach:    ['A', 'A', 'B', 'A'],
+    sea:      ['A', 'B', 'A', 'A'],
+    river:    ['A', 'A', 'B', 'A', 'C', 'A'],
+    apiary:   ['A', 'A', 'B', 'A', 'B', 'A'],
+    glass:    ['A', 'B', 'A', 'A'],
+    yard:     ['A', 'A', 'B', 'A'],
+    comb:     ['A', 'B', 'A', 'A'],
+    shrine:   ['A', 'A', 'C', 'A'],
+    sky:      ['A', 'B', 'A', 'D'],
+    lake:     ['A', 'A', 'B', 'A'],
+    hens:     ['A', 'A', 'B', 'A', 'B', 'A']
+  };
+  var DEFAULT_FORM = ['A', 'A', 'B', 'A'];
+  /* Sixteen bars a section: one turn of the canon's progression, eight phrases. */
+  var SECTION_BARS = 16;
+
+  /* What each letter asks of the tune. `headAt` is which phrase of the section
+     states the head; everything else is how the letter differs from A. */
+  var LETTER_STYLE = {
+    A: { headAt: [0, 4], figures: [0, 2], shift: 0.00, density: 1.00, rest: 0.00, stretch: 1, ornament: 1.0 },
+    B: { headAt: [],      figures: [1, 2], shift: 0.35, density: 1.20, rest: 0.04, stretch: 1, ornament: 1.3 },
+    C: { headAt: [4],     figures: [1],    shift: -0.15, density: 0.55, rest: 0.45, stretch: 2, ornament: 0.8 },
+    D: { headAt: [0, 4],  figures: [2],    shift: 0.40, density: 1.10, rest: 0.00, stretch: 1, ornament: 1.1 }
+  };
+
+  /* A place's arrangement: its section order. Editable from the tool, so the arc
+     is a thing you can hear and change, not a constant buried in the score. */
+  function formFor(name) {
+    var key = BY_KIND[name] || name;
+    return (FORMS[key] || DEFAULT_FORM).slice();
+  }
+
   /* A section kind or a place id, to its palette. One table, read twice: the
-    island asks by biome kind and a place asks by its own id. */
+     island asks by biome kind and a place asks by its own id. */
   var BY_KIND = {
     woods: 'woods', steppe: 'steppe', meadow: 'meadow', heights: 'heights',
     desert: 'desert', beach: 'beach', sea: 'sea', openwater: 'sea',
@@ -347,6 +408,10 @@
 
     var SIXTEENTH = 60 / tuning.bpm / 4;
     var MEASURE = 16;
+
+    // The swing the place was tuned with. The daf may straighten it while the
+    // keeper plays; when she stops, the tune goes back to what it was.
+    var swingHome = tuning.swing;
     var PHRASE_STEPS = 32;
     var MEASURES_PER_PHRASE = 2;
     var CALM = 0.35;
@@ -472,7 +537,7 @@
 
     /* ---- The clock ----------------------------------------------------- */
     var nextTick = 0, tickIndex = 0, phraseIndex = -1, phraseSeen = -1;
-    var lead = null, leadNote = 0;
+    var lead = null, leadNote = 0, restRun = 0;
 
     var stats = { ticks: 0, notes: 0, bars: 0, modulations: 0,
       played: { bass: 0, chord: 0, lead: 0, beat: 0 } };
@@ -490,13 +555,26 @@
     /* ---- Harmony ------------------------------------------------------- */
     function centsOf(degree) { return centsIn(mode, degree); }
 
+    /* Is this interval, in cents, one a voicing may sound? */
+    function allowedCents(c) {
+      var at = ((c % 1200) + 1200) % 1200;
+      for (var i = 0; i < HARMONY_BANNED.length; i++) {
+        if (Math.abs(at - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
+        // A banned interval is also banned across the octave boundary.
+        if (Math.abs(at - 1200 - HARMONY_BANNED[i]) <= HARMONY_TOLERANCE) return false;
+      }
+      return true;
+    }
+
+    /* The degree whose interval over `root` is closest to `wantCents`, searching
+       both up and down, and only where that interval is allowed in this mode. */
     function openOffset(root, wantCents, tolerance) {
       var limit = tolerance || HARMONY_TOLERANCE;
-      var bestOffset = -1, bestGap = limit + 1;
-      for (var o = 0; o <= 7; o++) {
+      var bestOffset = 0, bestGap = limit + 1;
+      for (var o = -7; o <= 7; o++) {
         var interval = centsOf(root + o) - centsOf(root);
         var gap = Math.abs(interval - wantCents);
-        if (gap < bestGap) { bestGap = gap; bestOffset = o; }
+        if (gap < bestGap && allowedCents(interval)) { bestGap = gap; bestOffset = o; }
       }
       return bestOffset;
     }
@@ -506,11 +584,45 @@
     function chordDegrees(root, withThird) {
       var out = [root];
       var fifth = openOffset(root, 700);
-      if (fifth > 0) out.push(root + fifth);
-      var third = withThird ? openOffset(root, 400, THIRD_TOLERANCE) : -1;
-      if (third < 0 && withThird) third = openOffset(root, 300, THIRD_TOLERANCE);
-      if (third > 0 && third !== fifth) out.push(root + third);
+      if (fifth !== 0) out.push(root + fifth);
+      var third = withThird ? openOffset(root, 400, THIRD_TOLERANCE) : 0;
+      if (!third && withThird) third = openOffset(root, 300, THIRD_TOLERANCE);
+      if (third !== 0 && third !== fifth) out.push(root + third);
       out.push(root + 7);
+      return out;
+    }
+
+    /* ---- The piano's voicing -------------------------------------------
+       Bill Evans did not play a chord and hold it. He played a rootless spread, a
+       little late, rolled from the bottom up, and left the root to the bass: the
+       third and the seventh carry the harmony, a sixth or a ninth colours it, and
+       the notes sit an octave or two apart so they ring separately instead of
+       fusing into a block.
+
+       `compVoicing` answers with degrees to play, lowest first, already spread. */
+    function compVoicing(root) {
+      var out = [];
+      var third = openOffset(root, 400, THIRD_TOLERANCE);
+      if (third === 0) third = openOffset(root, 300, THIRD_TOLERANCE);
+      var seventh = openOffset(root, 1000);
+      if (seventh === 0) seventh = openOffset(root, 1100);
+      var colour = openOffset(root, 1400);
+      if (colour === 0) colour = openOffset(root, 900);
+
+      // Third low, seventh in the middle, colour on top. The spacing is measured in
+      // CENTS, not degrees: a mode can put its seventh below its third, and a
+      // shift of one octave is not always enough to put it above.
+      var a = root + third;
+      var b = root + seventh;
+      var guard = 0;
+      while (centsOf(b) - centsOf(a) < 400 && guard++ < 4) b += 7;
+      var c = root + (colour || seventh);
+      guard = 0;
+      while (centsOf(c) - centsOf(b) < 450 && guard++ < 4) c += 7;
+      out.push(a, b, c);
+
+      // The rootless spread is the voice; the octave stays out of it, and the bass
+      // is what anchors the chord.
       return out;
     }
 
@@ -709,32 +821,91 @@
       return clean;
     }
 
+    /* The letter of the section this bar belongs to. Sixteen bars each - one full
+       turn of the canon's progression - so the same letter really is the same
+       music when it comes back. Read from the bar number, so every look-ahead step
+       agrees. */
+    function sectionAt(bar) {
+      var form = liveForm();
+      var at = Math.floor(Math.max(0, bar - formStart) / SECTION_BARS) % form.length;
+      return LETTER_STYLE[form[at]] || LETTER_STYLE.A;
+    }
+
+    /* The phrase's place inside its section, 0..7. Material is chosen from THIS
+       number, not from a running counter, which is what makes an A repeat. */
+    function slotAt(bar) {
+      var into = Math.max(0, bar - formStart) % SECTION_BARS;
+      return Math.floor(into / MEASURES_PER_PHRASE);
+    }
+
+    /* The name of the section, for a probe or a tool that shows the arc. */
+    function sectionNameAt(bar) {
+      var form = liveForm();
+      return form[Math.floor(Math.max(0, bar - formStart) / SECTION_BARS) % form.length];
+    }
+
+    /* The arrangement in force: the tool's edit if there is one, otherwise the
+       place's own form. */
+    function liveForm() {
+      var p = herePalette();
+      if (p.form && p.form.length) return p.form;
+      return formFor(here());
+    }
+
     function buildPhrase(index, barNow) {
       var head = PHRASES[wrap(index, PHRASES.length)];
       var canon = canonOf(mode);
+      var style = sectionAt(barNow);
+      var slot = slotAt(barNow);
       var out = [];
       var i;
 
-      // The head: the island's own first bar. Its shape is fixed, so a place is
-      // recognised; its held notes are placed on the open tones of THIS mode's
-      // chord, because every mode brings its own progression.
-      var headRoot = chordAt(barNow);
-      for (i = 0; i < head.length; i++) {
-        if (head[i][0] >= 16) continue;
-        var hd = head[i][2] >= 3 ? nearestChordTone(head[i][1], headRoot) : head[i][1];
-        out.push([head[i][0], hd, head[i][2]]);
+      var stretch = style.stretch || 1;
+      // Which figure to answer with: the place decides the pool, the letter
+      // decides which of them this section leans on. A repeat of the letter
+      // therefore repeats the same answer, which is what makes an A an A.
+      var pool = herePalette().figures || [0, 1, 2];
+      var lean = style.figures && style.figures.length ? style.figures : pool;
+      var motif = canon.motifs[pool[wrap(lean[wrap(index, lean.length)], pool.length)] % canon.motifs.length];
+
+      // The head, on the phrases the letter asks for. Its shape is the island's,
+      // so a place is recognised; its held notes sit on the open tones of THIS
+      // mode's chord, because every mode brings its own progression. A letter that
+      // sings higher states it a third up, and the arc lifts.
+      var saysHead = !style.headAt || style.headAt.indexOf(slot) >= 0;
+      if (style.headAt && style.headAt.indexOf(slot) < 0) saysHead = false;
+      if (style.headAt && style.headAt.length === 0) saysHead = false;
+      if (saysHead) {
+        var headShift = style.shift >= 0.3 ? 2 : 0;
+        var headRoot = chordAt(barNow);
+        for (i = 0; i < head.length; i++) {
+          if (head[i][0] >= 16) continue;
+          var hd = head[i][1] + headShift;
+          if (head[i][2] >= 3 || headShift) hd = nearestChordTone(hd, headRoot);
+          out.push([head[i][0], hd, head[i][2]]);
+        }
       }
 
       // The answer: the mode's figure in the second bar, over that bar's chord.
-      // The figure stops at step 21, so the sixteenths before the cadence stay
-      // free: they are where the mode is decorated.
+      // It stops at step 21, so the sixteenths before the close stay free: they are
+      // where the mode is decorated.
       var root = chordAt(barNow + 1);
-      var figs = herePalette().figures || [0, 1, 2];
-      var motif = canon.motifs[figs[wrap(index, figs.length)] % canon.motifs.length];
       for (i = 0; i < motif.length; i++) {
         if (16 + motif[i][0] >= 22) continue;
-        var degree = motif[i][2] >= 3 ? nearestChordTone(motif[i][1], root) : motif[i][1];
-        out.push([motif[i][0] + 16, degree, motif[i][2]]);
+        var deg = motif[i][1] + (stretch > 1 && style.shift > 0 ? 2 : 0);
+        var degree = motif[i][2] >= 3 || stretch > 1 ? nearestChordTone(deg, root) : deg;
+        out.push([motif[i][0] + 16, degree, motif[i][2] * stretch]);
+      }
+
+      // A phrase that does not state the head answers itself in the first bar too,
+      // so a middle section never waits for music it is not going to play.
+      if (!saysHead) {
+        var rootA = chordAt(barNow);
+        for (i = 0; i < motif.length; i++) {
+          var da = motif[i][1];
+          var degreeA = motif[i][2] >= 3 || stretch > 1 ? nearestChordTone(da, rootA) : da;
+          out.push([motif[i][0], degreeA, motif[i][2] * stretch]);
+        }
       }
 
       // The close: the mode's own cadence, so each place ends its own way.
@@ -749,7 +920,7 @@
       // note of the answer. It is deterministic - the phrase's own index chooses
       // the note - because a place should sound like itself every visit.
       var orn = ORNAMENTS[canon.ornament] || ORNAMENTS.mordent;
-      var rate = canon.rate * tuning.ornamentRate * (mix.ornament || 1);
+      var rate = canon.rate * tuning.ornamentRate * (mix.ornament || 1) * (style.ornament || 1);
       var decorated = out.slice();
       var pick = index % Math.max(1, out.length);
       for (var tries = 0; tries < out.length; tries++) {
@@ -766,29 +937,49 @@
           }
           if (!free) break;
         }
-        if (!free || Math.random() >= rate) continue;
+        if (!free || hash2(slot * 97 + 13, index * 7 + 3) >= rate) continue;
         for (var g = 0; g < passes.length; g++) {
           decorated.push([e[0] - passes.length + g, passes[g], 1]);
         }
         break;
       }
       decorated.sort(function (a, b) { return a[0] - b[0]; });
-      return yieldDownbeats(thin(decorated, mix.movement), tuning.leadOffset | 0);
+      return yieldDownbeats(thin(decorated, mix.movement * style.density, slot * 101 + 17), tuning.leadOffset | 0);
+    }
+
+    /* A deterministic number in [0,1) from two integers. The arrangement repeats its
+       A sections, and a repeat is only heard as a repeat if the same bar makes the
+       same choice twice: thinning and ornament are drawn from this, not from
+       Math.random. */
+    function hash2(a, b) {
+      var h = (a * 374761393 + b * 668265263) >>> 0;
+      h = (h ^ (h >>> 13)) >>> 0;
+      h = (h * 1274126177) >>> 0;
+      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
     }
 
     /* Movement as a fact, not a mood: a still place leaves notes out of the tune.
-       A note is kept when it is a chord tone (never thin a rest), when it is the
-       first of its phrase, or by the place's own movement. The result still ends
-       on the cadence, so the phrase closes whatever was dropped. */
-    function thin(notes, movement) {
-      if (movement == null || movement >= 0.98) return notes;
-      var keep = clamp(0.35 + movement * 0.65, 0.35, 1);
+       What survives must keep the tune moving, so a note is never kept merely for
+       being long - that is how a tune turns into one held tone - and a dropped note
+       gives its time to the note before it, so the line still sings. The choice is
+       derived from the slot, so the same section sounds the same when it returns. */
+    function thin(notes, movement, seed) {
+      if (!notes.length) return notes;
+      if (movement != null && movement >= 0.98) return notes;
+      var keep = clamp(0.35 + (movement == null ? 0.5 : movement) * 0.65, 0.35, 1);
       var out = [];
       for (var i = 0; i < notes.length; i++) {
         var n = notes[i];
         var last = (i === notes.length - 1);
-        if (last || i === 0 || n[2] >= 4) { out.push(n); continue; }
-        if (Math.random() < keep) out.push(n);
+        var first = (i === 0);
+        if (first || last || hash2(seed + i, i * 31 + 7) < keep) {
+          out.push(n);
+        } else if (out.length) {
+          // The gap is taken by the note that is already sounding: the phrase holds
+          // its shape instead of breaking into scattered stabs.
+          var prev = out[out.length - 1];
+          prev[2] += n[2];
+        }
       }
       return out;
     }
@@ -852,20 +1043,33 @@
       // The place's own tempo feel takes effect here, on the phrase line: a
       // sixteenth never changes length mid-phrase.
       tempoNow = tempoFor(mode);
-      // Movement is how busy the tune is: a still place lets whole phrases go by
-      // and leaves the chord to speak on its own.
-      var restChance = clamp((0.55 - mix.movement) * 1.6, 0, 0.75);
-      var rest = Math.random() < restChance;
-      lead = rest ? null : buildPhrase(phraseIndex, bar);
+      // Movement is how busy the tune is, and the section says how often it would
+      // like to sit out. A silence never runs: after one, the next phrase nearly
+      // always sounds, so the tune is always coming back.
+      var style = sectionAt(bar);
+      var restChance = clamp((0.30 - mix.movement) * 1.1, 0, 0.30);
+      if (style.rest) restChance = Math.max(restChance, style.rest);
+      if (restRun > 0) restChance *= 0.12;
+      if (Math.random() < restChance) {
+        lead = null;
+        restRun++;
+      } else {
+        lead = buildPhrase(slotAt(bar), bar);
+        restRun = 0;
+      }
       leadNote = 0;
     }
 
-    function scheduleLead(when, phraseStep) {
+    function scheduleLead(when, phraseStep, bar) {
       if (!lead) return;
       while (leadNote < lead.length && lead[leadNote][0] < phraseStep) leadNote++;
       if (leadNote >= lead.length) return;
       if (lead[leadNote][0] !== phraseStep) return;
-      var octave = mix.register >= 0.65 ? 2 : 1;
+      // The section decides the register as much as the place does: a climb sings
+      // an octave up, a drift stays low, so the arc is heard and not only felt.
+      var style = sectionAt(bar == null ? Math.floor(tickIndex / MEASURE) : bar);
+      var register = mix.register + (style.shift || 0);
+      var octave = register >= 0.65 ? 2 : 1;
       var note = lead[leadNote];
       lastDegree = note[1];
       var rate = ratio(note[1]) * octave;
@@ -899,18 +1103,33 @@
 
     function soundChord(when, bar) {
       var root = chordAt(bar);
-      // On the way home the chord is bare: the root, the fifth and the octave,
-      // which every mode spells at exactly the same pitch. The third is the one
-      // member that differs between modes, so it is withheld for that phrase and
-      // the seam is a chord both modes agree on, note for note.
-      var withThird = phase === 'return' ? false
-        : Math.random() < THIRD_CHANCE[wrap(mode, THIRD_CHANCE.length)] * tuning.thirdChance;
-      var open = chordDegrees(root, withThird);
-      for (var c = 0; c < open.length; c++) {
-        var cr = ratio(open[c]);
-        play(voice.rhodes, when, cr, chordGain(), 'chord');
-        if (onNote) onNote({ voice: 'chord', when: when, rate: cr, degree: open[c],
-          gain: chordGain(), mode: mode, phase: phase, bar: bar, root: root });
+      // On the way home the chord is bare: only the tones every mode spells at the
+      // same pitch, so the seam is a chord both modes agree on, note for note.
+      if (phase === 'return') {
+        var bare = [root, root + openOffset(root, 700), root + 7];
+        for (var b = 0; b < bare.length; b++) {
+          var br = ratio(bare[b]);
+          play(voice.rhodes, when + b * (tuning.roll || 0.045), br, chordGain() * 0.7, 'chord');
+          if (onNote) onNote({ voice: 'chord', when: when, rate: br, degree: bare[b],
+            gain: chordGain() * 0.7, mode: mode, phase: phase, bar: bar, root: root });
+        }
+        stats.bars++;
+        return;
+      }
+      // The piano comps like a pianist: a rootless spread, rolled from the bottom
+      // up, a touch late, and never all at once. The bass has the root, so the
+      // chord does not double it.
+      var voicing = compVoicing(root);
+      var roll = tuning.roll == null ? 0.045 : tuning.roll;   // seconds between notes
+      var laid = tuning.laidBack == null ? 0.02 : tuning.laidBack;
+      for (var c = 0; c < voicing.length; c++) {
+        var at = when + laid + c * roll;
+        var cr = ratio(voicing[c]);
+        // The top note a little louder, as a hand does: the melody tone of the chord.
+        var gain = chordGain() * (c === voicing.length - 1 ? 1.0 : 0.82);
+        play(voice.rhodes, at, cr, gain, 'chord');
+        if (onNote) onNote({ voice: 'chord', when: at, rate: cr, degree: voicing[c],
+          gain: gain, mode: mode, phase: phase, bar: bar, root: root });
       }
       stats.bars++;
     }
@@ -966,7 +1185,7 @@
         }
       }
 
-      scheduleLead(when, phraseStep);
+      scheduleLead(when, phraseStep, bar);
       stats.ticks++;
     }
 
@@ -1104,6 +1323,16 @@
       },
       tuning: tuning,
 
+      /* The keeper's groove.
+         While she plays the daf, the tune straightens: the offbeat stops riding
+         late and the brushes ease. It never plays faster, louder or higher - the
+         groove is the world fitting in, so the tune can only come down.
+         `strength` is 0 to 1. */
+      setGroove: function (strength) {
+        var s = clamp(strength == null ? 0 : strength, 0, 1);
+        tuning.swing = swingHome * (1 - s * 0.75);
+      },
+
       /* ---- The instruments, for a tool that shapes a sound -----------------
          `instruments()` is the live table; `setInstrument` changes one voice and
          re-bakes it at once, which is what "hear it differently" means. A tool
@@ -1151,8 +1380,11 @@
           started: started, ticks: stats.ticks, notes: stats.notes, bars: stats.bars,
           mode: mode, want: want, phase: phase, canon: canon.name,
           origin: here(), formBar: Math.max(0, Math.floor(tickIndex / MEASURE) - formStart),
+          section: sectionNameAt(Math.floor(tickIndex / MEASURE)),
+          sectionIndex: Math.floor(Math.max(0, Math.floor(tickIndex / MEASURE) - formStart) / SECTION_BARS),
           shahed: canon.shahed, ist: canon.ist, colour: canon.colour,
           tempo: canon.tempo, tempoNow: Number(tempoNow.toFixed(3)),
+          bpm: Number((60 / stepSeconds() / 4).toFixed(2)),
           ornament: canon.ornament, modulations: stats.modulations,
           register: Math.round(mix.register * 100),
           movement: Number(mix.movement.toFixed(2)),
@@ -1174,11 +1406,15 @@
         return lead ? lead.slice() : [];
       },
 
-      /* The chord under the bar being played, and the degrees it holds. */
+      /* The chord under the bar being played, its root, and the voicing the piano
+         actually plays - lowest note first, so a tool can draw the spread. */
       chordNow: function () {
         var bar = Math.floor(tickIndex / MEASURE);
         var root = chordAt(bar);
-        return { bar: bar, root: root, degrees: chordDegrees(root, false) };
+        var voicing = phase === 'return'
+          ? [root, root + openOffset(root, 700), root + 7]
+          : compVoicing(root);
+        return { bar: bar, root: root, degrees: voicing, voicing: voicing };
       }
     };
     return api;
@@ -1192,8 +1428,13 @@
     CANONS: CANONS,
     PALETTES: PALETTES,
     BASS_JUMP: BASS_JUMP,
+    FORMS: FORMS,
+    LETTER_STYLE: LETTER_STYLE,
+    slotAt: null,
+    SECTION_BARS: SECTION_BARS,
+    formFor: formFor,
     ORNAMENTS: ORNAMENTS,
-    OPEN_CENTS: OPEN_CENTS,
+    HARMONY_BANNED: HARMONY_BANNED,
     HARMONY_TOLERANCE: HARMONY_TOLERANCE,
     THIRD_TOLERANCE: THIRD_TOLERANCE,
     paletteFor: paletteFor,
@@ -1467,6 +1708,13 @@
     {"f":"kháhar","e":"sister","p":"خواهر"},
     {"f":"dust","e":"friend","p":"دوست"},
     {"f":"kháneváde","e":"family","p":"خانواده"},
+    {"f":"mádarbozorg","e":"grandmother","p":"مادربزرگ"},
+    {"f":"pedarbozorg","e":"grandfather","p":"پدربزرگ"},
+    {"f":"barádar","e":"brother","p":"برادر"},
+    {"f":"khále","e":"aunt, mother's sister","p":"خاله"},
+    {"f":"amme","e":"aunt, father's sister","p":"عمه"},
+    {"f":"dái","e":"uncle, mother's brother","p":"دایی"},
+    {"f":"amu","e":"uncle, father's brother","p":"عمو"},
     {"f":"bád","e":"wind","p":"باد"},
     {"f":"ráh","e":"path","p":"راه"},
     {"f":"jazire","e":"island","p":"جزیره"},
@@ -1534,6 +1782,7 @@
     {"f":"jebhe-ye sarmá","e":"cold snap","p":"جبهه‌ی سرما"},
     {"f":"sang","e":"stone","p":"سنگ"},
     {"f":"qanát","e":"channel, qanat","p":"کاریز"},
+    {"f":"tabl","e":"drum","p":"طبل"},
   ];
 
 
@@ -5520,7 +5769,7 @@
       line: 'The sand held a fossil and a crust of salt: the sea that used to be here.' },
     { id: 'river', label: 'the river', w: 'par',
       line: 'The river carried a feather down from somewhere I have not walked yet.' },
-    { id: 'sea', label: 'the sea', w: 'sadaf',
+    { id: 'sea', label: 'the sea', w: 'satabl',
       line: 'Out past the shallows the shells were bigger, and the boat knew the way back.' },
     { id: 'beach', label: 'the beach', w: 'chub',
       line: 'The tide left a line of shells, and a piece of wood worn smooth.' },
@@ -8343,7 +8592,16 @@
       veil: false, apron: true
     }
   ];
+  var BROTHER_WEAR = {
+    skin: '#F2C49B', hair: '#3A2E24', top: '#4F7C5A', band: '#EFE6D2',
+    skirt: '#3D5668', shoe: '#5A4632', strand: '#3A2E24', mouth: '#9A6650', eye: '#23262E',
+    veil: false
+  };
   var outfit = 0;
+
+  /* The rest of the family, dressed the way this house is dressed. They are drawn
+     with the keeper's own shapes, larger and in their own colours, so a family of
+     four reads as one family and not as four unrelated people. */
 
   function drawDarya(g, size, walking) {
     var facing = hero.facing || 'front';
@@ -8704,6 +8962,29 @@
   /* A probe: teach a word by its Finglish spelling, so the book can be read
      without replaying the place that gives it. */
   window.__teach = function (f) { teachWord(f); return learned.length; };
+  /* A probe for the tabl: read the ring, or set one stroke by its number, so the
+     rhythm can be driven without hunting a scaled and letterboxed page. */
+  window.__tabl = function (step) {
+    if (step !== undefined && step !== null) {
+      if (step === 'clear') clearTabl();
+      else tablStroke(step | 0);
+    }
+    return JSON.stringify({
+      marks: tabl.marks.map(function (m) { return m ? '1' : '0'; }).join(''),
+      count: tablCount(), bpm: tabl.bpm, phase: tablPhase(),
+      cue: Number(tablToCue().toFixed(3)),
+      beats: grooveBeats, snaps: grooveSnaps, struck: tablStruck
+    });
+  };
+  /* What the island hears back: the animals' next beats, in seconds. */
+  window.__groovePull = function () {
+    var out = [];
+    for (var i = 0; i < islandProps.length; i++) {
+      var p = islandProps[i];
+      if (p.k === 'species' && p.anim) out.push({ id: p.sp.id, pulse: Number(p.anim.pulse.toFixed(3)), gait: p.anim.gait });
+    }
+    return JSON.stringify({ on: tablOn(), cue: Number(tablToCue().toFixed(3)), animals: out });
+  };
   /* A probe for the garden: work one bed by its row, so the loop can be driven
      without pixel-hunting a canvas that is scaled and letterboxed. */
   /* A probe: walk to the thing that offers a given verb, and do it. Same family as
@@ -9684,6 +9965,34 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'Tabl': 'Tabl',
+      'greet Mâmânbozorg': 'hälsa på Mâmânbozorg',
+      'greet Bâbâbozorg': 'hälsa på Bâbâbozorg',
+      'greet your brother': 'hälsa på din bror',
+      'greet Khále': 'hälsa på Khále',
+      'greet Amme': 'hälsa på Amme',
+      'greet Dái': 'hälsa på Dái',
+      'greet Amu': 'hälsa på Amu',
+      'my mother': 'min mamma',
+      'my grandmother': 'min mormor',
+      'my grandfather': 'min morfar',
+      'my father': 'min pappa',
+      'my brother': 'min bror',
+      'my aunt, Mâmân’s sister': 'min moster',
+      'my aunt, Baba’s sister': 'min faster',
+      'my uncle, Mâmân’s brother': 'min morbror',
+      'my uncle, Baba’s brother': 'min farbror',
+      'The tabl': 'Tablen',
+      'take up the tabl': 'ta upp tablen',
+      'greet Maman': 'hälsa på Maman',
+      'greet Baba': 'hälsa på Baba',
+      'Maman, my mother': 'Maman, min mamma',
+      'Baba, my father': 'Baba, min pappa',
+      'Tap a mark to set a stroke.': 'Tryck på ett märke för att sätta ett slag.',
+      '{0} strokes. The island leans in.': '{0} slag. Ön lutar sig in.',
+      'A full ring. The yard keeps one time.': 'En hel ring. Gården håller en tid.',
+      'Sixteen strokes are one bar of the island’s tune.': 'Sexton slag är en takt av öns melodi.',
+      'clear': 'rensa',
       'THE KEEPER\'S ISLAND': 'KEEPERSKANS Ö',
       'I keep the island, and write down what it teaches me.': 'Jag sköter ön och skriver ner vad den lär mig.',
       'Start': 'Börja',
@@ -10102,6 +10411,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'läs stenen',
     },
     fa: {
+      'Tabl': 'طبل',
+      'greet Mâmânbozorg': 'به مادربزرگ سلام کن',
+      'greet Bâbâbozorg': 'به پدربزرگ سلام کن',
+      'greet your brother': 'به برادرت سلام کن',
+      'greet Khále': 'به خاله سلام کن',
+      'greet Amme': 'به عمه سلام کن',
+      'greet Dái': 'به دایی سلام کن',
+      'greet Amu': 'به عمو سلام کن',
+      'my mother': 'مادرم',
+      'my grandmother': 'مادربزرگم',
+      'my grandfather': 'پدربزرگم',
+      'my father': 'پدرم',
+      'my brother': 'برادرم',
+      'my aunt, Mâmân’s sister': 'خاله‌ام، خواهر مامان',
+      'my aunt, Baba’s sister': 'عمه‌ام، خواهر بابا',
+      'my uncle, Mâmân’s brother': 'دایی‌ام، برادر مامان',
+      'my uncle, Baba’s brother': 'عمویم، برادر بابا',
+      'The tabl': 'طبل',
+      'take up the tabl': 'طبل را بردار',
+      'greet Maman': 'به مامان سلام کن',
+      'greet Baba': 'به بابا سلام کن',
+      'Maman, my mother': 'مامان، مادرم',
+      'Baba, my father': 'بابا، پدرم',
+      'Tap a mark to set a stroke.': 'روی یک نشانه بزن تا ضربه‌ای بگذاری.',
+      '{0} strokes. The island leans in.': '{0} ضربه. جزیره به آن تکیه می‌کند.',
+      'A full ring. The yard keeps one time.': 'یک حلقهٔ کامل. حیاط یک زمان را نگه می‌دارد.',
+      'Sixteen strokes are one bar of the island’s tune.': 'شانزده ضربه یک میزان از آهنگ جزیره است.',
+      'clear': 'پاک کردن',
       'THE KEEPER\'S ISLAND': 'جزیره‌ی نگهبان',
       'I keep the island, and write down what it teaches me.': 'من از جزیره نگهداری می‌کنم و هر چه یادم می‌دهد را می‌نویسم.',
       'Start': 'شروع',
@@ -10520,6 +10857,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'Tabl': 'Tabl',
+      'greet Mâmânbozorg': 'Mâmânbozorg begrüßen',
+      'greet Bâbâbozorg': 'Bâbâbozorg begrüßen',
+      'greet your brother': 'deinen Bruder begrüßen',
+      'greet Khále': 'Khále begrüßen',
+      'greet Amme': 'Amme begrüßen',
+      'greet Dái': 'Dái begrüßen',
+      'greet Amu': 'Amu begrüßen',
+      'my mother': 'meine Mutter',
+      'my grandmother': 'meine Oma',
+      'my grandfather': 'mein Opa',
+      'my father': 'mein Vater',
+      'my brother': 'mein Bruder',
+      'my aunt, Mâmân’s sister': 'meine Tante, Mamans Schwester',
+      'my aunt, Baba’s sister': 'meine Tante, Babas Schwester',
+      'my uncle, Mâmân’s brother': 'mein Onkel, Mamans Bruder',
+      'my uncle, Baba’s brother': 'mein Onkel, Babas Bruder',
+      'The tabl': 'Die Tabl',
+      'take up the tabl': 'die Tabl nehmen',
+      'greet Maman': 'Maman begrüßen',
+      'greet Baba': 'Baba begrüßen',
+      'Maman, my mother': 'Maman, meine Mutter',
+      'Baba, my father': 'Baba, mein Vater',
+      'Tap a mark to set a stroke.': 'Tippe auf eine Markierung, um einen Schlag zu setzen.',
+      '{0} strokes. The island leans in.': '{0} Schläge. Die Insel lehnt sich heran.',
+      'A full ring. The yard keeps one time.': 'Ein voller Ring. Der Hof hält eine Zeit.',
+      'Sixteen strokes are one bar of the island’s tune.': 'Sechzehn Schläge sind ein Takt der Melodie der Insel.',
+      'clear': 'löschen',
       'THE KEEPER\'S ISLAND': 'DIE INSEL DER HÜTERIN',
       'I keep the island, and write down what it teaches me.': 'Ich hüte die Insel und schreibe auf, was sie mich lehrt.',
       'Start': 'Beginnen',
@@ -10938,6 +11303,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'Tabl': 'Tabl',
+      'greet Mâmânbozorg': 'saluer Mâmânbozorg',
+      'greet Bâbâbozorg': 'saluer Bâbâbozorg',
+      'greet your brother': 'saluer ton frère',
+      'greet Khále': 'saluer Khále',
+      'greet Amme': 'saluer Amme',
+      'greet Dái': 'saluer Dái',
+      'greet Amu': 'saluer Amu',
+      'my mother': 'ma mère',
+      'my grandmother': 'ma grand-mère',
+      'my grandfather': 'mon grand-père',
+      'my father': 'mon père',
+      'my brother': 'mon frère',
+      'my aunt, Mâmân’s sister': 'ma tante, la sœur de Maman',
+      'my aunt, Baba’s sister': 'ma tante, la sœur de Baba',
+      'my uncle, Mâmân’s brother': 'mon oncle, le frère de Maman',
+      'my uncle, Baba’s brother': 'mon oncle, le frère de Baba',
+      'The tabl': 'Le tabl',
+      'take up the tabl': 'prendre le tabl',
+      'greet Maman': 'saluer Maman',
+      'greet Baba': 'saluer Baba',
+      'Maman, my mother': 'Maman, ma mère',
+      'Baba, my father': 'Baba, mon père',
+      'Tap a mark to set a stroke.': 'Touche une marque pour poser un coup.',
+      '{0} strokes. The island leans in.': '{0} coups. L’île s’incline.',
+      'A full ring. The yard keeps one time.': 'Un anneau complet. La cour tient un seul temps.',
+      'Sixteen strokes are one bar of the island’s tune.': 'Seize coups font une mesure de l’air de l’île.',
+      'clear': 'effacer',
       'THE KEEPER\'S ISLAND': 'L\'ÎLE DE LA GARDIENNE',
       'I keep the island, and write down what it teaches me.': 'Je garde l\'île et j\'écris ce qu\'elle m\'apprend.',
       'Start': 'Commencer',
@@ -11355,6 +11748,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'lire la pierre',
     },
     es: {
+      'Tabl': 'Tabl',
+      'greet Mâmânbozorg': 'saludar a Mâmânbozorg',
+      'greet Bâbâbozorg': 'saludar a Bâbâbozorg',
+      'greet your brother': 'saludar a tu hermano',
+      'greet Khále': 'saludar a Khále',
+      'greet Amme': 'saludar a Amme',
+      'greet Dái': 'saludar a Dái',
+      'greet Amu': 'saludar a Amu',
+      'my mother': 'mi madre',
+      'my grandmother': 'mi abuela',
+      'my grandfather': 'mi abuelo',
+      'my father': 'mi padre',
+      'my brother': 'mi hermano',
+      'my aunt, Mâmân’s sister': 'mi tía, la hermana de Maman',
+      'my aunt, Baba’s sister': 'mi tía, la hermana de Baba',
+      'my uncle, Mâmân’s brother': 'mi tío, el hermano de Maman',
+      'my uncle, Baba’s brother': 'mi tío, el hermano de Baba',
+      'The tabl': 'El tabl',
+      'take up the tabl': 'tomar el tabl',
+      'greet Maman': 'saludar a Maman',
+      'greet Baba': 'saludar a Baba',
+      'Maman, my mother': 'Maman, mi madre',
+      'Baba, my father': 'Baba, mi padre',
+      'Tap a mark to set a stroke.': 'Toca una marca para poner un golpe.',
+      '{0} strokes. The island leans in.': '{0} golpes. La isla se inclina.',
+      'A full ring. The yard keeps one time.': 'Un anillo completo. El patio lleva un solo tiempo.',
+      'Sixteen strokes are one bar of the island’s tune.': 'Dieciséis golpes son un compás de la melodía de la isla.',
+      'clear': 'borrar',
       'THE KEEPER\'S ISLAND': 'LA ISLA DE LA GUARDIANA',
       'I keep the island, and write down what it teaches me.': 'Cuido la isla y escribo lo que me enseña.',
       'Start': 'Empezar',
@@ -11773,6 +12194,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'Tabl': 'Tabl',
+      'greet Mâmânbozorg': 'Mâmânbozorg ile selamlaş',
+      'greet Bâbâbozorg': 'Bâbâbozorg ile selamlaş',
+      'greet your brother': 'kardeşinle selamlaş',
+      'greet Khále': 'Khále ile selamlaş',
+      'greet Amme': 'Amme ile selamlaş',
+      'greet Dái': 'Dái ile selamlaş',
+      'greet Amu': 'Amu ile selamlaş',
+      'my mother': 'annem',
+      'my grandmother': 'büyükannem',
+      'my grandfather': 'büyükbabam',
+      'my father': 'babam',
+      'my brother': 'kardeşim',
+      'my aunt, Mâmân’s sister': 'teyzem, Maman’ın kız kardeşi',
+      'my aunt, Baba’s sister': 'halam, Baba’nın kız kardeşi',
+      'my uncle, Mâmân’s brother': 'dayım, Maman’ın erkek kardeşi',
+      'my uncle, Baba’s brother': 'amcam, Baba’nın erkek kardeşi',
+      'The tabl': 'Tabl',
+      'take up the tabl': 'tablı eline al',
+      'greet Maman': 'Maman ile selamlaş',
+      'greet Baba': 'Baba ile selamlaş',
+      'Maman, my mother': 'Maman, annem',
+      'Baba, my father': 'Baba, babam',
+      'Tap a mark to set a stroke.': 'Bir vuruş koymak için bir işarete dokun.',
+      '{0} strokes. The island leans in.': '{0} vuruş. Ada ona yaslanıyor.',
+      'A full ring. The yard keeps one time.': 'Tam bir halka. Avlu tek bir zamanı tutuyor.',
+      'Sixteen strokes are one bar of the island’s tune.': 'On altı vuruş adanın ezgisinin bir ölçüsüdür.',
+      'clear': 'temizle',
       'THE KEEPER\'S ISLAND': 'BEKÇİNİN ADASI',
       'I keep the island, and write down what it teaches me.': 'Adayı ben gözetirim ve bana öğrettiklerini yazarım.',
       'Start': 'Başla',
@@ -12191,6 +12640,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'taşı oku',
     },
     ar: {
+      'Tabl': 'الطبل',
+      'greet Mâmânbozorg': 'سلّم على الجدة',
+      'greet Bâbâbozorg': 'سلّم على الجد',
+      'greet your brother': 'سلّم على أخيك',
+      'greet Khále': 'سلّم على الخالة',
+      'greet Amme': 'سلّم على العمة',
+      'greet Dái': 'سلّم على الخال',
+      'greet Amu': 'سلّم على العم',
+      'my mother': 'أمي',
+      'my grandmother': 'جدتي',
+      'my grandfather': 'جدي',
+      'my father': 'أبي',
+      'my brother': 'أخي',
+      'my aunt, Mâmân’s sister': 'خالتي، أخت أمي',
+      'my aunt, Baba’s sister': 'عمتي، أخت أبي',
+      'my uncle, Mâmân’s brother': 'خالي، أخو أمي',
+      'my uncle, Baba’s brother': 'عمي، أخو أبي',
+      'The tabl': 'الطبل',
+      'take up the tabl': 'خذ الطبل',
+      'greet Maman': 'سلّم على ماما',
+      'greet Baba': 'سلّم على بابا',
+      'Maman, my mother': 'ماما، أمي',
+      'Baba, my father': 'بابا، أبي',
+      'Tap a mark to set a stroke.': 'اضغط على علامة لتضع ضربة.',
+      '{0} strokes. The island leans in.': '{0} ضربات. الجزيرة تميل إليه.',
+      'A full ring. The yard keeps one time.': 'حلقة كاملة. الفناء يحفظ زمناً واحداً.',
+      'Sixteen strokes are one bar of the island’s tune.': 'ست عشرة ضربة مازورة من لحن الجزيرة.',
+      'clear': 'امسح',
       'THE KEEPER\'S ISLAND': 'جزيرة الحارسة',
       'I keep the island, and write down what it teaches me.': 'أرعى الجزيرة وأكتب ما تعلّمني.',
       'Start': 'ابدأ',
@@ -12609,6 +13086,34 @@ props: islandProps.map(function (p) {
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'Tabl': '大鼓',
+      'greet Mâmânbozorg': '向奶奶问好',
+      'greet Bâbâbozorg': '向爷爷问好',
+      'greet your brother': '向哥哥问好',
+      'greet Khále': '向婶婶问好',
+      'greet Amme': '向姑姑问好',
+      'greet Dái': '向舅舅问好',
+      'greet Amu': '向叔叔问好',
+      'my mother': '我的母亲',
+      'my grandmother': '我的奶奶',
+      'my grandfather': '我的爷爷',
+      'my father': '我的父亲',
+      'my brother': '我的哥哥',
+      'my aunt, Mâmân’s sister': '我的婶婶，妈妈的姐妹',
+      'my aunt, Baba’s sister': '我的姑姑，爸爸的姐妹',
+      'my uncle, Mâmân’s brother': '我的舅舅，妈妈的兄弟',
+      'my uncle, Baba’s brother': '我的叔叔，爸爸的兄弟',
+      'The tabl': '大鼓',
+      'take up the tabl': '拿起大鼓',
+      'greet Maman': '向妈妈问好',
+      'greet Baba': '向爸爸问好',
+      'Maman, my mother': '妈妈，我的母亲',
+      'Baba, my father': '爸爸，我的父亲',
+      'Tap a mark to set a stroke.': '点一个记号，放下一拍。',
+      '{0} strokes. The island leans in.': '{0} 拍。岛向它倾斜。',
+      'A full ring. The yard keeps one time.': '一整圈。院子守着同一个时间。',
+      'Sixteen strokes are one bar of the island’s tune.': '十六拍是岛上曲调的一小节。',
+      'clear': '清除',
       'THE KEEPER\'S ISLAND': '守岛人的岛',
       'I keep the island, and write down what it teaches me.': '我照看这座岛，写下它教给我的事。',
       'Start': '开始',
@@ -13027,17 +13532,45 @@ props: islandProps.map(function (p) {
       'read the stone': '读那块石头',
     },
     fi: {
+      'Tabl': 'tabl',
+      'greet Mâmânbozorg': 'be Mámánbozorg salám kon',
+      'greet Bâbâbozorg': 'be Bábábozorg salám kon',
+      'greet your brother': 'be barádarat salám kon',
+      'greet Khále': 'be Khále salám kon',
+      'greet Amme': 'be Amme salám kon',
+      'greet Dái': 'be Dái salám kon',
+      'greet Amu': 'be Amu salám kon',
+      'my mother': 'mádaram',
+      'my grandmother': 'mádarbozorgam',
+      'my grandfather': 'pedarbozorgam',
+      'my father': 'pedaram',
+      'my brother': 'barádaram',
+      'my aunt, Mâmân’s sister': 'khále-am, kháhar-e Mámán',
+      'my aunt, Baba’s sister': 'amme-am, kháhar-e Bábá',
+      'my uncle, Mâmân’s brother': 'dái-am, barádar-e Mámán',
+      'my uncle, Baba’s brother': 'amu-am, barádar-e Bábá',
+      'The tabl': 'tabl',
+      'take up the tabl': 'tabl-rá bar dár',
+      'greet Maman': 'be Mámán salám kon',
+      'greet Baba': 'be Bábá salám kon',
+      'Maman, my mother': 'Mámán, mádaram',
+      'Baba, my father': 'Bábá, pedaram',
+      'Tap a mark to set a stroke.': 'Ruye yek nesháne bezan tá zarbeyi begzári.',
+      '{0} strokes. The island leans in.': '{0} zarbe. Jazire be án tekie mikonad.',
+      'A full ring. The yard keeps one time.': 'Yek halghe-ye kámel. Hayát yek zamán-rá negah midárad.',
+      'Sixteen strokes are one bar of the island’s tune.': 'Shenzdah zarbe yek mizán az áhang-e jazire ast.',
+      'clear': 'pák kardan',
       'THE KEEPER\'S ISLAND': 'Jazire-ye negahbán',
       'I keep the island, and write down what it teaches me.': 'man az jazire negahdári mikonam va har che yádam midahad rá minevisam.',
       'Start': 'Shoru',
       'best: {0} nectar': 'behtarin: {0} shahed',
       'the island': 'jazire',
-      'the notebook': 'daftar-e yáddásht',
+      'the notebook': 'tabltar-e yáddásht',
       'the pages': 'safe-há',
       'the words': 'vázhe-há',
       'the cover': 'jeld',
       'close': 'bastan',
-      'The notebook': 'Daftar-e yáddásht',
+      'The notebook': 'Tabltar-e yáddásht',
       'next: {0}': 'baadi: {0}',
       'nothing written yet': 'hanooz chizi neveshte nashode',
       'the island is named': 'jazire nám gerefte ast',
@@ -13045,7 +13578,7 @@ props: islandProps.map(function (p) {
       'The meadow, the hive, the yard, the island and the old stones: every one of them has a word now, and I have written them all down.': 'Chamanzár, kandu, hiayát, jazire va sang-há-ye kohan: hame-ye ánhá aknun yek vázhe dárand va man hame rá neveshte-am.',
       'It means the sea. It was the name of this place before it was mine, and the keeper before me wrote it here, on the page after the last one.': 'Yáni daryá. Nám-e in makán bood pish az ánke az man báshad, va negahbán-e pish az man án rá injá nevesht, dar safe-ye pas az ákharin safe.',
       'THE KEEPER OF DARYA': 'Negahbán-e Daryá',
-      'tap to close the book': 'baráye bastan-e daftar bezan',
+      'tap to close the book': 'baráye bastan-e tabltar bezan',
       'The map': 'Naghshe',
       'tap a place you have walked to': 'ru-ye jaei ke rafte-i bezan',
       'walk further, and the map fills in': 'bishtar beru, naghshe por mishavad',
@@ -13082,7 +13615,7 @@ props: islandProps.map(function (p) {
       'tap a light to keep it': 'ru-ye yek nur bezan tá bemánad',
       'Midday: the sprouts are thirsty': 'Nimruz: javáne-há teshne-and',
       'Dusk: the fireflies are out': 'Ghoroob: kerm-há-ye shab-táb birunand',
-      'The notebook is full': 'daftar por shode ast',
+      'The notebook is full': 'tabltar por shode ast',
       'every errand the island had': 'har kár-e jazire',
       'Errand done: {0}': 'Kár anjám shod: {0}',
       'next · {0}': 'baadi · {0}',
@@ -13108,7 +13641,7 @@ props: islandProps.map(function (p) {
       'dusk': 'ghoroob',
       'tap to walk': 'baráye raftan bezan',
       'go in': 'boru dákhel',
-      'the book is full': 'daftar por ast',
+      'the book is full': 'tabltar por ast',
       'keep it': 'negahash dar',
       'set it aside': 'kenárash begzár',
       'I · the first morning': 'I · nokhostin bámdád',
@@ -13377,7 +13910,7 @@ props: islandProps.map(function (p) {
       'the mountain cloak': 'shenl-e kuhestan',
       'the old trees keep the ground soft': 'derakhtán-e kohan zamin rá narm negah midárand',
       'the orchard coat': 'paltu-ye bágh',
-      'the sand gives up what it buried': 'shen ánche rá dafn karde pas midahad',
+      'the sand gives up what it buried': 'shen ánche rá tabln karde pas midahad',
       'the sprouts': 'jovane-há',
       'the tide line is where things gather': 'khatt-e jazr jáye gard ámadan-e chiz-hast',
       'the walk': 'ráh-peymáyi',
@@ -13465,7 +13998,8 @@ props: islandProps.map(function (p) {
       'knopp', 'törne', 'jord', 'sol',
       'skugga', 'regn', 'dag', 'natt',
       'hem', 'mamma', 'pappa', 'syster',
-      'vän', 'familj', 'vind', 'stig',
+      'vän', 'familj', 'mormor', 'morfar', 'bror', 'moster', 'faster',
+      'morbror', 'farbror', 'vind', 'stig',
       'ö', 'himmel', 'solig', 'molnig',
       'storm', 'hetta', 'snö', 'stjärna',
       'Stora björnen', 'Orion, jägaren', 'Cassiopeia, drottningen', 'Svanen',
@@ -13482,7 +14016,8 @@ props: islandProps.map(function (p) {
       'hett', 'varmt', 'svalt', 'kallt',
       'iskallt', 'fuktigt', 'torrt', 'väderprognos',
       'temperatur', 'värmebölja', 'köldknäpp', 'sten',
-      'kanal, qanat'
+      'kanal, qanat',
+      'trumma'
     ],
     fa: [
       'زنبور', 'کندو', 'شهدانه', 'ملکه',
@@ -13499,7 +14034,9 @@ props: islandProps.map(function (p) {
       'غنچه', 'خار', 'خاک', 'آفتاب',
       'سایه', 'باران', 'روز', 'شب',
       'خانه', 'مادر', 'پدر', 'خواهر',
-      'دوست', 'خانواده', 'باد', 'راه',
+      'دوست', 'خانواده', 'مادربزرگ', 'پدربزرگ',
+      'برادر', 'خاله', 'عمه', 'دایی',
+      'عمو', 'باد', 'راه',
       'جزیره', 'آسمان', 'آفتابی', 'ابری',
       'توفان', 'گرما', 'برف', 'ستاره',
       'دب اکبر', 'شکارچی', 'ذات‌الکرسی', 'قو',
@@ -13516,7 +14053,8 @@ props: islandProps.map(function (p) {
       'داغ', 'گرم', 'خنک', 'سرد',
       'یخبندان', 'مرطوب', 'خشک', 'پیش‌بینی هوا',
       'دمای هوا', 'موج گرما', 'جبهه‌ی سرما', 'سنگ',
-      'کانال، قنات'
+      'کانال، قنات',
+      'طبل'
     ],
     de: [
       'Biene', 'Bienenstock', 'Wabe', 'Königin',
@@ -13533,7 +14071,9 @@ props: islandProps.map(function (p) {
       'Knospe', 'Dorn', 'Erde', 'Sonne',
       'Schatten', 'Regen', 'Tag', 'Nacht',
       'Zuhause', 'Mutter', 'Vater', 'Schwester',
-      'Freund', 'Familie', 'Wind', 'Weg',
+      'Freund', 'Familie', 'Oma', 'Opa', 'Bruder',
+      'Tante (Mutters Schwester)', 'Tante (Vaters Schwester)',
+      'Onkel (Mutters Bruder)', 'Onkel (Vaters Bruder)', 'Wind', 'Weg',
       'Insel', 'Himmel', 'sonnig', 'wolkig',
       'Sturm', 'Hitze', 'Schnee', 'Stern',
       'Großer Bär', 'Orion, der Jäger', 'Kassiopeia, die Königin', 'Schwan',
@@ -13550,7 +14090,8 @@ props: islandProps.map(function (p) {
       'heiß', 'warm', 'kühl', 'kalt',
       'eiskalt', 'feucht', 'trocken', 'Wettervorhersage',
       'Temperatur', 'Hitzewelle', 'Kälteeinbruch', 'Stein',
-      'Kanal, Qanat'
+      'Kanal, Qanat',
+      'Trommel'
     ],
     fr: [
       'abeille', 'ruche', 'rayon de miel', 'reine',
@@ -13567,7 +14108,9 @@ props: islandProps.map(function (p) {
       'bouton', 'épine', 'terre', 'soleil',
       'ombre', 'pluie', 'jour', 'nuit',
       'maison', 'mère', 'père', 'sœur',
-      'ami', 'famille', 'vent', 'chemin',
+      'ami', 'famille', 'grand-mère', 'grand-père', 'frère',
+      'tante (sœur de Maman)', 'tante (sœur de Baba)',
+      'oncle (frère de Maman)', 'oncle (frère de Baba)', 'vent', 'chemin',
       'île', 'ciel', 'ensoleillé', 'nuageux',
       'orage', 'chaleur', 'neige', 'étoile',
       'la Grande Ourse', 'Orion, le chasseur', 'Cassiopée, la reine', 'le Cygne',
@@ -13584,7 +14127,8 @@ props: islandProps.map(function (p) {
       'chaud', 'tiède', 'frais', 'froid',
       'glacial', 'humide', 'sec', 'prévisions météo',
       'température', 'vague de chaleur', 'coup de froid', 'pierre',
-      'canal, qanat'
+      'canal, qanat',
+      'tambour'
     ],
     es: [
       'abeja', 'colmena', 'panal', 'reina',
@@ -13601,7 +14145,9 @@ props: islandProps.map(function (p) {
       'capullo', 'espina', 'tierra', 'sol',
       'sombra', 'lluvia', 'día', 'noche',
       'hogar', 'madre', 'padre', 'hermana',
-      'amiga', 'familia', 'viento', 'sendero',
+      'amiga', 'familia', 'abuela', 'abuelo', 'hermano',
+      'tía (hermana de Maman)', 'tía (hermana de Baba)',
+      'tío (hermano de Maman)', 'tío (hermano de Baba)', 'viento', 'sendero',
       'isla', 'cielo', 'soleado', 'nublado',
       'tormenta', 'calor', 'nieve', 'estrella',
       'el Carro', 'Orión, el cazador', 'Casiopea, la reina', 'el Cisne',
@@ -13618,7 +14164,8 @@ props: islandProps.map(function (p) {
       'caluroso', 'templado', 'fresco', 'frío',
       'helado', 'húmedo', 'seco', 'previsión del tiempo',
       'temperatura', 'ola de calor', 'ola de frío', 'piedra',
-      'canal, qanat'
+      'canal, qanat',
+      'tambor'
     ],
     tr: [
       'arı', 'kovan', 'petek', 'kraliçe',
@@ -13635,7 +14182,8 @@ props: islandProps.map(function (p) {
       'tomurcuk', 'diken', 'toprak', 'güneş',
       'gölge', 'yağmur', 'gün', 'gece',
       'ev', 'anne', 'baba', 'kız kardeş',
-      'arkadaş', 'aile', 'rüzgâr', 'patika',
+      'arkadaş', 'aile', 'büyükanne', 'büyükbaba', 'erkek kardeş',
+      'teyze', 'hala', 'dayı', 'amca', 'rüzgâr', 'patika',
       'ada', 'gökyüzü', 'güneşli', 'bulutlu',
       'fırtına', 'sıcaklık', 'kar', 'yıldız',
       'Büyük Ayı', 'Avcı Orion', 'Kraliçe Cassiopeia', 'Kuğu',
@@ -13652,7 +14200,8 @@ props: islandProps.map(function (p) {
       'sıcak', 'ılık', 'serin', 'soğuk',
       'dondurucu', 'nemli', 'kuru', 'hava tahmini',
       'sıcaklık', 'sıcak dalgası', 'soğuk dalgası', 'taş',
-      'kanal, kariz'
+      'kanal, kariz',
+      'davul'
     ],
     ar: [
       'نحلة', 'خلية', 'شهد', 'ملكة',
@@ -13669,7 +14218,8 @@ props: islandProps.map(function (p) {
       'برعم', 'شوكة', 'تراب', 'شمس',
       'ظل', 'مطر', 'يوم', 'ليل',
       'بيت', 'أم', 'أب', 'أخت',
-      'صديق', 'عائلة', 'ريح', 'درب',
+      'صديق', 'عائلة', 'جدة', 'جد', 'أخ',
+      'خالة', 'عمة', 'خال', 'عم', 'ريح', 'درب',
       'جزيرة', 'سماء', 'مشمس', 'غائم',
       'عاصفة', 'حرارة', 'ثلج', 'نجمة',
       'بنات نعش', 'الجبار، الصياد', 'ذات الكرسي، الملكة', 'الدجاجة',
@@ -13686,7 +14236,8 @@ props: islandProps.map(function (p) {
       'حار', 'دافئ', 'بارد قليلًا', 'بارد',
       'متجمد', 'رطب', 'جاف', 'توقعات الطقس',
       'درجة الحرارة', 'موجة حر', 'موجة برد', 'حجر',
-      'قناة، قنات'
+      'قناة، قنات',
+      'طبل'
     ],
     zh: [
       '蜂', '蜂巢', '蜂脾', '蜂王',
@@ -13703,7 +14254,8 @@ props: islandProps.map(function (p) {
       '芽', '刺', '土', '太阳',
       '荫', '雨', '日', '夜',
       '家', '母亲', '父亲', '姐妹',
-      '朋友', '家人', '风', '路',
+      '朋友', '家人', '奶奶', '爷爷', '兄长', '姨妈', '姑姑',
+      '舅舅', '叔叔', '风', '路',
       '岛', '天空', '晴', '多云',
       '暴风雨', '暑热', '雪', '星',
       '大熊座', '猎户座', '仙后座', '天鹅座',
@@ -13720,7 +14272,8 @@ props: islandProps.map(function (p) {
       '热', '暖', '凉', '冷',
       '冰冻', '潮湿', '干燥', '天气预报',
       '气温', '热浪', '寒潮', '石头',
-      '水渠、坎儿井'
+      '水渠、坎儿井',
+      '鼓'
     ],
     fi: [
       'zanbur', 'kandu', 'sháne', 'malake',
@@ -13737,7 +14290,8 @@ props: islandProps.map(function (p) {
       'ghonche', 'khár', 'khák', 'áftáb',
       'sáye', 'bárán', 'ruz', 'shab',
       'kháne', 'mámán', 'bábá', 'kháhar',
-      'dust', 'kháneváde', 'bád', 'ráh',
+      'dust', 'kháneváde', 'mádarbozorg', 'pedarbozorg', 'barádar',
+      'khále', 'amme', 'dái', 'amu', 'bád', 'ráh',
       'jazire', 'ásemán', 'áftábi', 'ábri',
       'tufán', 'garmá', 'barf', 'setáre',
       'Dob-e Akbar', 'Shekárchi', 'Zat al-Korsi', 'Ghu',
@@ -13755,6 +14309,7 @@ props: islandProps.map(function (p) {
       'yakhbandán', 'martub', 'khoshk', 'pish-bini-ye hava',
       'daraje-ye hararat', 'moj-e garmá', 'jebhe-ye sarma', 'sang',
       'kanal, qanát',
+      'tabl'
     ],
   };
 
@@ -18374,17 +18929,17 @@ props: islandProps.map(function (p) {
       ]
     },
     {
-      id: 'sea', label: 'the sea', verb: 'row out past the shallows', word: 'sadaf',
+      id: 'sea', label: 'the sea', verb: 'row out past the shallows', word: 'satabl',
       sky: '#CEE0E8', ground: '#82A9AB', deep: '#4C7B85', feature: 'sea', boat: true,
       finds: [
-        { f: 'sadaf', x: 118, y: 636 }, { f: 'chub', x: 264, y: 676 }, { f: 'sang', x: 196, y: 730 }
+        { f: 'satabl', x: 118, y: 636 }, { f: 'chub', x: 264, y: 676 }, { f: 'sang', x: 196, y: 730 }
       ]
     },
     {
       id: 'beach', label: 'the beach', verb: 'the tide line is where things gather',
       sky: '#EAE6D4', ground: '#E3D3AC', deep: '#C8B38A', feature: 'sand', word: 'chub',
       finds: [
-        { f: 'sadaf', x: 104, y: 596 }, { f: 'par', x: 240, y: 646 }, { f: 'chub', x: 172, y: 712 }
+        { f: 'satabl', x: 104, y: 596 }, { f: 'par', x: 240, y: 646 }, { f: 'chub', x: 172, y: 712 }
       ]
     }
   ];
@@ -18709,7 +19264,7 @@ props: islandProps.map(function (p) {
       ctx.strokeStyle = 'rgba(180,200,210,0.9)';
       ctx.lineWidth = 1 * s;
       ctx.stroke();
-    } else if (f === 'sadaf') {
+    } else if (f === 'satabl') {
       ctx.fillStyle = '#F0DCD2';
       ctx.beginPath();
       ctx.moveTo(0, 6 * s);
@@ -18923,7 +19478,7 @@ props: islandProps.map(function (p) {
       {"id":"plant-mulberry","f":"tut","e":"mulberry","p":"توت","sh":"plant","ps":"round"},
       {"id":"plant-chenar","f":"chenár","e":"plane tree","p":"چنار","sh":"plant","ps":"round"},
       {"id":"fungus-capstem","f":"ghárch-e sahráyi","e":"field mushroom","p":"قارچ صحرایی","sh":"fungus"},
-      {"id":"fungus-bracket","f":"ghárch-e sadafi","e":"oyster mushroom","p":"قارچ صدفی","sh":"fungus"},
+      {"id":"fungus-bracket","f":"ghárch-e satabli","e":"oyster mushroom","p":"قارچ صدفی","sh":"fungus"},
       {"id":"fungus-coral","f":"ghárch-e marjáni","e":"coral fungus","p":"قارچ مرجانی","sh":"fungus"},
       {"id":"fungus-morel","f":"samárugh","e":"morel","p":"سماروغ","sh":"fungus"},
       {"id":"fungus-truffle","f":"donbalán","e":"desert truffle","p":"دنبلان کوهی","sh":"fungus"},
@@ -19049,7 +19604,7 @@ props: islandProps.map(function (p) {
       {"id":"creature-flamingo","f":"flámingo","e":"flamingo","p":"فلامینگو","sh":"bird"},
     ],
     beach: [
-      {"id":"pickup-shell","f":"sadaf","e":"shell","p":"صدف","sh":"find"},
+      {"id":"pickup-shell","f":"satabl","e":"shell","p":"صدف","sh":"find"},
     ],
   };
 
@@ -22984,6 +23539,30 @@ var ANIMAL_SIZES = {
 
   /* The three views of one animal at one size. The ground line is drawn so a raised
      or sunken foot is obvious rather than argued about. */
+  /* What the stride maths says for one animal, so the moonwalk is measurable
+     rather than a matter of opinion. */
+  window.__animalStride = function (id) {
+    var e = findSpecies(id) || { id: id, sh: 'beast' };
+    var shape = animalShapeOf(e.id);
+    var m = animalRow(shape);
+    var f = animalFrame(shape);
+    var reach = Math.max(0.055, (m.leg || 0.45) * 0.44);
+    var unitPx = beastHeight(e) / Math.max(1e-6, f.bounds.h);
+    var stridePx = animalStridePx(e);
+    var pace = 26;
+    var duty = ANIMAL_DUTY;
+    var oldStride = 11;
+    // Ground covered during one stance, minus the distance the foot sweeps.
+    var slideOld = pace * (oldStride / pace) * 0.6 - 2 * reach * unitPx;
+    return {
+      shape: shape, reach: +reach.toFixed(3), unitPx: +unitPx.toFixed(2),
+      stridePx: +stridePx.toFixed(2),
+      slideOldPx: +((duty * oldStride) - 2 * reach * unitPx).toFixed(3),
+      slideNewPx: +((duty * stridePx) - 2 * reach * unitPx).toFixed(6)
+    };
+  };
+
+
   window.__animalViews = function (id, size) {
     size = size || 240;
     var views = ['side', 'front', 'back'];
@@ -23530,6 +24109,174 @@ var ANIMAL_SIZES = {
       ctx.fill();
     }
     ctx.restore();
+  }
+
+  /* A grown-up of the island, from the household table. Grown-ups are not a
+     bigger child: a long coat, a real shoulder, a headscarf or a beard, and for
+     the old ones white hair and a stoop. They stand and breathe and do not walk,
+     because the island's one walker is the keeper. */
+  function drawKin(g, x, y, t, k) {
+    if (k.boy) {
+      // The brother is drawn with the keeper's own shapes, a little shorter, so
+      // the three children of the house read as one family.
+      castShadow(x, y + keeperFeetBelow(R.heroSize * 0.86), 46, 0.24);
+      g.save();
+      g.translate(x, y);
+      paintKeeper(g, R.heroSize * 0.86, 'front', null, false, BROTHER_WEAR, false);
+      g.restore();
+      return;
+    }
+
+    var bob = Math.sin(t * 1.4 + x * 0.017) * 1.3;
+    var skin = k.skin || '#F0C49B';
+    var coat = k.coat;
+    var coatLit = k.lit || k.coat;
+    var isMother = k.sex === 'f';
+    var hair = k.old ? '#EDE9E0' : '#2C241E';
+
+    g.save();
+    g.translate(x, y + bob);
+
+    // Feet, then the coat's hem resting on them.
+    g.fillStyle = '#4A382B';
+    g.beginPath();
+    g.ellipse(-9, -4, 8, 4.5, 0, 0, TAU);
+    g.fill();
+    g.beginPath();
+    g.ellipse(9, -4, 8, 4.5, 0, 0, TAU);
+    g.fill();
+
+    // The coat: narrow at the shoulder, wide at the hem, one closed path.
+    g.fillStyle = coat;
+    g.beginPath();
+    g.moveTo(-17, -104);
+    g.bezierCurveTo(-25, -84, -28, -40, -30, -8);
+    g.bezierCurveTo(-12, -2, 12, -2, 30, -8);
+    g.bezierCurveTo(28, -40, 25, -84, 17, -104);
+    g.closePath();
+    g.fill();
+
+    // The side that catches the light, so a flat coat still has a front.
+    g.fillStyle = coatLit;
+    g.beginPath();
+    g.moveTo(-17, -104);
+    g.bezierCurveTo(-22, -84, -24, -40, -26, -8);
+    g.bezierCurveTo(-18, -5, -8, -3, 0, -2);
+    g.bezierCurveTo(-2, -40, -4, -84, -6, -104);
+    g.closePath();
+    g.fill();
+
+    // A sash, in the one warm colour a coat can carry.
+    g.fillStyle = isMother ? '#E8C275' : '#B4762E';
+    g.beginPath();
+    g.moveTo(-24, -56);
+    g.quadraticCurveTo(0, -50, 24, -56);
+    g.lineTo(24, -49);
+    g.quadraticCurveTo(0, -43, -24, -49);
+    g.closePath();
+    g.fill();
+
+    // Arms, out from the shoulder and down the side.
+    g.strokeStyle = coat;
+    g.lineWidth = 11;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(-16, -98);
+    g.quadraticCurveTo(-27, -74, -25, -50);
+    g.moveTo(16, -98);
+    g.quadraticCurveTo(27, -74, 25, -50);
+    g.stroke();
+    g.strokeStyle = skin;
+    g.lineWidth = 8;
+    g.beginPath();
+    g.moveTo(-26, -54);
+    g.lineTo(-25, -44);
+    g.moveTo(26, -54);
+    g.lineTo(25, -44);
+    g.stroke();
+
+    // The neck, so the head sits on the coat and does not float.
+    g.fillStyle = skin;
+    g.fillRect(-6, -114, 12, 12);
+
+    if (isMother) {
+      // A headscarf: a hood behind the face and two falls down the shoulders.
+      g.fillStyle = k.scarf || '#A8577A';
+      g.beginPath();
+      g.moveTo(-17, -112);
+      g.bezierCurveTo(-22, -134, -14, -146, 0, -146);
+      g.bezierCurveTo(14, -146, 22, -134, 17, -112);
+      g.bezierCurveTo(20, -96, 19, -84, 16, -76);
+      g.lineTo(9, -76);
+      g.bezierCurveTo(13, -88, 14, -100, 13, -110);
+      g.lineTo(-13, -110);
+      g.bezierCurveTo(-14, -100, -13, -88, -9, -76);
+      g.lineTo(-16, -76);
+      g.bezierCurveTo(-19, -84, -20, -96, -17, -112);
+      g.closePath();
+      g.fill();
+
+      // The face, an oval inside the scarf.
+      g.fillStyle = skin;
+      g.beginPath();
+      g.ellipse(0, -124, 11.5, 14, 0, 0, TAU);
+      g.fill();
+
+      // A strand of hair at each temple, in front of the scarf's edge.
+      g.fillStyle = hair;
+      g.beginPath();
+      g.ellipse(-10, -130, 3.4, 6, 0.3, 0, TAU);
+      g.fill();
+      g.beginPath();
+      g.ellipse(10, -130, 3.4, 6, -0.3, 0, TAU);
+      g.fill();
+    } else {
+      // The father's head: hair, a short beard, and a lined brow.
+      g.fillStyle = skin;
+      g.beginPath();
+      g.ellipse(0, -124, 13.5, 15.5, 0, 0, TAU);
+      g.fill();
+
+      // The beard, a closed shape from cheek to cheek, under the mouth. The old
+      // ones grow it longer, which is the only age the drawing needs.
+      g.fillStyle = hair;
+      g.beginPath();
+      g.moveTo(-12, -122);
+      g.bezierCurveTo(-13, k.old ? -104 : -112, -8, k.old ? -96 : -104, 0, k.old ? -96 : -104);
+      g.bezierCurveTo(8, k.old ? -96 : -104, 13, k.old ? -104 : -112, 12, -122);
+      g.bezierCurveTo(6, -118, -6, -118, -12, -122);
+      g.closePath();
+      g.fill();
+
+      // The hair: a cap over the crown, and two short sides.
+      g.beginPath();
+      g.ellipse(0, -132, 14, 10, 0, Math.PI, TAU);
+      g.fill();
+      g.beginPath();
+      g.ellipse(-12.6, -126, 3, 5.4, 0.35, 0, TAU);
+      g.fill();
+      g.beginPath();
+      g.ellipse(12.6, -126, 3, 5.4, -0.35, 0, TAU);
+      g.fill();
+    }
+
+    // The eyes: two dots, and a mouth, which is all a face this small needs.
+    g.fillStyle = '#2E2A26';
+    g.beginPath();
+    g.arc(-4.4, -126, 1.6, 0, TAU);
+    g.arc(4.4, -126, 1.6, 0, TAU);
+    g.fill();
+    if (isMother) {
+      g.strokeStyle = '#9A6650';
+      g.lineWidth = 1.4;
+      g.lineCap = 'round';
+      g.beginPath();
+      g.moveTo(-2.6, -117);
+      g.quadraticCurveTo(0, -115.6, 2.6, -117);
+      g.stroke();
+    }
+
+    g.restore();
   }
 
   /* A person of the island. The sister is drawn the same way, one size up. */
@@ -25197,6 +25944,26 @@ var ANIMAL_SIZES = {
     };
   }
 
+  /* How far the ground moves per full stride, in world pixels, for this animal.
+
+     A planted foot must not slide, which fixes the number: during stance - a share
+     ANIMAL_DUTY of the cycle - the body covers exactly the distance the foot sweeps
+     beneath it. The foot sweeps `reach` forward and `reach` back in BODY units, and a
+     body unit is beastHeight / bounds.h pixels, so
+
+         stride = 2 * reach * unitPx / ANIMAL_DUTY
+
+     Computed from the animal's OWN row and drawn size, so a gazelle and a bear each
+     get their own, and neither paddles. */
+  function animalStridePx(e) {
+    var shape = animalShapeOf(e.id);
+    var m = animalRow(shape);
+    var f = animalFrame(shape);
+    var reach = Math.max(0.055, (m.leg || 0.45) * 0.44);
+    var unitPx = beastHeight(e) / Math.max(1e-6, f.bounds.h);
+    return Math.max(1.5, (2 * reach * unitPx) / ANIMAL_DUTY);
+  }
+
   function makeAnimal(sp, x, y) {
     var seed = Math.round(x * 31 + y * 17 + sp.id.length * 7);
     var t = animalTraits(sp, seed);
@@ -25222,6 +25989,11 @@ var ANIMAL_SIZES = {
       leapFrom: null,
       leapTo: null,
       walk: seeded(seed + 5)() * 6,
+      // The stride his own legs and his own drawn size allow. Without it the phase
+      // runs on a clock unrelated to the ground and the animal skates.
+      stridePx: animalStridePx(sp),
+      // How high this animal's bound lifts it, in world pixels.
+      liftAmp: Math.max(5, Math.min(20, beastHeight(sp) * 0.42)),
       thirst: 14 + seeded(seed + 11)() * 26,
       thirsty: false,
       drinking: 0,
@@ -25330,7 +26102,11 @@ var ANIMAL_SIZES = {
     a.grazing = false;
 
     var roll = seeded(a.seed + Math.floor(clock * 7))();
-    if (t.hops && roll < 0.55) {
+    // A FLEEING QUADRUPED BOUNDS. Only the small jumpers and the birds had `hops`, so
+    // every gazelle, wolf and bear walked however hard it was running from her - which
+    // is what read as a rapid walk instead of an animal moving.
+    var bounds = panic > 0 && a.sp.sh === 'beast';
+    if ((t.hops || bounds) && roll < 0.55) {
       a.gait = 'hop';
       a.leap = FAUNA_LEAP;
       a.leapFrom = { x: a.x, y: a.y };
@@ -25388,7 +26164,9 @@ var ANIMAL_SIZES = {
         var done = 1 - Math.max(0, a.leap) / FAUNA_LEAP;
         a.x = a.leapFrom.x + (a.leapTo.x - a.leapFrom.x) * done;
         a.y = a.leapFrom.y + (a.leapTo.y - a.leapFrom.y) * done;
-        a.lift = Math.sin(Math.PI * done) * 14;
+        // A share of the animal's own height: a flat 14 px threw a hare a body-length
+        // into the air and barely lifted a bear.
+        a.lift = Math.sin(Math.PI * done) * (a.liftAmp || 12);
         a.moving = true;
         a.walk += dt * 8;
         if (a.leap <= 0) { a.leap = 0; a.gait = 'still'; a.moving = false; }
@@ -25402,7 +26180,10 @@ var ANIMAL_SIZES = {
         a.y += a.heading.y * pace * dt;
         // The stride keeps time with the ground it covers, not the clock: a
         // running animal does not paddle. One pose per 11 units walked.
-        a.walk += (pace * dt) / 11 * 8 * (a.gait === 'run' ? 1.25 : 1);
+        // One cycle per stride the legs can actually make. The old divisor was a
+        // fixed 11 px and a flat 1.25 for a run: two more clocks, unrelated to the
+        // feet, which is what made every animal slide.
+        a.walk += ((pace * dt) / (a.stridePx || 11)) * 8;
         a.moving = true;
         clampAnimal(a);
       } else {
@@ -25423,6 +26204,18 @@ var ANIMAL_SIZES = {
         }
       }
       animalBeat(a, herd);
+
+      // The keeper's groove. An animal whose next beat would land just after a
+      // stroke is pulled onto it, and never by more than a third of its own
+      // period: a slow animal stays slow, it only comes in on time.
+      if (tablOn() && a.pulse > 0) {
+        var toCue = tablToCue();
+        grooveBeats++;
+        if (toCue >= 0 && toCue < a.pulse * 0.34) {
+          a.pulse = Math.max(0.05, toCue);
+          grooveSnaps++;
+        }
+      }
     }
 
     // The prop follows the animal, so the verb and the drawing are one thing.
@@ -25561,6 +26354,85 @@ var ANIMAL_SIZES = {
   }
   function biomeKey() { return interior ? 'in:' + interior : sectionId(section.cx, section.cy); }
 
+  /* The household.
+   *
+   * Everyone in the family stands somewhere on the island, and each one carries
+   * their own kinship word. Persian names the mother's sister and the father's
+   * sister differently, and the mother's brother differently from the father's, so
+   * the island does too: four words for four people, and a child who meets all
+   * four has learned the only language in the world that insists on the
+   * difference.
+   *
+   * One table, one owner: the drawing, the greeting, the word and the place all
+   * read from here.
+   */
+  var KIN = [
+    {
+      who: 'mother', sex: 'f', place: 'house', x: 0.62, y: 0.74,
+      coat: '#7A3F58', lit: '#8E4A66', scarf: '#A8577A', skin: '#F0C49B',
+      verb: 'greet Maman', word: 'maman', line: 'my mother'
+    },
+    {
+      who: 'grandmother', sex: 'f', old: true, place: 'house', x: 0.30, y: 0.86,
+      coat: '#6E4A6A', lit: '#825A7E', scarf: '#E9DCC4', skin: '#EFC9A4',
+      verb: 'greet M\u00e2m\u00e2nbozorg', word: 'm\u00e1darbozorg', line: 'my grandmother'
+    },
+    {
+      who: 'grandfather', sex: 'm', old: true, place: 'house', x: 0.14, y: 0.56,
+      coat: '#5E6B4A', lit: '#71805A', scarf: '#71805A', skin: '#E6BB90',
+      verb: 'greet B\u00e2b\u00e2bozorg', word: 'pedarbozorg', line: 'my grandfather'
+    },
+    {
+      who: 'father', sex: 'm', place: 'yard', x: 0.34, y: 0.62,
+      coat: '#3F5C6B', lit: '#4E7080', scarf: '#4E7080', skin: '#E4B489',
+      verb: 'greet Baba', word: 'baba', line: 'my father'
+    },
+    {
+      who: 'brother', sex: 'm', boy: true, place: 'yard', x: 0.56, y: 0.70,
+      verb: 'greet your brother', word: 'bar\u00e1dar', line: 'my brother'
+    },
+    {
+      who: 'khale', sex: 'f', place: 'yard', x: 0.15, y: 0.40,
+      coat: '#4E7B5E', lit: '#5F8E6E', scarf: '#B98A32', skin: '#F0C49B',
+      verb: 'greet Kh\u00e1le', word: 'kh\u00e1le', line: 'my aunt, Mâmân\u2019s sister'
+    },
+    {
+      who: 'amme', sex: 'f', place: 'yard', x: 0.84, y: 0.34,
+      coat: '#4E6E8A', lit: '#5F809E', scarf: '#7E9BB3', skin: '#EFC9A4',
+      verb: 'greet Amme', word: 'amme', line: 'my aunt, Baba\u2019s sister'
+    },
+    {
+      who: 'dai', sex: 'm', place: 'yard', x: 0.10, y: 0.86,
+      coat: '#8A5A3C', lit: '#9C6C4A', scarf: '#9C6C4A', skin: '#E4B489',
+      verb: 'greet D\u00e1i', word: 'd\u00e1i', line: 'my uncle, Mâmân\u2019s brother'
+    },
+    {
+      who: 'amu', sex: 'm', place: 'yard', x: 0.78, y: 0.78,
+      coat: '#6A5A3E', lit: '#7C6B4C', scarf: '#7C6B4C', skin: '#E6BB90',
+      verb: 'greet Amu', word: 'amu', line: 'my uncle, Baba\u2019s brother'
+    }
+  ];
+
+  function kinAt(place) {
+    var out = [];
+    for (var i = 0; i < KIN.length; i++) if (KIN[i].place === place) out.push(KIN[i]);
+    return out;
+  }
+
+  /* Who is standing in this place, as props. One body each, at the spot the table
+     gives, and the greeting carries the word. */
+  function pushKin(out, place, W, H) {
+    if (!place) return;
+    var list = kinAt(place);
+    for (var i = 0; i < list.length; i++) {
+      var k = list[i];
+      out.push({
+        k: k.who, kin: k, x: W * k.x, y: H * k.y,
+        verb: k.verb, act: 'family', who: k.who, word: k.word, line: k.line, name: ''
+      });
+    }
+  }
+
   function buildProps() {
     var key = biomeKey();
     // The boat's own prop depends on whether she is in it, not on the biome, so
@@ -25592,6 +26464,7 @@ var ANIMAL_SIZES = {
       out.push({ k: 'wardrobe', x: W * 0.74, y: H * 0.20, verb: 'change her clothes', act: 'outfit', name: '' });
       out.push({ k: 'cat', x: W * 0.70, y: H * 0.50, verb: 'greet the cat', act: 'word', word: 'gorbeh', name: '' });
       out.push({ k: 'lamp', x: W * 0.88, y: H * 0.62, verb: 'light the lamp', act: 'word', word: 'cheragh', name: '' });
+      out.push({ k: 'tabl', x: W * 0.34, y: H * 0.42, verb: 'take up the tabl', act: 'enter', to: 'tabl', name: '' });
     } else {
       // The greenhouse's bench stands in the open, in front of the glass.
       if (d.kind === 'glass') {
@@ -25791,6 +26664,9 @@ var ANIMAL_SIZES = {
         });
       }
     }
+
+    // The family, in the two places they stand: the house and the yard.
+    pushKin(out, interior === 'house' ? 'house' : (d.kind === 'yard' ? 'yard' : null), W, H);
 
     // Each thing's drawn width, so two large neighbours are not stacked.
     var widthOf = function (q) {
@@ -26223,6 +27099,19 @@ var ANIMAL_SIZES = {
       checkErrand();
       return;
     }
+    if (p.act === 'family') {
+      // The family. Greeting one teaches that name; greeting four of them teaches
+      // the word for what the whole house is.
+      metFamily[p.who] = true;
+      teachWord(p.word);
+      var kinMet = 0;
+      for (var mw in metFamily) if (metFamily.hasOwnProperty(mw) && metFamily[mw]) kinMet++;
+      addFloater(p.x, p.y - 150, T(p.line), C.inkSoft);
+      addParticles(p.x, p.y - 60, '#FFF3D0', 10, 70);
+      if (kinMet >= 4) teachWord('khanevade');
+      checkErrand();
+      return;
+    }
     if (p.act === 'board') {
       // She gets into the boat and sits down in it, and the boat is pushed off
       // the shingle into the water - she is not perched on the sand.
@@ -26528,7 +27417,8 @@ var ANIMAL_SIZES = {
     wardrobe: 92, bench: 46, bookcase: 40, bed: 42, boat: 44, lamp: 44,
     hivebox: 34, well: 36, satchel: 30, pot: 18, cat: 34, stone: 26,
     carved: 48, sister: 116, tidelinet: 12, pondwater: 0, water: 0,
-    daisy: 20, blade: 12, clover: 10, thatch: 40, antler: 24
+    daisy: 20, blade: 12, clover: 10, thatch: 40, antler: 24,
+    mother: 132, father: 132, tabl: 74
   };
 
   /* Props that LIE on the ground rather than stand on it. They are drawn before
@@ -26548,11 +27438,13 @@ var ANIMAL_SIZES = {
     house: 76, door: 30, coopdoor: 88, glassdoor: 88, sister: 26,
     bench: 16, well: 34, hivebox: 8, boat: 26, bed: 8, carved: 18,
     stone: 14, satchel: 30, bookcase: 38, books: 0, wardrobe: 0,
-    lamp: 0, pot: 12, cat: 10, tidelinet: 6, pondwater: 0, water: 0
+    lamp: 0, pot: 12, cat: 10, tidelinet: 6, pondwater: 0, water: 0,
+    mother: 26, father: 26, tabl: 14
   };
 
   function propDrop(p) {
     if (!p) return 10;
+    if (p.kin) return 26;
     if (p.k === 'species') return 6;
     var d = PROP_DROP[p.k];
     return d === undefined ? 10 : d;
@@ -26560,6 +27452,7 @@ var ANIMAL_SIZES = {
 
   function propRise(p) {
     if (!p) return 46;
+    if (p.kin) return p.kin.boy ? 104 : 132;
     if (p.k === 'species') {
       var h = speciesDrawnHeight(p.sp);
       if (p.bedStep) h *= (p.bedStep === 1 ? 0.30 : (p.bedStep === 2 ? 0.78 : 1));
@@ -26637,6 +27530,72 @@ var ANIMAL_SIZES = {
       ctx.save();
       ctx.translate(x, y);
       paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[2], false);
+      ctx.restore();
+      return;
+    }
+    if (p.kin) {
+      castShadow(x, y + 4, p.kin.boy ? 44 : 56, 0.26);
+      drawKin(ctx, x, y, clock, p.kin);
+      return;
+    }
+    if (p.k === 'tabl') {
+      // A great tabl standing on the floor: a barrel with a pale head on top, its
+      // lacing down the side, and the two sticks leaning against it. Seen a little
+      // from above, so the head is an ellipse and the drum has a top and a body.
+      castShadow(x, y + 8, 54, 0.24);
+      ctx.save();
+      ctx.translate(x, y - 30);
+
+      // The body: a barrel narrowing at its waist, dark wood with one warm band.
+      ctx.fillStyle = '#6B4A2E';
+      ctx.beginPath();
+      ctx.moveTo(-36, 8);
+      ctx.quadraticCurveTo(-43, -22, -36, -50);
+      ctx.lineTo(36, -50);
+      ctx.quadraticCurveTo(43, -22, 36, 8);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = '#8A5F38';
+      ctx.beginPath();
+      ctx.moveTo(-39, -18);
+      ctx.quadraticCurveTo(0, -14, 39, -18);
+      ctx.lineTo(39, -10);
+      ctx.quadraticCurveTo(0, -6, -39, -10);
+      ctx.closePath();
+      ctx.fill();
+
+      // The lacing, up and down the side, which is what holds a head on.
+      ctx.strokeStyle = 'rgba(38,26,16,0.45)';
+      ctx.lineWidth = 1.5;
+      for (var tb = -3; tb <= 3; tb++) {
+        ctx.beginPath();
+        ctx.moveTo(tb * 10, -48);
+        ctx.lineTo(tb * 10 + 5, -4);
+        ctx.stroke();
+      }
+
+      // The head, on top, and its dark rim.
+      ctx.fillStyle = '#4A3524';
+      ctx.beginPath();
+      ctx.ellipse(0, -52, 41, 17, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#F0DCB0';
+      ctx.beginPath();
+      ctx.ellipse(0, -53, 34, 13, 0, 0, TAU);
+      ctx.fill();
+
+      // The two sticks, leaning where she left them, against the drum's side.
+      ctx.strokeStyle = '#C9A46A';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(30, 8);
+      ctx.lineTo(18, -62);
+      ctx.moveTo(40, 8);
+      ctx.lineTo(27, -56);
+      ctx.stroke();
+
       ctx.restore();
       return;
     }
@@ -27281,6 +28240,9 @@ var ANIMAL_SIZES = {
   var chipHit = null;
   var donyaLine = -99;
   var donyaMet = false;
+  /* Who in the house has been greeted. Both of them teaches the word for the
+     family itself, which is why it is a pair of names and not one flag. */
+  var metFamily = { mother: false, father: false };
   var sibLine = -99;
   /* The last thing a person said to her, and when. */
   var beingSaid = { at: -99, who: '', line: '' };
@@ -27721,6 +28683,281 @@ var ANIMAL_SIZES = {
   function bagTap(p) {
     chromeTap(p);
   }
+
+  /* ---- THE TABL ------------------------------------------------------------
+     The island's drum: a great double-headed tabl, the drum of the Iranian
+     court and the street both, struck on its head with a stick. Its face holds
+     sixteen marks in a ring; a mark the keeper sets is a stroke, and the ring is
+     one bar of the island's own tune. While any mark is set the world's clocks
+     lean toward them: an animal's next beat, the tune's own swing.
+
+     Nothing here is scored. There is no right rhythm, no streak, and nothing to
+     win for a full ring - the tabl is how the keeper joins in, not a puzzle.
+     ------------------------------------------------------------------------ */
+  var TABL_STEPS = 16;
+  var tabl = { marks: [], bpm: 76 };
+
+  for (var tablSeed = 0; tablSeed < TABL_STEPS; tablSeed++) tabl.marks.push(false);
+
+  function tablCount() {
+    var n = 0;
+    for (var i = 0; i < TABL_STEPS; i++) if (tabl.marks[i]) n++;
+    return n;
+  }
+
+  function tablOn() { return tablCount() > 0; }
+
+  /* How often an animal's beat has been pulled onto a stroke, so a probe can tell
+     "the groove is on" from "the groove is heard". */
+  var grooveBeats = 0;
+  var grooveSnaps = 0;
+
+  function tablStepSeconds() { return 60 / tabl.bpm / 4; }
+
+  function tablPhase() { return Math.floor(clock / tablStepSeconds()) % TABL_STEPS; }
+
+  /* Seconds until the next mark that is set. An animal clock reads this, so a
+     beat that was about to land just after a stroke lands on it instead. */
+  function tablToCue() {
+    if (!tablOn()) return -1;
+    var step = tablStepSeconds();
+    var at = Math.floor(clock / step);
+    for (var k = 1; k <= TABL_STEPS; k++) {
+      if (tabl.marks[(at + k) % TABL_STEPS]) return (at + k) * step - clock;
+    }
+    return step * TABL_STEPS;
+  }
+
+  /* The ring keeps the tune's tempo, so the two are one clock and not two. */
+  function tablTempo() {
+    var r = score.report();
+    if (r && r.bpm) tabl.bpm = r.bpm;
+  }
+
+  /* The tabl's own voice.
+   *
+   * A great drum is two sounds: the stroke on the head, which is low and rings on
+   * after the stick has gone, and the knock on the wooden rim. Both are a burst of
+   * noise under a decay, filtered to the band each one sits in, with a pitched
+   * body under the low one so it reads as a big head and not as a hiss. Built once
+   * from noise, so the drum needs no sample and no download.
+   */
+  var tablVoices = null;
+  var tablLastStep = -1;
+  var tablStruck = 0;
+
+  function buildTablVoices() {
+    if (tablVoices || !audio) return tablVoices;
+    var rate = audio.sampleRate;
+    function burst(seconds, decay) {
+      var n = Math.max(1, Math.floor(rate * seconds));
+      var buf = audio.createBuffer(1, n, rate);
+      var d = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) {
+        var t = i / n;
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay);
+      }
+      return buf;
+    }
+    tablVoices = { dom: burst(0.55, 1.9), tak: burst(0.09, 4.2) };
+    return tablVoices;
+  }
+
+  function tablHit(kind) {
+    if (muted) return;
+    tablStruck++;
+    ensureAudio();
+    if (!audio) return;
+    var v = buildTablVoices();
+    if (!v) return;
+    var tak = kind === 'tak';
+    var src = audio.createBufferSource();
+    src.buffer = tak ? v.tak : v.dom;
+    var band = audio.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = tak ? 1250 : 110;
+    band.Q.value = tak ? 1.4 : 2.2;
+    var gain = audio.createGain();
+    // A band-pass throws most of a noise burst away, so the levels look high for
+    // what comes out: measured at the speaker these peak near 0.35.
+    gain.gain.value = tak ? 0.55 : 3.2;
+    src.connect(band);
+    band.connect(gain);
+    gain.connect(audio.destination);
+    src.start();
+    // The body under the head: a great drum is heard in the chest as well as the
+    // ear, so a slow sine sits under the noise and outlasts it.
+    if (!tak) tone(72, 0.26, 'sine', 0.16, 46);
+  }
+
+  function tablStroke(i) {
+    tabl.marks[i] = !tabl.marks[i];
+    tablHit(tabl.marks[i] ? (i % 4 === 0 ? 'dom' : 'tak') : 'tak');
+    score.setGroove(tablOn() ? 1 : 0);
+  }
+
+  /* While the page is open the tabl plays its own ring: every mark she set sounds
+     as the bar passes it. The world does not grade the rhythm, and neither does
+     the drum - it only keeps it. */
+  function updateTabl() {
+    var step = tablPhase();
+    if (step === tablLastStep) return;
+    tablLastStep = step;
+    if (!tabl.marks[step]) return;
+    tablHit(step % 4 === 0 ? 'dom' : 'tak');
+  }
+
+  function clearTabl() {
+    for (var i = 0; i < TABL_STEPS; i++) tabl.marks[i] = false;
+    score.setGroove(0);
+    tone(190, 0.16, 'sine', 0.04, 150);
+  }
+
+  function tablHint() {
+    var n = tablCount();
+    if (!n) return T('Tap a mark to set a stroke.');
+    if (n === TABL_STEPS) return T('A full ring. The yard keeps one time.');
+    return T('{0} strokes. The island leans in.').replace('{0}', String(n));
+  }
+
+  function drawTabl(cssW, cssH) {
+    hits = [];
+    tablTempo();
+    ctx.fillStyle = C.plaster;
+    ctx.fillRect(0, 0, cssW, cssH);
+    pageBegin(cssW, cssH);
+    ctx.fillStyle = C.plaster;
+    ctx.fillRect(0, 0, 390, 844);
+    ctx.strokeStyle = 'rgba(42,35,32,0.16)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(18, 18, 354, 808);
+
+    placeHeader(T('The tabl'));
+
+    var cx = 195, cy = 380, R = 130;
+
+    // The frame, then the skin inside it. Two shapes, because the rim is what
+    // makes a drum read as a drum and not as a plate.
+    ctx.fillStyle = '#5A3B24';
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 10, 0, TAU);
+    ctx.fill();
+
+    // The hoop that holds the head on: rivets round the rim, which is what a
+    // great drum has instead of a frame drum's lacing.
+    ctx.strokeStyle = 'rgba(28,18,10,0.45)';
+    ctx.lineWidth = 2;
+    for (var t = 0; t < 32; t++) {
+      var ta = t / 32 * TAU;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ta) * (R + 1), cy + Math.sin(ta) * (R + 1));
+      ctx.lineTo(cx + Math.cos(ta + 0.06) * (R + 9), cy + Math.sin(ta + 0.06) * (R + 9));
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = '#F1DDB2';
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.fill();
+
+    // The skin's own grain: three faint rings, so the face is hide and not paper.
+    ctx.strokeStyle = 'rgba(150,120,80,0.20)';
+    ctx.lineWidth = 1;
+    for (var g = 0; g < 3; g++) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 34 + g * 26, 0, TAU);
+      ctx.stroke();
+    }
+
+    // Sixteen strokes in a ring, and the one being played now.
+    var phase = tablPhase();
+    for (var i = 0; i < TABL_STEPS; i++) {
+      var a = i / TABL_STEPS * TAU - Math.PI / 2;
+      var set = tabl.marks[i];
+      var mx = cx + Math.cos(a) * 100, my = cy + Math.sin(a) * 100;
+      var r0 = 84, r1 = 116;
+
+      // A set mark gets a warm face under the stroke, so the ring reads at a
+      // glance without the wash dulling the stroke itself.
+      if (set) {
+        ctx.fillStyle = 'rgba(194,96,58,0.22)';
+        ctx.beginPath();
+        ctx.arc(mx, my, 15, 0, TAU);
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = set ? '#C2603A' : 'rgba(92,72,50,0.26)';
+      ctx.lineWidth = set ? 8 : 4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+      ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+      ctx.stroke();
+
+      addHit(mx - 19, my - 19, 38, 38, 'tablmark', i);
+    }
+
+    // The playhead: one dark dot outside the ring, going round once a bar.
+    var pa = phase / TABL_STEPS * TAU - Math.PI / 2;
+    ctx.fillStyle = C.ink;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(pa) * (R + 22), cy + Math.sin(pa) * (R + 22), 5, 0, TAU);
+    ctx.fill();
+
+    // Its beat: the drum's own centre darkens on a stroke, once a bar.
+    if (tabl.marks[phase]) {
+      ctx.fillStyle = 'rgba(194,96,58,0.10)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, R - 4, 0, TAU);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = 'italic 400 13.5px ' + FONT_SERIF;
+    ctx.textAlign = 'center';
+    var lines = wrapText(tablHint(), 300, 'italic 400 13.5px ' + FONT_SERIF);
+    for (var l = 0; l < lines.length; l++) ctx.fillText(lines[l], cx, 578 + l * 20);
+
+    ctx.fillStyle = C.inkFaint;
+    ctx.font = '400 11.5px ' + FONT_UI;
+    ctx.fillText(T('Sixteen strokes are one bar of the island\u2019s tune.'), cx, 630);
+
+    if (tablCount()) {
+      ctx.fillStyle = 'rgba(247,244,238,0.94)';
+      roundRect(cx - 44, 656, 88, 34, 17);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+      ctx.stroke();
+      ctx.fillStyle = C.ink;
+      ctx.font = '600 13px ' + FONT_UI;
+      ctx.fillText(T('clear'), cx, 674);
+      addHit(cx - 44, 656, 88, 34, 'tablclear');
+    }
+
+    ctx.textAlign = 'left';
+    pageEnd();
+  }
+
+  function tablDown(p) {
+    if (chromeTap(p)) return;
+    var h = hitAt(p);
+    if (!h) return;
+    if (h.act === 'tablmark') tablStroke(h.arg);
+    else if (h.act === 'tablclear') clearTabl();
+  }
+
+  function enterTabl() {
+    tablTempo();
+    tablLastStep = -1;
+    // Taking up the drum teaches its name: the word is carried by the thing.
+    teachWord('tabl');
+    score.setGroove(tablOn() ? 1 : 0);
+  }
+
+  addPlace('tabl', {
+    from: 'island', label: 'Tabl', enter: enterTabl,
+    update: updateTabl, draw: drawTabl, down: tablDown
+  });
 
   function drawBag(cssW, cssH) {
     hits = [];
