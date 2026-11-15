@@ -3704,7 +3704,10 @@
     if (stage === 'island') {
       // The day goes on while she walks it: eight real minutes to a whole day.
       day.t = (day.t + dt * day.rate) % 1;
-      stepInto(dt, speed);
+      updateWatch(dt);
+      // While she sits watching, she does not walk: the camera is on the animal and
+      // moving her would take the ground out from under the frame.
+      if (!watch.on) stepInto(dt, speed);
       updateIslandVerb(); updateFauna(dt); sectionCross(); followCamera(false);
       if (sectionDef() && sectionDef().kind === 'garden') gardenTick(dt);
     }
@@ -4912,6 +4915,22 @@
     // Her shadow, from the island's one sun: it lies the way the sun pushes it
     // and grows long as the sun drops.
     castShadow(hero.x, hero.y + keeperFeetBelow(R.heroSize), 56, 0.26);
+
+    if (watch.sit > 0.02) {
+      // Sitting: hips on the ground, the same seated drawing the boat uses. She
+      // turns to the animal, so the two of them face each other.
+      var toFace = watch.prop && watch.prop.x < hero.x ? 'side' : 'side';
+      ctx.save();
+      ctx.globalAlpha = watch.sit;
+      var sitY = hero.y + keeperFeetBelow(R.heroSize) * 0.42 * watch.sit;
+      ctx.translate(hero.x, sitY);
+      paintKeeper(ctx, R.heroSize, toFace,
+        'sit', false, OUTFITS[outfit] || OUTFITS[0],
+        watch.prop ? watch.prop.x < hero.x : false);
+      ctx.restore();
+      ctx.restore();
+      return;
+    }
 
     ctx.translate(hero.x, hero.y + bob);
     ctx.rotate(hero.tilt);
@@ -10251,6 +10270,22 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'a tree': 'ett träd',
+      'a ground plant': 'en markväxt',
+      'a reed': 'ett vassrör',
+      'a flowering plant': 'en blomväxt',
+      'a fungus': 'en svamp',
+      'a bird': 'en fågel',
+      'a fish': 'en fisk',
+      'an insect': 'en insekt',
+      'a frog': 'en groda',
+      'a seal': 'en säl',
+      'a hen': 'en höna',
+      'a person of the island': 'en människa från ön',
+      'something the island left': 'något ön lämnat',
+      'an animal': 'ett djur',
+      'sit and watch': 'sätt dig och titta',
+      'tap to look away': 'tryck för att titta bort',
       'The sea took the rest of the world.': 'Havet tog resten av världen.',
       'This is the piece that stayed.': 'Det här är biten som blev kvar.',
       'look at the well': 'titta på brunnen',
@@ -10303,9 +10338,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'Två hönor, en från var sida av kullen.',
       'look closely': 'titta nära',
       'take it': 'ta den',
-      'watch it': 'titta på den',
-      'watch it from afar': 'titta på den på håll',
-      'net it': 'fånga den i nät',
       'hear them out': 'lyssna på dem',
       'tend it': 'sköta den',
       'harvest it': 'skörda den',
@@ -10582,12 +10614,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'blommade',
       'harvested': 'skördad',
       'into the bag': 'i väskan',
-      'netted, and let go': 'i nätet, och släppt',
       'no seeds left': 'inga frön kvar',
       'she steps ashore': 'hon stiger i land',
       'she steps in': 'hon stiger i',
       'sown': 'sått',
-      'too big to net': 'för stor för nätet',
       '+2 honey': '+2 honung',
       'mites': 'kvalster',
       'no mites': 'inga kvalster',
@@ -10759,6 +10789,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'läs stenen',
     },
     fa: {
+      'a tree': 'یک درخت',
+      'a ground plant': 'یک گیاه زمینی',
+      'a reed': 'یک نی',
+      'a flowering plant': 'یک گیاه گل‌دار',
+      'a fungus': 'یک قارچ',
+      'a bird': 'یک پرنده',
+      'a fish': 'یک ماهی',
+      'an insect': 'یک حشره',
+      'a frog': 'یک قورباغه',
+      'a seal': 'یک فک',
+      'a hen': 'یک مرغ',
+      'a person of the island': 'یک آدم از جزیره',
+      'something the island left': 'چیزی که جزیره جا گذاشته',
+      'an animal': 'یک جانور',
+      'sit and watch': 'بنشین و تماشا کن',
+      'tap to look away': 'برای برگشتن بزن',
       'The sea took the rest of the world.': 'دریا باقیِ جهان را گرفت.',
       'This is the piece that stayed.': 'این همان تکه‌ای است که ماند.',
       'look at the well': 'به چاه نگاه کن',
@@ -10811,9 +10857,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'دو مرغ، یکی از هر طرف کرچ.',
       'look closely': 'از نزدیک نگاه کن',
       'take it': 'آن را بردار',
-      'watch it': 'تماشایش کن',
-      'watch it from afar': 'از دور تماشایش کن',
-      'net it': 'با تور بگیرش',
       'hear them out': 'گوش کن',
       'tend it': 'نگهداری‌اش کن',
       'harvest it': 'برداشتش کن',
@@ -11090,12 +11133,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'شکفت',
       'harvested': 'برداشت شد',
       'into the bag': 'در کیف',
-      'netted, and let go': 'در تور، و رها شد',
       'no seeds left': 'بذری نمانده',
       'she steps ashore': 'به ساحل می‌رود',
       'she steps in': 'سوار می‌شود',
       'sown': 'کاشته شد',
-      'too big to net': 'برای تور بزرگ است',
       '+2 honey': '+۲ عسل',
       'mites': 'کنه',
       'no mites': 'بدون کنه',
@@ -11267,6 +11308,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'a tree': 'ein Baum',
+      'a ground plant': 'eine Bodenpflanze',
+      'a reed': 'ein Schilf',
+      'a flowering plant': 'eine Blütenpflanze',
+      'a fungus': 'ein Pilz',
+      'a bird': 'ein Vogel',
+      'a fish': 'ein Fisch',
+      'an insect': 'ein Insekt',
+      'a frog': 'ein Frosch',
+      'a seal': 'ein Seehund',
+      'a hen': 'eine Henne',
+      'a person of the island': 'ein Mensch der Insel',
+      'something the island left': 'etwas, das die Insel ließ',
+      'an animal': 'ein Tier',
+      'sit and watch': 'setz dich und sieh zu',
+      'tap to look away': 'tippen, um wegzusehen',
       'The sea took the rest of the world.': 'Das Meer nahm den Rest der Welt.',
       'This is the piece that stayed.': 'Das ist das Stück, das blieb.',
       'look at the well': 'den Brunnen ansehen',
@@ -11319,9 +11376,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'Zwei Hennen, eine von jeder Seite des Geleges.',
       'look closely': 'genau ansehen',
       'take it': 'nehmen',
-      'watch it': 'beobachten',
-      'watch it from afar': 'aus der Ferne beobachten',
-      'net it': 'mit dem Netz fangen',
       'hear them out': 'zuhören',
       'tend it': 'pflegen',
       'harvest it': 'ernten',
@@ -11598,12 +11652,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'erblüht',
       'harvested': 'geerntet',
       'into the bag': 'in die Tasche',
-      'netted, and let go': 'im Netz, und freigelassen',
       'no seeds left': 'keine Samen mehr',
       'she steps ashore': 'sie geht an Land',
       'she steps in': 'sie steigt ein',
       'sown': 'gesät',
-      'too big to net': 'zu groß fürs Netz',
       '+2 honey': '+2 Honig',
       'mites': 'Milben',
       'no mites': 'keine Milben',
@@ -11775,6 +11827,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'a tree': 'un arbre',
+      'a ground plant': 'une plante de terre',
+      'a reed': 'un roseau',
+      'a flowering plant': 'une plante à fleurs',
+      'a fungus': 'un champignon',
+      'a bird': 'un oiseau',
+      'a fish': 'un poisson',
+      'an insect': 'un insecte',
+      'a frog': 'une grenouille',
+      'a seal': 'un phoque',
+      'a hen': 'une poule',
+      'a person of the island': 'une personne de l\'île',
+      'something the island left': 'quelque chose laissé par l\'île',
+      'an animal': 'un animal',
+      'sit and watch': 't\'asseoir et regarder',
+      'tap to look away': 'touchez pour détourner le regard',
       'The sea took the rest of the world.': 'La mer a pris le reste du monde.',
       'This is the piece that stayed.': 'C’est le morceau qui est resté.',
       'look at the well': 'regarder le puits',
@@ -11827,9 +11895,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'Deux poules, une de chaque côté de la couvée.',
       'look closely': 'regarder de près',
       'take it': 'le prendre',
-      'watch it': 'l\'observer',
-      'watch it from afar': 'l\'observer de loin',
-      'net it': 'l\'attraper au filet',
       'hear them out': 'l\'écouter',
       'tend it': 'en prendre soin',
       'harvest it': 'le récolter',
@@ -12106,12 +12171,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'fleuri',
       'harvested': 'récolté',
       'into the bag': 'dans le sac',
-      'netted, and let go': 'dans le filet, puis relâché',
       'no seeds left': 'plus de graines',
       'she steps ashore': 'elle débarque',
       'she steps in': 'elle embarque',
       'sown': 'semé',
-      'too big to net': 'trop grand pour le filet',
       '+2 honey': '+2 miel',
       'mites': 'acariens',
       'no mites': 'pas d’acariens',
@@ -12282,6 +12345,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'lire la pierre',
     },
     es: {
+      'a tree': 'un árbol',
+      'a ground plant': 'una planta de suelo',
+      'a reed': 'un junco',
+      'a flowering plant': 'una planta con flor',
+      'a fungus': 'un hongo',
+      'a bird': 'un pájaro',
+      'a fish': 'un pez',
+      'an insect': 'un insecto',
+      'a frog': 'una rana',
+      'a seal': 'una foca',
+      'a hen': 'una gallina',
+      'a person of the island': 'una persona de la isla',
+      'something the island left': 'algo que la isla dejó',
+      'an animal': 'un animal',
+      'sit and watch': 'sentarte a mirar',
+      'tap to look away': 'toca para apartar la vista',
       'The sea took the rest of the world.': 'El mar se llevó el resto del mundo.',
       'This is the piece that stayed.': 'Este es el trozo que quedó.',
       'look at the well': 'mirar el pozo',
@@ -12334,9 +12413,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'Dos gallinas, una de cada lado de la nidada.',
       'look closely': 'mirar de cerca',
       'take it': 'tomarlo',
-      'watch it': 'observarlo',
-      'watch it from afar': 'observarlo de lejos',
-      'net it': 'atraparlo con la red',
       'hear them out': 'escucharle',
       'tend it': 'cuidarlo',
       'harvest it': 'cosecharlo',
@@ -12613,12 +12689,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'floreció',
       'harvested': 'cosechado',
       'into the bag': 'en la bolsa',
-      'netted, and let go': 'en la red, y suelta',
       'no seeds left': 'no quedan semillas',
       'she steps ashore': 'ella desembarca',
       'she steps in': 'ella sube',
       'sown': 'sembrado',
-      'too big to net': 'demasiado grande para la red',
       '+2 honey': '+2 miel',
       'mites': 'ácaros',
       'no mites': 'sin ácaros',
@@ -12790,6 +12864,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'a tree': 'bir ağaç',
+      'a ground plant': 'yer bitkisi',
+      'a reed': 'bir kamış',
+      'a flowering plant': 'çiçekli bir bitki',
+      'a fungus': 'bir mantar',
+      'a bird': 'bir kuş',
+      'a fish': 'bir balık',
+      'an insect': 'bir böcek',
+      'a frog': 'bir kurbağa',
+      'a seal': 'bir fok',
+      'a hen': 'bir tavuk',
+      'a person of the island': 'adadan bir kişi',
+      'something the island left': 'adanın bıraktığı bir şey',
+      'an animal': 'bir hayvan',
+      'sit and watch': 'otur ve izle',
+      'tap to look away': 'bakışını çevirmek için dokun',
       'The sea took the rest of the world.': 'Deniz dünyanın geri kalanını aldı.',
       'This is the piece that stayed.': 'Kalan parça bu.',
       'look at the well': 'kuyuya bak',
@@ -12842,9 +12932,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'İki tavuk, kuluçkanın her yanından bir tane.',
       'look closely': 'yakından bak',
       'take it': 'al',
-      'watch it': 'izle',
-      'watch it from afar': 'uzaktan izle',
-      'net it': 'kepçeyle al',
       'hear them out': 'dinle',
       'tend it': 'bakımını yap',
       'harvest it': 'hasat et',
@@ -13121,12 +13208,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'çiçek açtı',
       'harvested': 'hasat edildi',
       'into the bag': 'çantaya',
-      'netted, and let go': 'ağda, ve bırakıldı',
       'no seeds left': 'tohum kalmadı',
       'she steps ashore': 'karaya çıkıyor',
       'she steps in': 'biniyor',
       'sown': 'ekildi',
-      'too big to net': 'ağ için çok büyük',
       '+2 honey': '+2 bal',
       'mites': 'akarlar',
       'no mites': 'akar yok',
@@ -13298,6 +13383,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'taşı oku',
     },
     ar: {
+      'a tree': 'شجرة',
+      'a ground plant': 'نبتة أرضية',
+      'a reed': 'قصبة',
+      'a flowering plant': 'نبتة مزهرة',
+      'a fungus': 'فطر',
+      'a bird': 'طائر',
+      'a fish': 'سمكة',
+      'an insect': 'حشرة',
+      'a frog': 'ضفدع',
+      'a seal': 'فقمة',
+      'a hen': 'دجاجة',
+      'a person of the island': 'إنسان من الجزيرة',
+      'something the island left': 'شيء تركته الجزيرة',
+      'an animal': 'حيوان',
+      'sit and watch': 'اجلس وراقب',
+      'tap to look away': 'المس لتصرف نظرك',
       'The sea took the rest of the world.': 'أخذ البحر بقية العالم.',
       'This is the piece that stayed.': 'هذه هي القطعة التي بقيت.',
       'look at the well': 'انظر إلى البئر',
@@ -13350,9 +13451,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'دجاجتان، واحدة من كل جانب من الحضنة.',
       'look closely': 'انظر عن قرب',
       'take it': 'خذه',
-      'watch it': 'راقبه',
-      'watch it from afar': 'راقبه من بعيد',
-      'net it': 'امسكه بالشبكة',
       'hear them out': 'أنصت إليه',
       'tend it': 'اعتنِ به',
       'harvest it': 'احصدها',
@@ -13629,12 +13727,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'أزهر',
       'harvested': 'حُصد',
       'into the bag': 'في الحقيبة',
-      'netted, and let go': 'في الشبكة، وأُطلق',
       'no seeds left': 'لا بذور',
       'she steps ashore': 'تنزل إلى الشاطئ',
       'she steps in': 'تصعد',
       'sown': 'زُرع',
-      'too big to net': 'أكبر من الشبكة',
       '+2 honey': '+٢ عسل',
       'mites': 'قرّاد',
       'no mites': 'لا قرّاد',
@@ -13806,6 +13902,22 @@ props: islandProps.map(function (p) {
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'a tree': '一棵树',
+      'a ground plant': '一株地生植物',
+      'a reed': '一根芦苇',
+      'a flowering plant': '一株开花植物',
+      'a fungus': '一朵菌',
+      'a bird': '一只鸟',
+      'a fish': '一条鱼',
+      'an insect': '一只昆虫',
+      'a frog': '一只蛙',
+      'a seal': '一只海豹',
+      'a hen': '一只母鸡',
+      'a person of the island': '岛上的一个人',
+      'something the island left': '岛上留下的东西',
+      'an animal': '一只动物',
+      'sit and watch': '坐下来看',
+      'tap to look away': '点一下，移开视线',
       'The sea took the rest of the world.': '海带走了世界的其余部分。',
       'This is the piece that stayed.': '这就是留下的那一块。',
       'look at the well': '看看这口井',
@@ -13858,9 +13970,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': '两只母鸡，一窝的两边各一只。',
       'look closely': '仔细看看',
       'take it': '收下它',
-      'watch it': '观察它',
-      'watch it from afar': '远远观察它',
-      'net it': '用网兜住它',
       'hear them out': '听他说',
       'tend it': '照料它',
       'harvest it': '收获它',
@@ -14137,12 +14246,10 @@ props: islandProps.map(function (p) {
       'bloomed': '开花了',
       'harvested': '收下了',
       'into the bag': '进了背包',
-      'netted, and let go': '入了网，又放走了',
       'no seeds left': '没有种子了',
       'she steps ashore': '她上岸了',
       'she steps in': '她上船了',
       'sown': '种下了',
-      'too big to net': '太大，网不住',
       '+2 honey': '+2 蜂蜜',
       'mites': '螨',
       'no mites': '没有螨',
@@ -14314,6 +14421,22 @@ props: islandProps.map(function (p) {
       'read the stone': '读那块石头',
     },
     fi: {
+      'a tree': 'yek derakht',
+      'a ground plant': 'yek giyáh-e zamini',
+      'a reed': 'yek ney',
+      'a flowering plant': 'yek giyáh-e gol-dár',
+      'a fungus': 'yek qárch',
+      'a bird': 'yek parande',
+      'a fish': 'yek máhi',
+      'an insect': 'yek hashare',
+      'a frog': 'yek qurbághe',
+      'a seal': 'yek fok',
+      'a hen': 'yek morgh',
+      'a person of the island': 'yek ádam az jazire',
+      'something the island left': 'chizi ke jazire já gozáshte',
+      'an animal': 'yek jánvar',
+      'sit and watch': 'benshin va tamáshá kon',
+      'tap to look away': 'baráye bargashtan bezan',
       'The sea took the rest of the world.': 'Daryá bághi-ye jahán-rá gereft.',
       'This is the piece that stayed.': 'In hamán tekye-ast ke mánd.',
       'look at the well': 'be cháh negáh kon',
@@ -14366,9 +14489,6 @@ props: islandProps.map(function (p) {
       'Two hens, one from each side of the clutch.': 'do morgh, yeki az har taraf-e korch.',
       'look closely': 'az nazdik negáh kon',
       'take it': 'án rá bar dár',
-      'watch it': 'tamásháyash kon',
-      'watch it from afar': 'az dur tamásháyash kon',
-      'net it': 'bá tur begirash',
       'hear them out': 'gush kon',
       'tend it': 'negahdáriyash kon',
       'harvest it': 'bardáshtash kon',
@@ -14645,12 +14765,10 @@ props: islandProps.map(function (p) {
       'bloomed': 'shekoft',
       'harvested': 'bardásht shod',
       'into the bag': 'dar kif',
-      'netted, and let go': 'dar tur, va rahá shod',
       'no seeds left': 'bazri namánde',
       'she steps ashore': 'be sáhel miravad',
       'she steps in': 'savár mishavad',
       'sown': 'káshte shod',
-      'too big to net': 'baráye tur bozorg ast',
       '+2 honey': '+2 asal',
       'mites': 'kane',
       'no mites': 'bikane',
@@ -15229,6 +15347,105 @@ props: islandProps.map(function (p) {
   /* ---- The look page: whatever she stands at, drawn large ---------------- */
   var look = { sp: null, at: -9, kind: '', where: '' };
   var lookMemory = null;
+
+  /* ---- The watch: she gets close, sits, and the island comes to her --------
+
+     A creature is not taken. She walks near it, sits down, and the camera closes
+     in and holds on the animal; a panel frames it and names it. Tapping anywhere
+     ends it and the camera returns to her.
+
+     Three numbers do the work:
+       watch.z     how far the camera has pushed in (1 = as she stands)
+       watch.sit   how far down she has settled (0..1)
+       watch.panel how far the panel has opened (0..1)
+     They ease, so nothing snaps, and they are the only state the camera reads. */
+  var watch = { on: false, sp: null, prop: null, at: -9, z: 1, sit: 0, panel: 0 };
+  var baseScale = 1;   // fitScale before the watch pushes in
+  var WATCH_ZOOM = 2.15;   // how far the camera closes in on a watched animal
+
+  function startWatch(p) {
+    if (!p || !p.sp) return;
+    watch.on = true;
+    watch.sp = p.sp;
+    watch.prop = p;
+    watch.at = clock;
+    walkTarget = null;
+    hero.vx = 0; hero.vy = 0;
+    islandVerb = null;
+    hero.facing = 'front';
+    teachWord(p.sp.f);
+    sfx.pick();
+  }
+
+  function endWatch() {
+    if (!watch.on) return;
+    watch.on = false;
+    watch.sp = null;
+    watch.prop = null;
+    watch.at = clock;
+  }
+
+  function updateWatch(dt) {
+    var target = watch.on ? 1 : 0;
+    var ease = 1 - Math.exp(-dt * (watch.on ? 3.4 : 5.6));
+    watch.z += ((watch.on ? WATCH_ZOOM : 1) - watch.z) * ease;
+    watch.sit += (target - watch.sit) * ease;
+    // The panel opens once the camera has arrived, not while it is still moving.
+    var open = watch.on && watch.z > WATCH_ZOOM * 0.92 ? 1 : 0;
+    watch.panel += (open - watch.panel) * (1 - Math.exp(-dt * 4.2));
+    if (!watch.on && watch.panel < 0.01) {
+      watch.panel = 0;
+      watch.sit = Math.max(0, watch.sit - dt * 0.01);
+    }
+  }
+
+  window.__watchNearest = function () {
+    var best = null, bd = 1e9;
+    islandProps = buildProps();
+    for (var i = 0; i < islandProps.length; i++) {
+      var p = islandProps[i];
+      if (!isCreature(p.sp)) continue;
+      var d = dist(hero.x, hero.y, p.x, p.y);
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (!best) return null;
+    startWatch(best);
+    return { creature: best.sp.e, distance: Math.round(bd) };
+  };
+
+  window.__watchInfo = function () {
+    var sp = watch.sp;
+    if (!sp) return null;
+    var kind = lookKindOf(sp);
+    var where = sectionDef().name;
+    return {
+      lang: LANG,
+      name: sp.e || sp.f,
+      word: storyWord(sp.f).f,
+      persian: sp.p || '',
+      kind: kind, kindT: T(kind),
+      where: where, whereT: T(where),
+      sub: T(kind) + ' \u00b7 ' + T(where),
+      out: T('tap to look away'),
+    };
+  };
+
+  /* The animal's own rectangle on screen, so the frame hugs it whatever its size
+     and wherever the camera has put it. Same measure the drawing uses. */
+  function watchBox() {
+    var p = watch.prop, e = watch.sp;
+    if (!p || !e) return null;
+    var h = speciesDrawnHeight(e);
+    var w = Math.max(h * 0.9, e.sh === 'plant' ? 40 : 26);
+    if (e.sh === 'beast') w = h * 1.25;
+    var dx = p.drawX != null ? p.drawX : p.x;
+    var dy = (p.drawY != null ? p.drawY : p.y) - (p.flight || 0);
+    var cx = dx * fitScale + ox;
+    var cy = (dy - h * 0.38) * fitScale + oy;
+    var halfW = Math.max(30, w * fitScale * 0.52);
+    var halfH = Math.max(30, h * fitScale * 0.50);
+    return { x: cx - halfW, y: cy - halfH, w: halfW * 2, h: halfH * 2 };
+  }
 
   function enterLook(sp, kind, where) {
     if (sp) look.sp = sp;
@@ -21786,6 +22003,15 @@ props: islandProps.map(function (p) {
   /* Could she net it? A hare, a bird, a beetle yes; a deer, a boar, a bear no.
      The line is her own height: anything standing taller than her knees is
      watched, not caught. */
+  /* Which species are animals she can sit and watch. One list, because the chip
+     that offers the verb and the tap that starts the watch must not disagree. */
+  function isCreature(e) {
+    if (!e) return false;
+    return e.sh === 'beast' || e.sh === 'cat' || e.sh === 'dog' ||
+      e.sh === 'insect' || e.sh === 'bird' || e.sh === 'frog' ||
+      e.sh === 'hen' || e.sh === 'fish' || e.sh === 'seal';
+  }
+
   function tooLargeToNet(e) {
     if (!e) return false;
     if (e.sh === 'bird' || e.sh === 'insect' || e.sh === 'frog') return false;
@@ -27546,7 +27772,7 @@ var ANIMAL_SIZES = {
             y: H * (0.24 + Math.floor(i / 3) * 0.26 + rnd() * 0.07) - (isBird ? 26 : 0),
             // A bird is high over the water; a fish is under it.
             flight: isBird ? 54 : 0,
-            verb: 'watch it',
+            verb: 'sit and watch',
             act: 'species', name: ''
           });
         }
@@ -27809,14 +28035,7 @@ var ANIMAL_SIZES = {
   function propVerbFor(e) {
     if (!e) return 'look closely';
     if (e.sh === 'find') return 'take it';
-    if (e.sh === 'fish' || e.sh === 'seal') {
-      // Water: she can see it, she cannot chase it.
-      return 'watch it';
-    }
-    if (e.sh === 'bird' || e.sh === 'insect' || e.sh === 'frog' ||
-      e.sh === 'beast' || e.sh === 'cat' || e.sh === 'dog' || e.sh === 'hen') {
-      return tooLargeToNet(e) ? 'watch it from afar' : 'net it';
-    }
+    if (isCreature(e)) return 'sit and watch';
     if (e.sh === 'being') return 'hear them out';
     return 'look closely';
   }
@@ -28014,6 +28233,7 @@ var ANIMAL_SIZES = {
   function updateIslandVerb() {
     islandProps = buildProps();
     islandVerb = null;
+    if (watch.on) return;   // the chip names nothing while the panel is open
     var best = 1e9;
     for (var i = 0; i < islandProps.length; i++) {
       var p = islandProps[i];
@@ -28180,33 +28400,10 @@ var ANIMAL_SIZES = {
       return;
     }
     if (p.act === 'species') {
-      if (p.sp.sh === 'beast' || p.sp.sh === 'cat' || p.sp.sh === 'dog' ||
-        p.sp.sh === 'insect' || p.sp.sh === 'bird' || p.sp.sh === 'frog' ||
-        p.sp.sh === 'hen') {
-        if (tooLargeToNet(p.sp)) {
-          // Watched from where she stands: the look page, and nothing taken.
-          teachWord(p.sp.f);
-          addFloater(p.x, p.y - 52, T('too big to net'), C.inkSoft);
-          lookMemory = { sp: p.sp, where: sectionDef().name };
-          enterLook(p.sp, lookKindOf(p.sp), sectionDef().name);
-          return;
-        }
-        // Netted gently: met, learned, and remembered in the bag.
-        bagInit();
-        bagAdd({ f: p.sp.f, e: p.sp.e, p: p.sp.p });
-        teachWord(p.sp.f);
-        addFloater(p.x, p.y - 52, T('netted, and let go'), C.turquoiseDeep);
-        addParticles(p.x, p.y - 12, '#FFF3D0', 8, 62);
-        showNotice(T('She meets the {0}', T(shortName(p.sp))), T('{0} in the bag', bagCount()));
-        sfx.pick();
-        // An animal that has been met moves off a little, as one would.
-        for (var ai = 0; ai < islandProps.length; ai++) {
-          if (islandProps[ai] === p && p.anim) {
-            p.anim.x += (hero.x > p.anim.x ? -34 : 34);
-            p.anim.x = clamp(p.anim.x, 30, world.w - 30);
-            break;
-          }
-        }
+      if (isCreature(p.sp)) {
+        // She does not take them. She gets close, sits, and watches: see
+        // startWatch. Nothing goes in the bag and nothing is caught.
+        startWatch(p);
         return;
       }
       if (p.sp.sh === 'find') {
@@ -29272,6 +29469,105 @@ var ANIMAL_SIZES = {
     ctx.fillRect(0, 0, W, H);
   }
 
+
+  /* ---- The panel that frames a watched animal -----------------------------
+
+     A lens, not a page: the animal stays where it is on the island and the panel
+     is drawn around it. The frame's corners are drawn like a camera's finder
+     rather than a box, because a box would sit on top of the animal.
+
+     The panel opens under the animal, and if there is no room below it opens
+     above; it never covers the thing it names. */
+  function drawWatchPanel() {
+    var a = watch.panel;
+    if (a <= 0.01) return;
+    var box = watchBox();
+    if (!box) return;
+    var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
+    var sp = watch.sp;
+
+    ctx.save();
+    ctx.globalAlpha = clamp(a, 0, 1);
+
+    // A dim over the whole island, so the one thing she is looking at is the one
+    // thing lit. It fades in from nothing, so it reads as a lens and not a room.
+    ctx.fillStyle = 'rgba(18,20,14,' + (0.22 * a).toFixed(3) + ')';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    // The finder: four corners, drawn just outside the animal's own rectangle.
+    var pad = 10;
+    var fx = box.x - pad, fy = box.y - pad, fw = box.w + pad * 2, fh = box.h + pad * 2;
+    var arm = clamp(Math.min(fw, fh) * 0.22, 12, 34);
+    ctx.strokeStyle = 'rgba(247,244,238,' + (0.92 * a).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    var corners = [
+      [fx, fy, 1, 1], [fx + fw, fy, -1, 1],
+      [fx, fy + fh, 1, -1], [fx + fw, fy + fh, -1, -1],
+    ];
+    for (var i = 0; i < corners.length; i++) {
+      var c = corners[i];
+      ctx.beginPath();
+      ctx.moveTo(c[0] + arm * c[2], c[1]);
+      ctx.lineTo(c[0], c[1]);
+      ctx.lineTo(c[0], c[1] + arm * c[3]);
+      ctx.stroke();
+    }
+
+    // The card: what it is, its word, and where she found it.
+    var cardW = Math.min(cssW - 48, 300);
+    var lines = [];
+    var w = storyWord(sp.f);
+    var persianName = sp.p || '';
+    var titleIsPersian = LANG === 'fa' && persianName;
+    ctx.font = 'italic 600 20px ' + FONT_SERIF;
+    lines.push({ t: titleIsPersian ? persianName : (sp.e || sp.f), f: ctx.font, h: 26 });
+    ctx.font = 'italic 600 15px ' + FONT_SERIF;
+    lines.push({ t: w.f, f: ctx.font, h: 22, ink: C.turquoiseDeep });
+    if (persianName && !titleIsPersian) {
+      ctx.font = '500 15px ' + FONT_SERIF;
+      lines.push({ t: persianName, f: ctx.font, h: 26, ink: C.turquoiseDeep });
+    }
+    var kind = lookKindOf(sp);
+    var where = sectionDef().name;
+    var sub = T(kind) + ' \u00b7 ' + T(where);
+    ctx.font = '400 11.5px ' + FONT_UI;
+    for (var k = 0; k < wrapText(sub, cardW - 28, ctx.font).length; k++) {
+      lines.push({ t: wrapText(sub, cardW - 28, ctx.font)[k], f: ctx.font, h: 15, soft: true });
+    }
+    var cardH = 22 + lines.reduce(function (acc, l) { return acc + l.h; }, 0) + 10;
+
+    // A caption at the foot of the page. Under the frame it sat on the keeper,
+    // who is sitting right there. At the foot it reads as a caption and never
+    // covers the thing it names.
+    var cardX = 16;
+    var cardY = cssH - cardH - 22;
+
+    ctx.fillStyle = 'rgba(247,244,238,' + (0.96 * a).toFixed(3) + ')';
+    roundRect(cardX, cardY, cardW, cardH, 12);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(216,204,184,0.9)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    var ly = cardY + 20;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (var m = 0; m < lines.length; m++) {
+      var ln = lines[m];
+      ctx.font = ln.f;
+      ctx.fillStyle = ln.ink || (ln.soft ? C.inkSoft : C.ink);
+      ctx.fillText(ln.t, cardX + 14, ly);
+      ly += ln.h;
+    }
+
+    // The way out, said once and small, at the foot of the card.
+    ctx.fillStyle = C.inkFaint;
+    ctx.font = '400 10px ' + FONT_UI;
+    ctx.fillText(T('tap to look away'), cardX + 14, cardY + cardH - 11);
+    ctx.restore();
+  }
+
   function renderIsland() {
     // What can be tapped is rebuilt every frame; a page's draw clears its own list,
     // and the island's does too, or the chips pile up.
@@ -29312,11 +29608,17 @@ var ANIMAL_SIZES = {
     drawDayWash(world.w, world.h);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawErrand();
-    drawIslandVerb();
-    carryTabs(canvas.width / dpr, canvas.height / dpr);
-    drawWordCard();
-    drawBeingNote();
+    // While the lens is up, the page's own furniture steps out of it: the errand,
+    // the hour chip, the foot marks and the word card would all be read over the
+    // animal. The panel is the only thing on the sheet besides the island.
+    if (watch.panel < 0.5) {
+      drawErrand();
+      drawIslandVerb();
+      carryTabs(canvas.width / dpr, canvas.height / dpr);
+      drawWordCard();
+      drawBeingNote();
+    }
+    drawWatchPanel();
     // The book is a sheet over the island, so it is drawn last.
     if (BOOK.open) drawBook(canvas.width / dpr, canvas.height / dpr);
   }
@@ -30197,6 +30499,7 @@ var ANIMAL_SIZES = {
     cssView.w = cssW;
     cssView.h = cssH;
     fitScale = Math.min(cssW / view.w, cssH / view.h);
+    baseScale = fitScale;
 
     if (view.w !== oldVW || view.h !== oldVH) {
       fitSection();
@@ -30260,18 +30563,29 @@ var ANIMAL_SIZES = {
      walked through rather than watched from a fixed seat. The section always
      fills the screen: when it is only one screenful the camera is pinned. */
   function followCamera(snap) {
+    // The watch pushes the camera in, so the scale is the fitted one times how far
+    // it has closed. baseScale is what the window laid out; fitScale is what this
+    // frame draws at, and the two are only equal when she is walking.
+    fitScale = baseScale * watch.z;
     var halfW = view.w / 2, halfH = view.h / 2;
     // The eye leads her a little, so she is not always dead centre.
     var leadY = view.h * 0.06;
     var tx, ty;
-    if (world.w <= view.w + 1) tx = world.w / 2;
-    else tx = clamp(hero.x, halfW, world.w - halfW);
-    if (world.h <= view.h + 1) ty = world.h / 2;
-    else ty = clamp(hero.y - leadY, halfH, world.h - halfH);
+    if (watch.on || watch.panel > 0.01) {
+      // On the animal: it sits a little above centre, so the panel has room.
+      var wp = watch.prop;
+      tx = wp ? wp.x : hero.x;
+      ty = (wp ? wp.y - (wp.flight || 0) : hero.y) - view.h * 0.02;
+    } else {
+      if (world.w <= view.w + 1) tx = world.w / 2;
+      else tx = clamp(hero.x, halfW, world.w - halfW);
+      if (world.h <= view.h + 1) ty = world.h / 2;
+      else ty = clamp(hero.y - leadY, halfH, world.h - halfH);
+    }
     if (snap) { cam.x = tx; cam.y = ty; }
     else {
       // A small lag, so the ground under her does not slide with every step.
-      var k = 0.18;
+      var k = watch.on ? 0.10 : 0.18;
       cam.x += (tx - cam.x) * k;
       cam.y += (ty - cam.y) * k;
     }
@@ -30321,6 +30635,15 @@ var ANIMAL_SIZES = {
     var pt = pointerWorld(e);
     pointerId = e.pointerId;
     if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+
+    // A tap while she is watching closes the watch: the panel is a lens, and any
+    // tap puts the lens down.
+    if (watch.on) {
+      endWatch();
+      sfx.pick();
+      e.preventDefault();
+      return;
+    }
 
     // The book, when it is open, takes every tap: it is a sheet over the page, so
     // its taps are read on the page and not in screen pixels.
@@ -30477,8 +30800,5 @@ var ANIMAL_SIZES = {
   hero.x = world.w / 2;
   hero.y = world.h * 0.64;
   requestAnimationFrame(frame);
-})();
-
-
-</script>
+})();</script>
 </body></html>
