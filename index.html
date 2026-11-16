@@ -1667,6 +1667,126 @@
      sunset at 0.80, so half the cycle is daylight and the light leans to the
      long shadows. A whole day is eight real minutes. */
   var day = { t: 0.34, rate: 1 / 480, sunRise: 0.26, sunSet: 0.80 };
+
+/* The told register, and the year.
+ *
+ * The canon has two registers: the island is taught with a word, and the things
+ * that are told about are never taught at all - the Simorgh, the Homa, the
+ * Parizad, the White Div, and the bowl left at the door on Yalda night. None of
+ * them is a resource, a boss or a checklist item. Each can be missed: it is there
+ * at an hour, in a place, and then it is not.
+ */
+
+/* The island's year: four seasons of twelve days, so a year is one evening's
+   play and not forty-eight hours of it. The book opens two nights before Yalda,
+   because the first thing a keeper should meet is a bowl at a door. */
+var YEAR = { days: 48, day: 33 };
+try {
+  var savedYear = window.localStorage.getItem('darya.year');
+  if (savedYear !== null && savedYear !== '') {
+    var savedNum = Number(savedYear);
+    if (isFinite(savedNum) && savedNum >= 0) YEAR.day = savedNum % YEAR.days;
+  }
+} catch (e) { /* private */ }
+
+function yearDay() { return YEAR.day; }
+
+function saveYear() {
+  try { window.localStorage.setItem('darya.year', String(YEAR.day)); } catch (e) { /* private */ }
+}
+
+/* Called when the clock passes midnight. */
+function nextYearDay() {
+  YEAR.day = (YEAR.day + 1) % YEAR.days;
+  saveYear();
+  propCache = {};
+}
+
+function seasonOf() {
+  var d = yearDay(), per = YEAR.days / 4;
+  if (d < per) return 'bahár';
+  if (d < per * 2) return 'tábestán';
+  if (d < per * 3) return 'páyiz';
+  return 'zemestán';
+}
+
+/* A window of the day, as the clock keeps it: 0 is midnight, 0.26 sunrise and
+   0.80 sunset. A window that runs past midnight has its end before its start. */
+function inHourWindow(from, to, t) {
+  return from <= to ? (t >= from && t < to) : (t >= from || t < to);
+}
+
+/* What can be seen. `at` is a section key, or '*<kind>' for any section of a
+   kind. `word` is a word the island already teaches, so a being costs no row in
+   the word table. `watch` means she can sit and hold it in the lens; without it
+   the thing is looked at and says its one line. */
+var SIGHTS = [
+  {
+    id: 'simorgh', at: '-1,-2', from: 0.20, to: 0.33, k: 'simorgh',
+    name: 'the Simorgh', h: 2.1, word: 'bál', watch: true,
+    line: 'She is older than the mountain, and she does not speak.'
+  },
+  {
+    id: 'homa', at: '-1,-3', from: 0.34, to: 0.70, k: 'homa',
+    name: 'the Homa', h: 0.85, word: 'sáye', watch: true,
+    line: 'Her shadow is the whole of her. It passes, and it is an omen.'
+  },
+  {
+    id: 'parizad', at: '-3,-1', from: 0.78, to: 0.90, k: 'parizad',
+    name: 'the Parizad', h: 0.95, word: 'shab', watch: true,
+    line: 'A light in the branches. Do not follow her far.'
+  },
+  {
+    id: 'div', at: '0,-3', from: 0.22, to: 0.78, k: 'div',
+    name: 'the White Div', h: 1.7, word: 'meh álud', watch: true,
+    line: 'The fog is the whole of it. There is nothing in the pass to fight.'
+  },
+  {
+    id: 'yalda-bowl', at: '0,0', from: 0.86, to: 0.24, k: 'bowl', day: 35,
+    name: 'a bowl at the door', h: 0.5, word: 'kháne', watch: false,
+    line: 'Left at the door on the longest night. Nobody put it there.'
+  },
+  {
+    id: 'yalda-full', at: '0,0', from: 0.26, to: 0.50, k: 'bowl-full', day: 36,
+    name: 'the bowl, in the morning', h: 0.5, word: 'kháne', watch: false,
+    line: 'Full in the morning, and still nobody in the yard.'
+  },
+  {
+    id: 'chaharshanbe', at: '0,0', from: 0.74, to: 0.86, k: 'fires', day: 47,
+    name: 'the fires', h: 0.8, word: 'áftáb', watch: false,
+    line: 'The fire takes the year\u2019s yellow. Jump it, and leave the rest.'
+  },
+  {
+    id: 'nowruz', at: '0,0', from: 0.28, to: 0.66, k: 'cloth', day: 0,
+    name: 'the new year cloth', h: 0.55, word: 'bahár', watch: false,
+    line: 'Seven things on a cloth, and the year turns over them.'
+  }
+];
+
+function sightVisible(sg) {
+  if (sg.day != null && yearDay() !== sg.day) return false;
+  if (sg.at.charAt(0) !== '*') { if (sg.at !== sectionId(section.cx, section.cy)) return false; }
+  else if (sectionDef().kind !== sg.at.slice(1)) return false;
+  return inHourWindow(sg.from, sg.to, day.t);
+}
+
+function sightsHere() {
+  var out = [];
+  if (interior) return out;
+  for (var i = 0; i < SIGHTS.length; i++) if (sightVisible(SIGHTS[i])) out.push(SIGHTS[i]);
+  return out;
+}
+
+/* The word row for a being, borrowed: the panel and the word card both want one,
+   and a being teaches a word the island already has. */
+function sightSp(sg) {
+  var w = storyWord(sg.word);
+  return {
+    e: sg.name, f: sg.word, p: w ? w.p : '', sh: 'sighting',
+    line: sg.line, sight: sg.id, h: sg.h
+  };
+}
+
   var best = 0;
   try { best = Number(window.localStorage.getItem('darya.best') || 0) || 0; } catch (e) { best = 0; }
 
@@ -3703,7 +3823,9 @@
 
     if (stage === 'island') {
       // The day goes on while she walks it: eight real minutes to a whole day.
+      var wasT = day.t;
       day.t = (day.t + dt * day.rate) % 1;
+      if (day.t < wasT) nextYearDay();
       updateWatch(dt);
       // While she sits watching, she does not walk: the camera is on the animal and
       // moving her would take the ground out from under the frame.
@@ -3885,7 +4007,7 @@
       pageEnd();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // The look page has the word on it already; anything else needs the card.
-      if (scene !== 'look') drawWordCard();
+      if (scene !== 'look' && watch.panel < 0.5) drawWordCard();
       // The book covers a place as well as the island: it is the one record, so
       // it cannot be reachable from only one screen.
       if (BOOK.open) drawBook(pcW, pcH);
@@ -3919,7 +4041,7 @@
     if (phase === 'playing' || paused || phase === 'won' || phase === 'lost') drawHUD();
     if (stage === 'island' && phase === 'playing' && !paused) drawIslandVerb();
     drawNotice();
-    drawWordCard();
+    if (watch.panel < 0.5) drawWordCard();
     drawOverlay();
   }
 
@@ -10271,6 +10393,23 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'a sighting': 'en syn',
+      'the Simorgh': 'Simorgh',
+      'the Homa': 'Homa',
+      'the Parizad': 'Parizad',
+      'the White Div': 'den vite div',
+      'a bowl at the door': 'en skål vid dörren',
+      'the bowl, in the morning': 'skålen, på morgonen',
+      'the fires': 'eldarna',
+      'the new year cloth': 'nyårsduken',
+      'She is older than the mountain, and she does not speak.': 'Hon är äldre än berget, och hon talar inte.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'Hennes skugga är hela hon. Den går förbi, och den är ett varsel.',
+      'A light in the branches. Do not follow her far.': 'Ett ljus i grenarna. Följ henne inte långt.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'Dimmorna är hela saken. Det finns inget i passet att slåss mot.',
+      'Left at the door on the longest night. Nobody put it there.': 'Lämnad vid dörren den längsta natten. Ingen ställde den där.',
+      'Full in the morning, and still nobody in the yard.': 'Full på morgonen, och fortfarande ingen på gården.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'Elden tar årets gula. Hoppa över den och lämna resten.',
+      'Seven things on a cloth, and the year turns over them.': 'Sju saker på en duk, och året vänder över dem.',
       'the last page': 'den sista sidan',
       '{0} pages': '{0} sidor',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'Handen var inte min från början. Hon höll denna ö i fyrtio år, och vattnet tog henne en vinter. Familjen kom tillbaka, för en plats utan någon i sig är värre än en plats med sorg i sig.',
@@ -10793,6 +10932,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'läs stenen',
     },
     fa: {
+      'a sighting': 'یک دیدار',
+      'the Simorgh': 'سیمرغ',
+      'the Homa': 'هما',
+      'the Parizad': 'پری‌زاد',
+      'the White Div': 'دیو سپید',
+      'a bowl at the door': 'کاسه‌ای دم در',
+      'the bowl, in the morning': 'کاسه، صبح',
+      'the fires': 'آتش‌ها',
+      'the new year cloth': 'سفره‌ی سال نو',
+      'She is older than the mountain, and she does not speak.': 'او از کوه کهن‌تر است، و سخن نمی‌گوید.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'سایه‌اش تمام اوست. می‌گذرد و نشانه‌ای است.',
+      'A light in the branches. Do not follow her far.': 'نوری در شاخه‌ها. زیاد دنبالش نرو.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'مه تمام ماجراست. در گردنه چیزی نیست که با آن بجنگی.',
+      'Left at the door on the longest night. Nobody put it there.': 'شب بلند، دم در گذاشته شده. کسی نگذاشتش.',
+      'Full in the morning, and still nobody in the yard.': 'صبح پر است، و هنوز هیچ‌کس در حیاط نیست.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'آتش زردیِ سال را می‌برد. از رویش بپر و باقی را رها کن.',
+      'Seven things on a cloth, and the year turns over them.': 'هفت چیز بر سفره‌ای، و سال بر آن‌ها می‌گردد.',
       'the last page': 'آخرین صفحه',
       '{0} pages': '{0} صفحه',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'دستِ آغاز از من نبود. او چهل سال این جزیره را نگه داشت، و آب در یک زمستان او را گرفت. خانواده برگشت، چون جایی که کسی در آن نباشد بدتر از جایی است که غم در آن باشد.',
@@ -11315,6 +11471,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'a sighting': 'eine Sichtung',
+      'the Simorgh': 'der Simorgh',
+      'the Homa': 'der Homa',
+      'the Parizad': 'die Parizad',
+      'the White Div': 'der weiße Div',
+      'a bowl at the door': 'eine Schale an der Tür',
+      'the bowl, in the morning': 'die Schale, am Morgen',
+      'the fires': 'die Feuer',
+      'the new year cloth': 'das Tuch des neuen Jahres',
+      'She is older than the mountain, and she does not speak.': 'Sie ist älter als der Berg, und sie spricht nicht.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'Ihr Schatten ist ihr Ganzes. Er zieht vorbei, und er ist ein Vorzeichen.',
+      'A light in the branches. Do not follow her far.': 'Ein Licht in den Zweigen. Folge ihr nicht weit.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'Der Nebel ist das Ganze. Im Pass gibt es nichts zu bekämpfen.',
+      'Left at the door on the longest night. Nobody put it there.': 'In der längsten Nacht an die Tür gestellt. Niemand hat sie dort abgesetzt.',
+      'Full in the morning, and still nobody in the yard.': 'Am Morgen voll, und noch immer niemand im Hof.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'Das Feuer nimmt das Gelb des Jahres. Spring darüber, und lass den Rest.',
+      'Seven things on a cloth, and the year turns over them.': 'Sieben Dinge auf einem Tuch, und das Jahr wendet sich über ihnen.',
       'the last page': 'die letzte Seite',
       '{0} pages': '{0} Seiten',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'Die Hand war nicht meine, als es begann. Sie hütete diese Insel vierzig Jahre, und das Wasser nahm sie in einem Winter. Die Familie kam zurück, denn ein Ort ohne jemanden darin ist schlimmer als ein Ort mit Trauer darin.',
@@ -11837,6 +12010,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'a sighting': 'une apparition',
+      'the Simorgh': 'le Simorgh',
+      'the Homa': 'le Homa',
+      'the Parizad': 'la Parizad',
+      'the White Div': 'le Div blanc',
+      'a bowl at the door': 'un bol à la porte',
+      'the bowl, in the morning': 'le bol, au matin',
+      'the fires': 'les feux',
+      'the new year cloth': 'la nappe du nouvel an',
+      'She is older than the mountain, and she does not speak.': 'Elle est plus vieille que la montagne, et elle ne parle pas.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'Son ombre est tout son être. Elle passe, et c\'est un présage.',
+      'A light in the branches. Do not follow her far.': 'Une lumière dans les branches. Ne la suis pas loin.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'Le brouillard est tout. Il n\'y a rien à combattre dans le col.',
+      'Left at the door on the longest night. Nobody put it there.': 'Laissé à la porte la nuit la plus longue. Personne ne l\'a posé là.',
+      'Full in the morning, and still nobody in the yard.': 'Plein au matin, et toujours personne dans la cour.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'Le feu prend le jaune de l\'année. Saute-le, et laisse le reste.',
+      'Seven things on a cloth, and the year turns over them.': 'Sept choses sur une nappe, et l\'année se retourne au-dessus d\'elles.',
       'the last page': 'la dernière page',
       '{0} pages': '{0} pages',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'La main n\'était pas la mienne au commencement. Elle a gardé cette île quarante ans, et l\'eau l\'a prise un hiver. La famille est revenue, parce qu\'un lieu sans personne dedans est pire qu\'un lieu avec du chagrin dedans.',
@@ -12358,6 +12548,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'lire la pierre',
     },
     es: {
+      'a sighting': 'un avistamiento',
+      'the Simorgh': 'el Simurgh',
+      'the Homa': 'el Homa',
+      'the Parizad': 'la Parizad',
+      'the White Div': 'el Div blanco',
+      'a bowl at the door': 'un cuenco en la puerta',
+      'the bowl, in the morning': 'el cuenco, por la mañana',
+      'the fires': 'los fuegos',
+      'the new year cloth': 'el mantel del año nuevo',
+      'She is older than the mountain, and she does not speak.': 'Es más vieja que la montaña, y no habla.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'Su sombra es todo lo que hay de ella. Pasa, y es un presagio.',
+      'A light in the branches. Do not follow her far.': 'Una luz en las ramas. No la sigas lejos.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'La niebla es todo. No hay nada en el paso contra lo que luchar.',
+      'Left at the door on the longest night. Nobody put it there.': 'Dejado en la puerta la noche más larga. Nadie lo puso ahí.',
+      'Full in the morning, and still nobody in the yard.': 'Lleno por la mañana, y sigue sin haber nadie en el patio.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'El fuego se lleva el amarillo del año. Sáltalo y deja lo demás.',
+      'Seven things on a cloth, and the year turns over them.': 'Siete cosas sobre un mantel, y el año gira sobre ellas.',
       'the last page': 'la última página',
       '{0} pages': '{0} páginas',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'La mano no era mía al empezar. Ella cuidó esta isla cuarenta años, y el agua se la llevó un invierno. La familia volvió, porque un lugar sin nadie dentro es peor que un lugar con pena dentro.',
@@ -12880,6 +13087,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'a sighting': 'bir görüntü',
+      'the Simorgh': 'Simurg',
+      'the Homa': 'Hüma',
+      'the Parizad': 'Parizad',
+      'the White Div': 'Ak Div',
+      'a bowl at the door': 'kapıda bir kâse',
+      'the bowl, in the morning': 'kâse, sabahleyin',
+      'the fires': 'ateşler',
+      'the new year cloth': 'yeni yıl sofrası',
+      'She is older than the mountain, and she does not speak.': 'Dağdan daha yaşlı, ve konuşmaz.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'Gölgesi onun tamamıdır. Geçer, ve bir işarettir.',
+      'A light in the branches. Do not follow her far.': 'Dallarda bir ışık. Peşinden fazla gitme.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'Sisin kendisi bütün mesele. Geçitte savaşacak bir şey yok.',
+      'Left at the door on the longest night. Nobody put it there.': 'En uzun gece kapıya bırakılmış. Kimse koymamış.',
+      'Full in the morning, and still nobody in the yard.': 'Sabah dolu, ve avluda hâlâ kimse yok.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'Ateş yılın sarısını alır. Üstünden atla, gerisini bırak.',
+      'Seven things on a cloth, and the year turns over them.': 'Bir sofrada yedi şey, ve yıl onların üzerinde döner.',
       'the last page': 'son sayfa',
       '{0} pages': '{0} sayfa',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'Başlangıçta el benim değildi. Bu adayı kırk yıl o bekledi, ve bir kış su onu aldı. Aile geri döndü, çünkü içinde kimsenin olmadığı bir yer, içinde keder olan bir yerden beterdir.',
@@ -13402,6 +13626,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'taşı oku',
     },
     ar: {
+      'a sighting': 'مشهد',
+      'the Simorgh': 'السيمرغ',
+      'the Homa': 'الهما',
+      'the Parizad': 'الباريزاد',
+      'the White Div': 'الديو الأبيض',
+      'a bowl at the door': 'طاسة عند الباب',
+      'the bowl, in the morning': 'الطاسة، في الصباح',
+      'the fires': 'النيران',
+      'the new year cloth': 'سفرة العام الجديد',
+      'She is older than the mountain, and she does not speak.': 'هي أقدم من الجبل، ولا تتكلم.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'ظلّها هو كلّها. يمرّ، وهو نذير.',
+      'A light in the branches. Do not follow her far.': 'ضوء في الأغصان. لا تتبعها بعيدًا.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'الضباب هو كلّ الأمر. ليس في الممرّ شيء تقاتله.',
+      'Left at the door on the longest night. Nobody put it there.': 'متروك عند الباب في أطول ليلة. لم يضعه أحد.',
+      'Full in the morning, and still nobody in the yard.': 'ممتلئة في الصباح، ولا أحد في الدار.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'النار تأخذ صفرة السنة. اقفزها واترك الباقي.',
+      'Seven things on a cloth, and the year turns over them.': 'سبعة أشياء على سفرة، والسنة تدور فوقها.',
       'the last page': 'الصفحة الأخيرة',
       '{0} pages': '{0} صفحة',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'لم تكن اليد يدي في البداية. حفظت هذه الجزيرة أربعين سنة، وأخذها الماء في شتاء. عادت العائلة، لأن مكانًا لا أحد فيه أسوأ من مكان فيه حزن.',
@@ -13924,6 +14165,23 @@ props: islandProps.map(function (p) {
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'a sighting': '一次遇见',
+      'the Simorgh': '西摩格',
+      'the Homa': '胡马',
+      'the Parizad': '帕丽扎德',
+      'the White Div': '白迪弗',
+      'a bowl at the door': '门口的一只碗',
+      'the bowl, in the morning': '那只碗，到了早上',
+      'the fires': '那几堆火',
+      'the new year cloth': '新年桌布',
+      'She is older than the mountain, and she does not speak.': '她比山还老，她不出声。',
+      'Her shadow is the whole of her. It passes, and it is an omen.': '她的影子就是她的全部。影子过去，是个预兆。',
+      'A light in the branches. Do not follow her far.': '树枝里有一点光。别跟着她走远。',
+      'The fog is the whole of it. There is nothing in the pass to fight.': '雾就是全部。隘口里没有可打的东西。',
+      'Left at the door on the longest night. Nobody put it there.': '最长的那一夜放在门口的。没有人放在那里。',
+      'Full in the morning, and still nobody in the yard.': '早上满了，院子里还是没有人。',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': '火把这一年的黄气带走。跳过去，别的都放下。',
+      'Seven things on a cloth, and the year turns over them.': '桌布上七样东西，一年就在它们上面翻过去。',
       'the last page': '最后一页',
       '{0} pages': '{0} 页',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': '起笔的不是我的手。她守了这座岛四十年，有一个冬天，水把她留下了。一家人回来了，因为一个空无一人的地方，比一个装着悲伤的地方更糟。',
@@ -14446,6 +14704,23 @@ props: islandProps.map(function (p) {
       'read the stone': '读那块石头',
     },
     fi: {
+      'a sighting': 'yek didár',
+      'the Simorgh': 'Simorgh',
+      'the Homa': 'Homá',
+      'the Parizad': 'Parizád',
+      'the White Div': 'div-e sefid',
+      'a bowl at the door': 'yek káse dam-e dar',
+      'the bowl, in the morning': 'káse, sobh',
+      'the fires': 'átash-há',
+      'the new year cloth': 'sofre-ye sál-e now',
+      'She is older than the mountain, and she does not speak.': 'u az kuh kohan-tar ast, va sokhan nemiguyad.',
+      'Her shadow is the whole of her. It passes, and it is an omen.': 'sáye-ásh tamám-e u ast. migozárad va nesháne-i ast.',
+      'A light in the branches. Do not follow her far.': 'nur-i dar shákhe-há. ziád donbál-ásh narav.',
+      'The fog is the whole of it. There is nothing in the pass to fight.': 'meh tamám-e májará ast. dar gardane chizi nist ke bá án bejangi.',
+      'Left at the door on the longest night. Nobody put it there.': 'shab-e boland, dam-e dar gozáshte shode. kasi nazásht-ásh.',
+      'Full in the morning, and still nobody in the yard.': 'sobh por ast, va hanooz hich-kas dar hiayát nist.',
+      'The fire takes the year’s yellow. Jump it, and leave the rest.': 'átash zardi-ye sál rá mibarad. az ru-yash bepar va bághi rá rahá kon.',
+      'Seven things on a cloth, and the year turns over them.': 'haft chiz bar sofre-i, va sál bar án-há migardad.',
       'the last page': 'ákharin safe',
       '{0} pages': '{0} safe',
       'The hand was not mine to begin. She kept this island forty years, and the water took her in a winter. The family came back, because a place with nobody in it is worse than a place with grief in it.': 'dast-e ágház az man nabud. u chehel sál in jazire rá negah dásht, va áb dar yek zemestán u rá gereft. kháneváde bargasht, chon jái ke kasi dar án nabáshad badtar az jái ast ke gham dar án báshad.',
@@ -15441,6 +15716,18 @@ props: islandProps.map(function (p) {
     return { creature: best.sp.e, distance: Math.round(bd) };
   };
 
+  window.__sightWatch = function (id) {
+    var list = buildProps();
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (p.k !== 'sight') continue;
+      if (id && p.sg.id !== id) continue;
+      startWatch({ sp: sightSp(p.sg), x: p.x, y: p.y });
+      return p.sg.id;
+    }
+    return null;
+  };
+
   window.__watchInfo = function () {
     var sp = watch.sp;
     if (!sp) return null;
@@ -15494,6 +15781,7 @@ props: islandProps.map(function (p) {
       return 'a flowering plant';
     }
     if (sp.sh === 'fungus') return 'a fungus';
+    if (sp.sh === 'sighting') return 'a sighting';
     if (sp.sh === 'bird') return 'a bird';
     if (sp.sh === 'fish') return 'a fish';
     if (sp.sh === 'insect') return 'an insect';
@@ -25876,6 +26164,27 @@ var ANIMAL_SIZES = {
 
   /* Put the day at a given hour, for looking at the light. Console: __setDay(0.7)
      is seven tenths of the way through the day. */
+  window.__sightAt = function () {
+    var out = [];
+    var list = islandProps || [];
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i];
+      if (p.k !== 'sight') continue;
+      out.push({
+        id: p.sg.id, name: p.sg.name,
+        sx: Math.round(p.x * fitScale + ox),
+        sy: Math.round(p.y * fitScale + oy),
+        onScreen: true
+      });
+    }
+    return out;
+  };
+
+  window.__year = function (n) {
+    if (n != null) { YEAR.day = ((Math.round(n) % YEAR.days) + YEAR.days) % YEAR.days; saveYear(); propCache = {}; }
+    return { day: yearDay(), season: seasonOf(), sights: sightsHere().map(function (x) { return x.id; }) };
+  };
+
   window.__setDay = function (t) { day.t = ((t % 1) + 1) % 1; return dayClock() + ' · ' + dayName(); };
   window.__day = function () { return JSON.stringify({ t: day.t, clock: dayClock(), part: dayName(), light: dayLight() }); };
 
@@ -27642,6 +27951,7 @@ var ANIMAL_SIZES = {
     // The boat's own prop depends on whether she is in it, not on the biome, so
     // a cached list would be wrong the moment she boards.
     if (boatRide.riding) key = key + ':boat';
+    key = key + ':y' + yearDay() + ':h' + Math.floor(day.t * 12);
     if (propCache[key]) return propCache[key];
     var d = sectionDef();
     var W = world.w, H = world.h;
@@ -28036,6 +28346,38 @@ var ANIMAL_SIZES = {
       cp.y = clamp(cp.y, halfH + 96, H - halfH - 24);
     }
 
+    // What the year and the hour have put here: a big bird at dawn, a light in the
+    // branches at dusk, a bowl at the door on the longest night. None of it is a
+    // resource, and each of it can be missed.
+    var here = sightsHere();
+    var doorX = null, doorY = null;
+    for (i = 0; i < out.length; i++) {
+      if (out[i].k === 'house' || out[i].k === 'door') { doorX = out[i].x; doorY = out[i].y; break; }
+    }
+    for (i = 0; i < here.length; i++) {
+      var sg = here[i];
+      var sx3, sy3;
+      if (sg.k === 'bowl' || sg.k === 'bowl-full') {
+        // on the ground beside the door, where a bowl is left
+        sx3 = (doorX != null ? doorX + 58 : W * 0.5);
+        sy3 = (doorY != null ? doorY + 46 : H * 0.34);
+      } else if (sg.k === 'fires') {
+        sx3 = (doorX != null ? doorX - 30 : W * 0.5);
+        sy3 = (doorY != null ? doorY + 210 : H * 0.55);
+      } else if (sg.k === 'cloth') {
+        sx3 = (doorX != null ? doorX : W * 0.5);
+        sy3 = (doorY != null ? doorY + 62 : H * 0.34);
+      } else {
+        sx3 = W * 0.62;
+        sy3 = H * 0.40;
+      }
+      out.push({
+        k: 'sight', sg: sg, x: sx3, y: sy3,
+        verb: sg.watch ? 'sit and watch' : 'look closely',
+        act: 'sight', name: ''
+      });
+    }
+
     // A finding she has already taken is no longer on the ground: the bag is the
     // record, so a rebuilt prop list cannot grow it back.
     if (!interior) {
@@ -28305,6 +28647,16 @@ var ANIMAL_SIZES = {
       };
       addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
       checkErrand();
+      return;
+    }
+    if (p.act === 'sight') {
+      var sight = p.sg;
+      if (sight.watch) {
+        startWatch({ sp: sightSp(sight), x: p.x, y: p.y });
+      } else {
+        beingSaid = { at: clock, who: T(sight.name), line: T(sight.line) };
+        addParticles(p.x, p.y - 10, '#FFF3D0', 8, 60);
+      }
       return;
     }
     if (p.act === 'well') {
@@ -28615,6 +28967,7 @@ var ANIMAL_SIZES = {
     if (e.sh === 'plant') return (SPECIES_HEIGHT[e.ps || 'stem'] || 0.3) * KEEPER_PX;
     if (e.sh === 'bird') return KEEPER_PX * 0.12;
     if (e.sh === 'insect') return 18;
+    if (e.sh === 'sighting') return KEEPER_PX * (e.h || 1.2);
     if (e.sh === 'find') return (SPECIES_HEIGHT.find || 0.1) * KEEPER_PX;
     return KEEPER_PX * 0.34;
   }
@@ -28655,7 +29008,8 @@ var ANIMAL_SIZES = {
   function propDrop(p) {
     if (!p) return 10;
     if (p.kin) return 26;
-    if (p.k === 'species') return 6;
+    if (p.k === 'species') return 6;    if (p.k === 'sight') return 96;
+
     var d = PROP_DROP[p.k];
     return d === undefined ? 10 : d;
   }
@@ -28672,6 +29026,399 @@ var ANIMAL_SIZES = {
     return r === undefined ? 46 : r;
   }
 
+/* ---- Drawing a sighting ------------------------------------------------
+     Seven things, drawn flat like everything else on this island, and all of them
+     slightly unsure of the light: a big bird at the edge of the rock, a shadow that
+     is a bird, a lamp in the branches, a fog that never resolves, and the three
+     things the year puts in the yard. */
+  function drawSight(p) {
+    var x = p.x, y = p.y, sg = p.sg, k = sg.k;
+    var t = clock;
+    ctx.save();
+
+    if (k === 'simorgh') {
+      castShadow(x, y + 22, 190, 0.20, 44);
+      // The rock she stands on: a ridge, dark under, lit along its top.
+      ctx.fillStyle = 'rgba(112,108,100,0.96)';
+      ctx.beginPath();
+      ctx.moveTo(x - 128, y + 26);
+      ctx.lineTo(x - 92, y - 16);
+      ctx.lineTo(x - 10, y - 30);
+      ctx.lineTo(x + 74, y - 12);
+      ctx.lineTo(x + 116, y + 26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(158,152,140,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(x - 92, y - 16);
+      ctx.lineTo(x - 10, y - 30);
+      ctx.lineTo(x + 74, y - 12);
+      ctx.lineTo(x + 8, y - 4);
+      ctx.lineTo(x - 68, y - 2);
+      ctx.closePath();
+      ctx.fill();
+
+      var sway = Math.sin(t * 0.55) * 2.2;
+      var bodyY = y - 96;
+      // the three tail plumes, behind her, sweeping up and out
+      var plumes = [[-0.55, 168, 8.6], [-0.16, 186, 8.0], [0.22, 172, 7.4]];
+      for (var pi = 0; pi < plumes.length; pi++) {
+        var ang = -2.55 + plumes[pi][0];
+        var len = plumes[pi][1];
+        var w0 = plumes[pi][2];
+        var steps = 12;
+        var px = x - 30, py = bodyY + 6;
+        for (var st = 0; st < steps; st++) {
+          var f0 = st / steps, f1 = (st + 1) / steps;
+          var ax2 = px + Math.cos(ang) * len * f0;
+          var ay2 = py + Math.sin(ang) * len * f0 + Math.pow(f0, 2) * 26;
+          var bx2 = px + Math.cos(ang) * len * f1;
+          var by2 = py + Math.sin(ang) * len * f1 + Math.pow(f1, 2) * 26;
+          ctx.strokeStyle = 'rgba(' + (206 - 24 * f0) + ',' + (158 - 26 * f0) + ',' + (78 - 18 * f0) + ',0.95)';
+          ctx.lineWidth = w0 * (1 - f0 * 0.86);
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ax2, ay2);
+          ctx.lineTo(bx2, by2);
+          ctx.stroke();
+        }
+      }
+      // her legs: two thin shanks down to the ridge, dark, with a grip of toes
+      ctx.strokeStyle = 'rgba(196,164,96,0.95)';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - 12, bodyY + 26);
+      ctx.lineTo(x - 18, y - 22);
+      ctx.moveTo(x + 14, bodyY + 24);
+      ctx.lineTo(x + 10, y - 20);
+      ctx.stroke();
+      ctx.lineWidth = 3.4;
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y - 22); ctx.lineTo(x - 26, y - 16);
+      ctx.moveTo(x - 18, y - 22); ctx.lineTo(x - 10, y - 16);
+      ctx.moveTo(x + 10, y - 20); ctx.lineTo(x + 2, y - 14);
+      ctx.moveTo(x + 10, y - 20); ctx.lineTo(x + 18, y - 14);
+      ctx.stroke();
+
+      // the body: deep chest, high at the shoulder
+      ctx.fillStyle = 'rgba(232,203,134,0.97)';
+      ctx.beginPath();
+      ctx.ellipse(x - 4 + sway * 0.4, bodyY, 52, 38, -0.16, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(201,164,86,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(x - 22 + sway * 0.4, bodyY - 8, 34, 26, -0.22, 0, TAU);
+      ctx.fill();
+      // the folded wing, and the flight feathers under it
+      ctx.fillStyle = 'rgba(214,180,104,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(x - 34 + sway * 0.4, bodyY - 14);
+      ctx.quadraticCurveTo(x + 18, bodyY - 26, x + 22, bodyY + 6);
+      ctx.quadraticCurveTo(x - 10, bodyY + 20, x - 34, bodyY + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(168,131,64,0.55)';
+      ctx.lineWidth = 1.6;
+      for (var wf = 0; wf < 4; wf++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 26 + wf * 13 + sway * 0.4, bodyY - 8 + wf * 2);
+        ctx.quadraticCurveTo(x - 6 + wf * 13, bodyY + 4, x - 12 + wf * 13, bodyY + 16);
+        ctx.stroke();
+      }
+      // the neck: one long S, tapering
+      var neck = [[26, -18], [34, -52], [30, -78], [36, -96]];
+      var prevX = x + 18 + sway, prevY = bodyY - 22;
+      for (var ni = 0; ni < neck.length; ni++) {
+        var nx2 = x + neck[ni][0] + sway;
+        var ny2 = bodyY + neck[ni][1];
+        ctx.strokeStyle = 'rgba(236,208,142,0.97)';
+        ctx.lineWidth = 21 - ni * 4.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(prevX, prevY);
+        ctx.quadraticCurveTo((prevX + nx2) / 2 + 4, (prevY + ny2) / 2, nx2, ny2);
+        ctx.stroke();
+        prevX = nx2; prevY = ny2;
+      }
+      // the head, the crest, the beak, the eye
+      var hx = prevX + 2, hy = prevY - 6;
+      ctx.fillStyle = 'rgba(240,214,150,0.98)';
+      ctx.beginPath();
+      ctx.ellipse(hx, hy, 14, 11, -0.2, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(224,163,42,0.95)';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (var cr = 0; cr < 3; cr++) {
+        ctx.beginPath();
+        ctx.moveTo(hx - 4, hy - 8);
+        ctx.quadraticCurveTo(hx - 12 - cr * 3, hy - 20 - cr * 5, hx - 26 - cr * 5, hy - 22 - cr * 6);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(180,85,47,0.96)';
+      ctx.beginPath();
+      ctx.moveTo(hx + 11, hy - 2);
+      ctx.lineTo(hx + 40, hy + 3);
+      ctx.lineTo(hx + 11, hy + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(42,35,32,0.92)';
+      ctx.beginPath();
+      ctx.arc(hx + 3, hy - 2, 2.4, 0, TAU);
+      ctx.fill();
+      // the first light on her, along the neck's leading edge
+      ctx.strokeStyle = 'rgba(255,246,214,0.5)';
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(x + 30 + sway, bodyY - 30);
+      ctx.quadraticCurveTo(x + 44 + sway, bodyY - 62, x + 40 + sway, bodyY - 96);
+      ctx.stroke();
+      // one feather at the foot of the ridge: a vane, a rachis, and a bare quill
+      var fx3 = x - 54, fy3 = y + 14;
+      ctx.fillStyle = 'rgba(234,208,140,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(fx3 + 6, fy3 + 2);
+      ctx.quadraticCurveTo(fx3 + 30, fy3 - 12, fx3 + 58, fy3 - 6);
+      ctx.quadraticCurveTo(fx3 + 32, fy3 + 2, fx3 + 6, fy3 + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(150,116,58,0.8)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(fx3 + 2, fy3 + 8);
+      ctx.quadraticCurveTo(fx3 + 30, fy3 - 4, fx3 + 58, fy3 - 6);
+      ctx.stroke();
+      for (var bb = 1; bb <= 4; bb++) {
+        var bt = bb / 5;
+        ctx.beginPath();
+        ctx.moveTo(fx3 + 4 + (58 - 4) * bt, fy3 + 8 - 12 * bt);
+        ctx.lineTo(fx3 + 8 + (58 - 4) * bt, fy3 + 12 - 14 * bt);
+        ctx.stroke();
+      }
+    } else if (k === 'homa') {
+      // Her shadow, on the ground: body, two swept wings, and the tail behind.
+      var drift = Math.sin(t * 0.42) * 62;
+      var sx2 = x + drift;
+      ctx.fillStyle = 'rgba(34,28,22,0.30)';
+      ctx.beginPath();
+      ctx.ellipse(sx2, y + 24, 22, 9, 0, 0, TAU);
+      ctx.fill();
+      // wings: leading edge sweeps forward, trailing edge sags
+      ctx.beginPath();
+      ctx.moveTo(sx2, y + 22);
+      ctx.quadraticCurveTo(sx2 - 58, y + 6, sx2 - 128, y + 14);
+      ctx.quadraticCurveTo(sx2 - 74, y + 26, sx2 - 10, y + 30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(sx2, y + 22);
+      ctx.quadraticCurveTo(sx2 + 58, y + 6, sx2 + 128, y + 14);
+      ctx.quadraticCurveTo(sx2 + 74, y + 26, sx2 + 10, y + 30);
+      ctx.closePath();
+      ctx.fill();
+      // the tail, and the head's shadow ahead of the body
+      ctx.beginPath();
+      ctx.moveTo(sx2 - 8, y + 28);
+      ctx.lineTo(sx2 - 4, y + 44);
+      ctx.lineTo(sx2 + 10, y + 40);
+      ctx.lineTo(sx2 + 8, y + 27);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(sx2 + 6, y + 18, 13, 7, 0.1, 0, TAU);
+      ctx.fill();
+      // one lighter pass across the wing, so the shape has an edge to read
+      ctx.fillStyle = 'rgba(240,238,226,0.06)';
+      ctx.beginPath();
+      ctx.moveTo(sx2 - 10, y + 24);
+      ctx.quadraticCurveTo(sx2 - 70, y + 12, sx2 - 120, y + 16);
+      ctx.quadraticCurveTo(sx2 - 70, y + 22, sx2 - 10, y + 27);
+      ctx.closePath();
+      ctx.fill();
+
+    } else if (k === 'parizad') {
+      // Branches, and a light in them that breathes.
+      ctx.strokeStyle = 'rgba(88,64,42,0.85)';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - 60, y + 40);
+      ctx.quadraticCurveTo(x - 30, y + 6, x - 34, y - 40);
+      ctx.moveTo(x - 34, y - 12);
+      ctx.quadraticCurveTo(x + 8, y - 26, x + 46, y - 58);
+      ctx.moveTo(x - 20, y + 4);
+      ctx.quadraticCurveTo(x + 16, y + 6, x + 40, y - 14);
+      ctx.stroke();
+      var pulse = 0.72 + Math.sin(t * 2.1) * 0.18;
+      var lx = x + 18, ly = y - 26;
+      var glow = ctx.createRadialGradient(lx, ly, 1, lx, ly, 46);
+      glow.addColorStop(0, 'rgba(255,226,150,' + (0.85 * pulse).toFixed(3) + ')');
+      glow.addColorStop(0.45, 'rgba(240,196,104,' + (0.30 * pulse).toFixed(3) + ')');
+      glow.addColorStop(1, 'rgba(240,196,104,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 46, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,244,214,0.95)';
+      ctx.beginPath();
+      ctx.arc(lx, ly, 4.6, 0, TAU);
+      ctx.fill();
+    } else if (k === 'div') {
+      // The bank, wide and low, drifting the way the wind gap drifts.
+      for (var bq = 0; bq < 7; bq++) {
+        var bxq = x - 240 + ((bq * 84 + t * 11) % 480);
+        var byq = y + 26 - (bq % 3) * 14;
+        var rw = 90 + (bq % 4) * 34, rh = 26 + (bq % 3) * 11;
+        var g2 = ctx.createRadialGradient(bxq, byq, 2, bxq, byq, rw);
+        g2.addColorStop(0, 'rgba(246,246,240,0.30)');
+        g2.addColorStop(0.65, 'rgba(246,246,240,0.16)');
+        g2.addColorStop(1, 'rgba(246,246,240,0)');
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.ellipse(bxq, byq, rw, rh, 0, 0, TAU);
+        ctx.fill();
+      }
+      // The column: brightest where it meets the ground, gone by the height of a
+      // man and a half. No edge, no head, nothing to name.
+      var dxq = x + Math.sin(t * 0.45) * 10;
+      var g3 = ctx.createRadialGradient(dxq, y + 26, 10, dxq, y + 26, 232);
+      g3.addColorStop(0, 'rgba(250,250,246,0.34)');
+      g3.addColorStop(0.42, 'rgba(250,250,246,0.20)');
+      g3.addColorStop(0.74, 'rgba(250,250,246,0.07)');
+      g3.addColorStop(1, 'rgba(250,250,246,0)');
+      ctx.fillStyle = g3;
+      ctx.beginPath();
+      ctx.arc(dxq, y + 26, 232, 0, TAU);
+      ctx.fill();
+      // Two darker places in the column, where shoulders would be if it had any.
+      var g4 = ctx.createRadialGradient(dxq - 40, y - 40, 4, dxq - 40, y - 40, 74);
+      g4.addColorStop(0, 'rgba(214,216,208,0.20)');
+      g4.addColorStop(1, 'rgba(214,216,208,0)');
+      ctx.fillStyle = g4;
+      ctx.beginPath();
+      ctx.arc(dxq - 40, y - 40, 74, 0, TAU);
+      ctx.fill();
+    } else if (k === 'bowl' || k === 'bowl-full') {
+      castShadow(x, y + 22, 84, 0.22, 26);
+      // A deep bowl on the step: a foot, a body, a wide rim.
+      ctx.fillStyle = 'rgba(120,92,60,0.95)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 20, 18, 7, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(150,116,74,0.97)';
+      ctx.beginPath();
+      ctx.moveTo(x - 40, y - 6);
+      ctx.quadraticCurveTo(x - 34, y + 22, x, y + 24);
+      ctx.quadraticCurveTo(x + 34, y + 22, x + 40, y - 6);
+      ctx.closePath();
+      ctx.fill();
+      // what is in it: dark when she finds it, ivory in the morning
+      ctx.fillStyle = k === 'bowl-full' ? 'rgba(248,242,222,0.98)' : 'rgba(74,58,42,0.92)';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 6, 40, 13, 0, 0, TAU);
+      ctx.fill();
+      if (k === 'bowl-full') {
+        ctx.fillStyle = 'rgba(255,253,246,0.95)';
+        ctx.beginPath();
+        ctx.ellipse(x - 6, y - 9, 26, 7.4, -0.08, 0, TAU);
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(112,84,52,0.65)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(x, y - 6, 40, 13, 0, 0, TAU);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(96,70,44,0.35)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 12, 26, 8, 0, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+    } else if (k === 'fires') {
+      // Three small fires on the path, and the jump is hers to make.
+      for (var f = 0; f < 3; f++) {
+        var fx2 = x - 78 + f * 78;
+        var flick = 0.8 + Math.sin(t * 6 + f * 1.7) * 0.2;
+        ctx.fillStyle = 'rgba(224,163,42,0.18)';
+        ctx.beginPath();
+        ctx.ellipse(fx2, y + 16, 44, 16, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(120,104,86,0.55)';
+        ctx.beginPath();
+        ctx.ellipse(fx2, y + 12, 24, 7, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(224,163,42,' + (0.85 * flick).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(fx2 - 15, y + 10);
+        ctx.quadraticCurveTo(fx2 - 7, y - 18 * flick, fx2, y - 44 * flick);
+        ctx.quadraticCurveTo(fx2 + 8, y - 14 * flick, fx2 + 15, y + 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,240,200,' + (0.75 * flick).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(fx2 - 3.4, y + 9);
+        ctx.quadraticCurveTo(fx2 - 1, y - 2, fx2, y - 11 * flick);
+        ctx.quadraticCurveTo(fx2 + 1.4, y - 1, fx2 + 3.4, y + 9);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (k === 'cloth') {
+      // The spread on the ground, with seven things on it and no one at it.
+      castShadow(x, y + 30, 190, 0.20, 34);
+      ctx.fillStyle = 'rgba(247,244,238,0.98)';
+      ctx.beginPath();
+      ctx.moveTo(x - 96, y - 6);
+      ctx.lineTo(x + 96, y - 6);
+      ctx.lineTo(x + 84, y + 40);
+      ctx.lineTo(x - 84, y + 40);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(180,170,150,0.75)';
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      // the woven edge
+      ctx.strokeStyle = 'rgba(47,167,155,0.55)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x - 92, y + 2);
+      ctx.lineTo(x + 92, y + 2);
+      ctx.stroke();
+      var things = [
+        ['#5A8A3C', 'sprig'], ['#C2708A', 'blossom'], ['#E0A32A', 'coin'],
+        ['#B4552F', 'berry'], ['#3E5C8A', 'bowl'], ['#8A6A44', 'nut'], ['#2FA79B', 'leaf']
+      ];
+      for (var q = 0; q < things.length; q++) {
+        var qx = x - 72 + q * 24;
+        var qy = y + 20 + (q % 2) * 5;
+        ctx.fillStyle = things[q][0];
+        ctx.beginPath();
+        if (things[q][1] === 'sprig') {
+          ctx.moveTo(qx, qy + 8); ctx.quadraticCurveTo(qx - 8, qy - 8, qx + 2, qy - 16);
+          ctx.quadraticCurveTo(qx + 9, qy - 2, qx + 4, qy + 8);
+          ctx.closePath();
+        } else if (things[q][1] === 'blossom') {
+          for (var pt = 0; pt < 5; pt++) {
+            var ang2 = pt * 1.2566 - 1.57;
+            ctx.moveTo(qx + Math.cos(ang2) * 7, qy + Math.sin(ang2) * 7);
+            ctx.arc(qx + Math.cos(ang2) * 4, qy + Math.sin(ang2) * 4, 3.4, 0, TAU);
+          }
+        } else if (things[q][1] === 'coin') { ctx.arc(qx, qy, 7, 0, TAU); }
+        else if (things[q][1] === 'berry') { ctx.ellipse(qx, qy, 6.4, 7.6, 0, 0, TAU); }
+        else if (things[q][1] === 'bowl') {
+          ctx.moveTo(qx - 9, qy - 5); ctx.quadraticCurveTo(qx, qy + 12, qx + 9, qy - 5); ctx.closePath();
+        } else if (things[q][1] === 'nut') { ctx.ellipse(qx, qy + 2, 5.6, 8, 0.2, 0, TAU); }
+        else { ctx.moveTo(qx - 8, qy); ctx.quadraticCurveTo(qx, qy - 11, qx + 9, qy + 1); ctx.quadraticCurveTo(qx, qy + 7, qx - 8, qy); }
+        ctx.fill();
+      }
+      // a small lamp beside it, because the cloth is not bare
+      ctx.fillStyle = 'rgba(224,163,42,0.95)';
+      ctx.beginPath();
+      ctx.ellipse(x + 86, y + 14, 7, 9, 0, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawProp(p) {
     var x = p.x, y = p.y, i;
     var reach = islandVerb && islandVerb.i === p.i;
@@ -28681,6 +29428,7 @@ var ANIMAL_SIZES = {
       ctx.ellipse(x, y + 24, 54, 18, 0, 0, TAU);
       ctx.fill();
     }
+    if (p.k === 'sight') { drawSight(p); return; }
     if (p.k === 'species') {
       var e = p.sp;
       if (p.drawX != null) x = p.drawX;
@@ -29559,6 +30307,11 @@ var ANIMAL_SIZES = {
     var kind = lookKindOf(sp);
     var where = sectionDef().name;
     var sub = T(kind) + ' \u00b7 ' + T(where);
+    if (sp.line) {
+      ctx.font = 'italic 400 12.5px ' + FONT_SERIF;
+      var said = wrapText(T(sp.line), cardW - 28, ctx.font);
+      for (var q = 0; q < said.length; q++) lines.push({ t: said[q], f: ctx.font, h: 17, soft: true });
+    }
     ctx.font = '400 11.5px ' + FONT_UI;
     for (var k = 0; k < wrapText(sub, cardW - 28, ctx.font).length; k++) {
       lines.push({ t: wrapText(sub, cardW - 28, ctx.font)[k], f: ctx.font, h: 15, soft: true });
