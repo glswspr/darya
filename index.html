@@ -18460,22 +18460,23 @@ props: islandProps.map(function (p) {
     bg.addColorStop(1, '#BBD3C6');
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, 390, 844);
-    // The glazing, behind everything.
-    ctx.strokeStyle = 'rgba(94,135,131,0.36)';
-    ctx.lineWidth = 2;
-    for (var gx = 0; gx <= 390; gx += 65) {
-      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 260); ctx.stroke();
-    }
-    ctx.strokeStyle = 'rgba(94,135,131,0.30)';
-    ctx.beginPath(); ctx.moveTo(0, 92); ctx.lineTo(390, 92); ctx.stroke();
-    // What grows behind the glass.
+    // What grows behind the glass: the plants, painted first so the glazing
+    // bars land on top of them.
     var grnd2 = seeded(7788);
     ctx.fillStyle = 'rgba(126,164,110,0.34)';
     for (var gh2 = 0; gh2 < 14; gh2++) {
       ctx.beginPath();
-      ctx.ellipse(grnd2() * 390, 190 + grnd2() * 60, 20 + grnd2() * 26, 14 + grnd2() * 16, 0, 0, TAU);
+      ctx.ellipse(grnd2() * 390, 110 + grnd2() * 130, 20 + grnd2() * 26, 14 + grnd2() * 16, 0, 0, TAU);
       ctx.fill();
     }
+    // The glazing, painted over the plants so they read as inside the house.
+    ctx.strokeStyle = 'rgba(94,135,131,0.36)';
+    ctx.lineWidth = 2;
+    for (var gx = 0; gx <= 390; gx += 65) {
+      ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 240); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(94,135,131,0.30)';
+    ctx.beginPath(); ctx.moveTo(0, 92); ctx.lineTo(390, 92); ctx.stroke();
     // The gravel bed she stands on.
     ctx.fillStyle = '#C6BFA6';
     roundRect(30, 300, 330, 520, 10);
