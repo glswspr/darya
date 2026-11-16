@@ -2891,9 +2891,16 @@ function sightSp(sg) {
      a person or a thing, so the walking always has a reason, and finishing one
      hands over the next. Progress is the world itself - words learned, places
      reached, things done - never a counter of its own. */
+  /* One counter per sister: her list is hers, and switching does not carry half a
+     day of errands across. */
   var ERRAND_KEY = 'darya.errand';
   var errandAt = 0;
-  try { errandAt = parseInt(window.localStorage.getItem(ERRAND_KEY) || '0', 10) || 0; } catch (e) { errandAt = 0; }
+  function loadErrandProgress() {
+    try {
+      errandAt = parseInt(window.localStorage.getItem(ERRAND_KEY + '.' + who) || '0', 10) || 0;
+    } catch (e) { errandAt = 0; }
+  }
+  loadErrandProgress();
 
   var visited = {};
   try {
@@ -4177,7 +4184,7 @@ function sightSp(sg) {
      names a PERSON, a PLACE and a THING TO DO in one line, a count for the strip,
      and a test that reads the world rather than a flag. The people of the island
      are the ones asking, so the walking always has someone behind it. */
-  var ERRANDS = [
+  var ERRANDS_DARYA = [
     {
       line: 'read three of the carved stones',
       where: 'go to any carved stone and read it',
@@ -4347,9 +4354,104 @@ function sightSp(sg) {
     return p ? p.said : '"Well met."';
   }
 
-  function errand() { return ERRANDS[Math.min(errandAt, ERRANDS.length - 1)]; }
+  /* Donyá's day. The same island and the same predicates, but every errand is
+     shaped like finding, because that is her half of the work. No new mechanic and
+     no new place: what changes is what she is asked to do with them. */
+  var ERRANDS_DONYA = [
+    {
+      line: 'find the four ways out of the yard',
+      where: 'step out of the yard by each of its four edges',
+      count: function () {
+        return [(visited['0,1'] ? 1 : 0) + (visited['-1,0'] ? 1 : 0) +
+          (visited['1,0'] ? 1 : 0) + (visited['0,-1'] ? 1 : 0), 4];
+      },
+      done: function () {
+        return !!(visited['0,1'] && visited['-1,0'] && visited['1,0'] && visited['0,-1']);
+      }
+    },
+    {
+      line: 'find the apiary and open a hive',
+      where: 'go north out of the yard, past the wood edge',
+      count: function () { return [placeDone('comb') || placeDone('queen') ? 1 : 0, 1]; },
+      done: function () { return beenTo('the apiary') && (placeDone('comb') || placeDone('queen')); }
+    },
+    {
+      line: 'find the greenhouse and cross two seeds',
+      where: 'go west along the lane, to the greenhouse',
+      count: function () { return [placeDone('glasshouse') ? 1 : 0, 1]; },
+      done: function () { return placeDone('glasshouse'); }
+    },
+    {
+      line: 'find the stream and fill the can',
+      where: 'go south-west, to where the ground turns wet',
+      count: function () { return [placeDone('stream') ? 1 : 0, 1]; },
+      done: function () { return placeDone('stream'); }
+    },
+    {
+      line: 'climb to the high pastures',
+      where: 'go north from the apiary, and north again',
+      count: function () { return [beenTo('the high pastures') ? 1 : 0, 1]; },
+      done: function () { return beenTo('the high pastures'); }
+    },
+    {
+      line: 'reach the shore and the sea',
+      where: 'go south past the pond, to the shore and the sea',
+      count: function () {
+        return [(beenTo('the shore') ? 1 : 0) + (beenTo('the sea') ? 1 : 0), 2];
+      },
+      done: function () { return beenTo('the shore') && beenTo('the sea'); }
+    },
+    {
+      line: 'find the shrine among the old stones',
+      where: 'find it among the old stones',
+      count: function () { return [placeDone('shrine') ? 1 : 0, 1]; },
+      done: function () { return placeDone('shrine'); }
+    },
+    {
+      line: 'row out to the lake and fish it three times',
+      where: 'row out from the sea, to the lake',
+      count: function () { return [placeDone('lake') ? 1 : 0, 1]; },
+      done: function () { return placeDone('lake'); }
+    },
+    {
+      line: 'hear the storyteller out in the yard',
+      where: 'he sits in the yard, by the well',
+      count: function () { return [metBeing['being-storyteller'] ? 1 : 0, 1]; },
+      done: function () { return !!metBeing['being-storyteller']; }
+    },
+    {
+      line: 'walk the steppe with the shepherd',
+      where: 'go north past the apiary, to the dry grass',
+      count: function () { return [metBeing['being-shepherd'] ? 1 : 0, 1]; },
+      done: function () { return !!metBeing['being-shepherd']; }
+    },
+    {
+      line: 'walk the rim of the island',
+      where: 'the cliff and the hedge mark the island\u2019s end',
+      count: function () {
+        var n = 0;
+        for (var k in SECTIONS) if (SECTIONS.hasOwnProperty(k) && visited[k]) n++;
+        return [n, Object.keys(SECTIONS).length];
+      },
+      done: function () {
+        var n = 0;
+        for (var k in SECTIONS) if (SECTIONS.hasOwnProperty(k) && visited[k]) n++;
+        return n >= Object.keys(SECTIONS).length;
+      }
+    },
+    {
+      line: 'take the book back to the well',
+      where: 'the day began there, by the capped well',
+      count: function () { return [closedAtWell ? 1 : 0, 1]; },
+      done: function () { return !!closedAtWell; }
+    }
+  ];
 
-  function errandDone() { return errandAt >= ERRANDS.length; }
+  function errands() { return who === 'donya' ? ERRANDS_DONYA : ERRANDS_DARYA; }
+
+    function errand() { return errands()[Math.min(errandAt, errands().length - 1)]; }
+
+  function errandDone() { return errandAt >= errands().length; }
 
   /* Called whenever the world may have changed: a word learned, a place
      finished, a section entered. One errand completes at a time, so the strip
@@ -4359,7 +4461,7 @@ function sightSp(sg) {
     var e = errand();
     if (!e.done()) return;
     errandAt++;
-    try { window.localStorage.setItem(ERRAND_KEY, String(errandAt)); } catch (err) { /* private */ }
+    try { window.localStorage.setItem(ERRAND_KEY + '.' + who, String(errandAt)); } catch (err) { /* private */ }
     if (errandDone()) {
       showNotice(T('The notebook is full'), T('every errand the island had'));
       // The day closes where it opened. The light goes to dusk, and the island
@@ -7083,25 +7185,22 @@ function sightSp(sg) {
   }
 
   function drawTitle(cssW, cssH) {
-    // The title lives on a 390x844 page, like the game's portrait page. The
-    // page is fitted whole and centred, so its composition holds on any screen.
     hits = [];
     ctx.fillStyle = C.plaster;
     ctx.fillRect(0, 0, cssW, cssH);
     pageBegin(cssW, cssH);
     cssW = 390;
     cssH = 844;
-    var s = 1;
 
     // The page's hairline frame.
     ctx.strokeStyle = 'rgba(42,35,32,0.16)';
     ctx.lineWidth = 1;
-    var m = 18 * s;
+    var m = 18;
     ctx.strokeRect(m, m, cssW - m * 2, cssH - m * 2);
 
-    // Faint botanical wash behind the title.
-    var g = ctx.createRadialGradient(cssW * 0.5, cssH * 0.34, 20, cssW * 0.5, cssH * 0.34, cssW * 0.7);
-    g.addColorStop(0, 'rgba(224,163,42,0.10)');
+    // Faint botanical wash behind the pair.
+    var g = ctx.createRadialGradient(cssW * 0.5, cssH * 0.30, 20, cssW * 0.5, cssH * 0.30, cssW * 0.75);
+    g.addColorStop(0, 'rgba(224,163,42,0.11)');
     g.addColorStop(1, 'rgba(224,163,42,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, cssW, cssH);
@@ -7109,70 +7208,95 @@ function sightSp(sg) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    ctx.fillStyle = C.inkFaint;
-    ctx.font = '600 ' + Math.round(11 * s) + 'px ' + FONT_UI;
-    ctx.font = '600 ' + Math.round(11 * s) + 'px ' + FONT_UI;
-    spacedText(T("THE KEEPER'S ISLAND").toUpperCase(), cssW / 2, cssH * 0.145, 3 * s);
-
+    // The name of the game, and the same name in its own script.
+    ctx.textAlign = 'center';
     ctx.fillStyle = C.ink;
-    ctx.font = 'italic ' + Math.round(76 * s) + 'px ' + FONT_SERIF;
-    ctx.fillText(TITLE, cssW / 2, cssH * 0.235);
+    var word = fitLine(T('Daryá va Donyá'), cssW - 56, FONT_SERIF, 600, 'italic', 46, 30);
+    ctx.font = word.font;
+    ctx.fillText(word.text, cssW / 2, 100);
+    if (LANG !== 'fa') {
+      ctx.fillStyle = C.turquoiseDeep;
+      ctx.font = '500 24px ' + FONT_SERIF;
+      ctx.fillText('دریا و دنیا', cssW / 2, 140);
+    }
 
-    ctx.fillStyle = C.turquoise;
-    ctx.fillRect(cssW / 2 - 28 * s, cssH * 0.295, 56 * s, 2 * s);
-
-    // The island's own two lines, under her name: the world, in the time it takes
-    // to cross a page. This is the only place the myth is stated whole.
+    // The island's two lines: the only place the myth is stated whole.
     ctx.fillStyle = C.inkSoft;
     var myth1 = fitLine(T('The sea took the rest of the world.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
-    ctx.textAlign = 'center';
     ctx.font = myth1.font;
-    ctx.fillText(myth1.text, cssW / 2, 300);
+    ctx.fillText(myth1.text, cssW / 2, 180);
     var myth2 = fitLine(T('This is the piece that stayed.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
     ctx.font = myth2.font;
-    ctx.fillText(myth2.text, cssW / 2, 322);
-    ctx.textAlign = 'left';
+    ctx.fillText(myth2.text, cssW / 2, 200);
 
-    // The chapter mark, and the notebook.
-    ctx.textAlign = 'left';
-    ctx.fillStyle = C.inkFaint;
-    ctx.font = '600 9px ' + FONT_UI;
-    var mark = T(storyChapter()).toUpperCase();
-    var markW = 0;
-    for (var mk = 0; mk < mark.length; mk++) markW += ctx.measureText(mark[mk]).width + 1.5;
-    spacedText(mark, 26 + markW / 2, 46, 1.5);
+    // The two of them, on the island's own ground: a hairline, and their shadows.
+    var groundY = 446;
+    ctx.strokeStyle = 'rgba(42,35,32,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(56, groundY + 2);
+    ctx.lineTo(334, groundY + 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(47,167,155,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cssW / 2 - 26, groundY + 2);
+    ctx.lineTo(cssW / 2 + 26, groundY + 2);
+    ctx.stroke();
 
-    // The keeper speaks first, so the island reads as a story and not a menu.
-    ctx.textAlign = 'center';
+    var cardW = 150, cardH = 360;
+    var spots = [{ x: 104, id: 'darya' }, { x: 286, id: 'donya' }];
+    for (var i = 0; i < spots.length; i++) {
+      var sp2 = spots[i];
+      var S = SISTERS[sp2.id];
+      var chosen = who === S.id;
+      ctx.save();
+      ctx.globalAlpha = chosen ? 1 : 0.42;
+      var feetDown = keeperFeetBelow(R.heroSize) * 1.58;
+      ctx.translate(sp2.x, groundY - feetDown);
+      ctx.scale(1.58, 1.58);
+      castShadow(0, keeperFeetBelow(R.heroSize), 12, chosen ? 0.22 : 0.12);
+      paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[S.own], false);
+      ctx.restore();
+
+      // her name, in ink when chosen
+      ctx.fillStyle = chosen ? C.ink : C.inkFaint;
+      ctx.font = 'italic ' + (chosen ? 600 : 500) + ' 21px ' + FONT_SERIF;
+      ctx.fillText(T(S.name), sp2.x, groundY + 42);
+      if (chosen) {
+        var nw = ctx.measureText(T(S.name)).width;
+        ctx.fillStyle = C.turquoise;
+        ctx.fillRect(sp2.x - nw / 2, groundY + 58, nw, 2);
+      }
+      addHit(sp2.x - cardW / 2, groundY - cardH + 40, cardW, cardH, 'sister', S.id);
+    }
+
+    // She speaks, in her own voice.
     ctx.fillStyle = C.inkSoft;
-    var said = fitLine(T('I keep the island, and write down what it teaches me.'),
-      cssW - 44, FONT_SERIF, 500, 'italic', 11.5, 8.5);
-    ctx.font = said.font;
-    ctx.fillText(said.text, cssW / 2, cssH * 0.104);
-    ctx.textAlign = 'left';
+    var saidLines = wrapText(T(sister().says), cssW - 84, 'italic 500 12.5px ' + FONT_SERIF);
+    ctx.font = 'italic 500 12.5px ' + FONT_SERIF;
+    var saidTop = 556 - (saidLines.length - 1) * 9;
+    for (var sl = 0; sl < saidLines.length; sl++) {
+      ctx.fillText(saidLines[sl], cssW / 2, saidTop + sl * 18);
+    }
 
-    // The hive, and one way in.
-    ctx.save();
-    ctx.translate(cssW / 2, 500);
-    ctx.scale(0.62 * s, 0.62 * s);
-    drawTitleHive();
-    ctx.restore();
-
-    var bw = Math.min(240, cssW - 96), bh = 54;
-    var bx = cssW / 2 - bw / 2, by = 654;
+    // And one way in, which says whose day it will be.
+    var bw = Math.min(278, cssW - 92), bh = 56;
+    var bx = cssW / 2 - bw / 2, by = 606;
     ctx.fillStyle = C.terracotta;
     roundRect(bx, by, bw, bh, bh / 2);
     ctx.fill();
     ctx.fillStyle = C.paper;
-    ctx.font = '600 18px ' + FONT_UI;
-    ctx.fillText(T('Start'), cssW / 2, by + bh / 2 + 0.5);
+    var startLabel = fitLine(T('walk out as {0}', T(sister().name)), bw - 30, FONT_UI, 600, 'normal', 17, 12);
+    ctx.font = startLabel.font;
+    ctx.fillText(startLabel.text, cssW / 2, by + bh / 2 + 0.5);
     addHit(bx, by, bw, bh, 'start');
 
     ctx.textAlign = 'center';
     if (best > 0) {
       ctx.fillStyle = C.inkFaint;
       ctx.font = '400 11px ' + FONT_UI;
-      ctx.fillText(T('best: {0} nectar', best), cssW / 2, by + bh + 24);
+      ctx.fillText(T('best: {0} nectar', best), cssW / 2, by + bh + 26);
     }
     ctx.textAlign = 'left';
 
@@ -8639,6 +8763,41 @@ function sightSp(sg) {
   };
   var outfit = 0;
 
+  /* ---- The two sisters ---------------------------------------------------
+     One story, two hands. Daryá keeps the book and writes down what the island
+     teaches; Donyá went down the well first and finds what goes in it. The title
+     asks whose day this is, and the answer changes the figure she walks as and the
+     list of errands she carries - nothing else, because there is one island and one
+     book. */
+  var SISTERS = {
+    darya: {
+      id: 'darya', name: 'Daryá', own: 0, other: 2,
+      says: 'I keep the island, and write down what it teaches me.',
+      greets: 'I went down first. You came after me. Now I find them and you write them down.'
+    },
+    donya: {
+      id: 'donya', name: 'Donyá', own: 2, other: 0,
+      says: 'I find them. My sister writes them down.',
+      greets: 'You write; I find. Take the book and go.'
+    }
+  };
+  var SISTER_ORDER = ['darya', 'donya'];
+  var who = 'darya';
+  try {
+    var savedWho = window.localStorage.getItem('darya.who');
+    if (savedWho === 'donya' || savedWho === 'darya') who = savedWho;
+  } catch (e) { /* private */ }
+
+  function sister() { return SISTERS[who]; }
+  function otherSister() { return SISTERS[who === 'darya' ? 'donya' : 'darya']; }
+  function chooseSister(id) {
+    if (!SISTERS[id] || who === id) return;
+    who = id;
+    try { window.localStorage.setItem('darya.who', who); } catch (e) { /* private */ }
+    loadErrandProgress();
+  }
+
+
   /* The rest of the family, dressed the way this house is dressed. They are drawn
      with the keeper's own shapes, larger and in their own colours, so a family of
      four reads as one family and not as four unrelated people. */
@@ -9265,12 +9424,12 @@ function sightSp(sg) {
 
   window.__errand = function (n) {
     if (typeof n === 'number') {
-      errandAt = clamp(n, 0, ERRANDS.length);
+      errandAt = clamp(n, 0, errands().length);
       try { window.localStorage.setItem(ERRAND_KEY, String(errandAt)); } catch (e) { /* private */ }
     }
     return {
       at: errandAt,
-      of: ERRANDS.length,
+      of: errands().length,
       line: errandDone() ? 'the notebook is full' : errand().line,
       where: errandDone() ? '' : errand().where,
       count: errandDone() ? null : errand().count()
@@ -9736,8 +9895,8 @@ function sightSp(sg) {
     }
 
     // 7. Every errand can be counted and finished.
-    for (i = 0; i < ERRANDS.length; i++) {
-      var er = ERRANDS[i];
+    for (i = 0; i < errands().length; i++) {
+      var er = errands()[i];
       if (!er.line) fail("errand " + i, "no line");
       if (typeof er.done !== "function") { fail("errand " + i, "no done()"); continue; }
       if (typeof er.count !== "function") { fail("errand " + i, "no count()"); continue; }
@@ -9757,8 +9916,8 @@ function sightSp(sg) {
     // 8. Every errand that names a place names one that exists.
     var placeWords = ["comb", "queen", "glasshouse", "hens", "kitchen", "wagon",
       "stream", "lanterns", "beeline", "removal", "shrine", "lake", "sky"];
-    for (i = 0; i < ERRANDS.length; i++) {
-      var w2 = " " + (ERRANDS[i].where || "") + " " + (ERRANDS[i].line || "") + " ";
+    for (i = 0; i < errands().length; i++) {
+      var w2 = " " + (errands()[i].where || "") + " " + (errands()[i].line || "") + " ";
       for (j = 0; j < placeWords.length; j++) {
         if (w2.indexOf(placeWords[j]) < 0) continue;
         if (!placeDef(placeWords[j])) {
@@ -9815,7 +9974,7 @@ function sightSp(sg) {
     return {
       ok: problems.length === 0,
       checked: {
-        places: ids.length, errands: ERRANDS.length,
+        places: ids.length, errands: errands().length,
         words: words.length, species: speciesCount
       },
       problems: problems
@@ -10393,6 +10552,19 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': 'gå ut som {0}',
+      'I find them. My sister writes them down.': 'Jag hittar dem. Min syster skriver ner dem.',
+      'You write; I find. Take the book and go.': 'Du skriver; jag hittar. Ta boken och gå.',
+      'greet Daryá': 'hälsa på Daryá',
+      'find the four ways out of the yard': 'hitta de fyra vägarna ut från gården',
+      'find the apiary and open a hive': 'hitta bigården och öppna en kupa',
+      'find the stream and fill the can': 'hitta bäcken och fyll kannan',
+      'find the shrine among the old stones': 'hitta helgedomen bland de gamla stenarna',
+      'row out to the lake and fish it three times': 'ro ut till sjön och fiska tre gånger',
+      'take the book back to the well': 'bär tillbaka boken till brunnen',
       'a sighting': 'en syn',
       'the Simorgh': 'Simorgh',
       'the Homa': 'Homa',
@@ -10932,6 +11104,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'läs stenen',
     },
     fa: {
+      'Daryá va Donyá': 'دریا و دنیا',
+      'Daryá': 'دریا',
+      'Donyá': 'دنیا',
+      'walk out as {0}': 'به نام {0} بیرون برو',
+      'I find them. My sister writes them down.': 'من پیدایشان می‌کنم. خواهرم می‌نویسدشان.',
+      'You write; I find. Take the book and go.': 'تو بنویس؛ من پیدا می‌کنم. دفتر را بردار و برو.',
+      'greet Daryá': 'به دریا سلام کن',
+      'find the four ways out of the yard': 'چهار راه بیرون از حیاط را پیدا کن',
+      'find the apiary and open a hive': 'زنبورستان را پیدا کن و یک کندو را باز کن',
+      'find the stream and fill the can': 'جوی آب را پیدا کن و آبپاش را پر کن',
+      'find the shrine among the old stones': 'زیارتگاه را میان سنگ‌های کهن پیدا کن',
+      'row out to the lake and fish it three times': 'به دریاچه پارو بزن و سه بار ماهی بگیر',
+      'take the book back to the well': 'دفتر را به سر چاه برگردان',
       'a sighting': 'یک دیدار',
       'the Simorgh': 'سیمرغ',
       'the Homa': 'هما',
@@ -11471,6 +11656,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'سنگ را بخوان',
     },
     de: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': 'als {0} hinausgehen',
+      'I find them. My sister writes them down.': 'Ich finde sie. Meine Schwester schreibt sie auf.',
+      'You write; I find. Take the book and go.': 'Du schreibst; ich finde. Nimm das Buch und geh.',
+      'greet Daryá': 'Daryá grüßen',
+      'find the four ways out of the yard': 'die vier Wege aus dem Hof finden',
+      'find the apiary and open a hive': 'den Bienenstand finden und einen Stock öffnen',
+      'find the stream and fill the can': 'den Bach finden und die Kanne füllen',
+      'find the shrine among the old stones': 'den Schrein zwischen den alten Steinen finden',
+      'row out to the lake and fish it three times': 'hinaus zum See rudern und dreimal fischen',
+      'take the book back to the well': 'das Buch zurück zum Brunnen bringen',
       'a sighting': 'eine Sichtung',
       'the Simorgh': 'der Simorgh',
       'the Homa': 'der Homa',
@@ -12010,6 +12208,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'den Stein lesen',
     },
     fr: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': 'sortir en {0}',
+      'I find them. My sister writes them down.': 'Je les trouve. Ma sœur les écrit.',
+      'You write; I find. Take the book and go.': 'Toi, tu écris ; moi, je trouve. Prends le livre et va.',
+      'greet Daryá': 'saluer Daryá',
+      'find the four ways out of the yard': 'trouver les quatre sorties de la cour',
+      'find the apiary and open a hive': 'trouver le rucher et ouvrir une ruche',
+      'find the stream and fill the can': 'trouver le ruisseau et remplir l\'arrosoir',
+      'find the shrine among the old stones': 'trouver le sanctuaire parmi les vieilles pierres',
+      'row out to the lake and fish it three times': 'ramer jusqu\'au lac et y pêcher trois fois',
+      'take the book back to the well': 'rapporter le livre au puits',
       'a sighting': 'une apparition',
       'the Simorgh': 'le Simorgh',
       'the Homa': 'le Homa',
@@ -12548,6 +12759,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'lire la pierre',
     },
     es: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': 'salir como {0}',
+      'I find them. My sister writes them down.': 'Yo los encuentro. Mi hermana los escribe.',
+      'You write; I find. Take the book and go.': 'Tú escribes; yo encuentro. Toma el libro y ve.',
+      'greet Daryá': 'saludar a Daryá',
+      'find the four ways out of the yard': 'encontrar las cuatro salidas del patio',
+      'find the apiary and open a hive': 'encontrar el colmenar y abrir una colmena',
+      'find the stream and fill the can': 'encontrar el arroyo y llenar la regadera',
+      'find the shrine among the old stones': 'encontrar el santuario entre las piedras viejas',
+      'row out to the lake and fish it three times': 'remar hasta el lago y pescar tres veces',
+      'take the book back to the well': 'llevar el libro de vuelta al pozo',
       'a sighting': 'un avistamiento',
       'the Simorgh': 'el Simurgh',
       'the Homa': 'el Homa',
@@ -13087,6 +13311,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'leer la piedra',
     },
     tr: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': '{0} olarak çık',
+      'I find them. My sister writes them down.': 'Onları ben bulurum. Kardeşim yazar.',
+      'You write; I find. Take the book and go.': 'Sen yaz; ben bulurum. Defteri al ve git.',
+      'greet Daryá': 'Daryá\'yı selamla',
+      'find the four ways out of the yard': 'avlundan çıkan dört yolu bul',
+      'find the apiary and open a hive': 'aralığı bul ve bir kovan aç',
+      'find the stream and fill the can': 'dereyi bul ve kabı doldur',
+      'find the shrine among the old stones': 'eski taşların arasında türbeyi bul',
+      'row out to the lake and fish it three times': 'göle kürek çek ve üç kez balık tut',
+      'take the book back to the well': 'defteri kuyuya geri götür',
       'a sighting': 'bir görüntü',
       'the Simorgh': 'Simurg',
       'the Homa': 'Hüma',
@@ -13626,6 +13863,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'taşı oku',
     },
     ar: {
+      'Daryá va Donyá': 'دريا و دنيا',
+      'Daryá': 'دريا',
+      'Donyá': 'دنيا',
+      'walk out as {0}': 'اخرج باسم {0}',
+      'I find them. My sister writes them down.': 'أنا أجدها. أختي تكتبها.',
+      'You write; I find. Take the book and go.': 'أنتِ تكتبين؛ أنا أجد. خذي الدفتر واذهبي.',
+      'greet Daryá': 'سلّم على دريا',
+      'find the four ways out of the yard': 'اِجد الطرق الأربعة من الدار',
+      'find the apiary and open a hive': 'اِجد المنحل وافتح خلية',
+      'find the stream and fill the can': 'اِجد الجدول واملأ المرشّة',
+      'find the shrine among the old stones': 'اِجد المقام بين الحجارة القديمة',
+      'row out to the lake and fish it three times': 'جُدّف إلى البحيرة واصطد ثلاث مرات',
+      'take the book back to the well': 'أعِد الدفتر إلى البئر',
       'a sighting': 'مشهد',
       'the Simorgh': 'السيمرغ',
       'the Homa': 'الهما',
@@ -14165,6 +14415,19 @@ props: islandProps.map(function (p) {
       'read the stone': 'اقرأ الحجر',
     },
     zh: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': '以 {0} 的身份出门',
+      'I find them. My sister writes them down.': '我去找，我姐姐把它们写下来。',
+      'You write; I find. Take the book and go.': '你写，我去找。拿上本子走吧。',
+      'greet Daryá': '跟 Daryá 打个招呼',
+      'find the four ways out of the yard': '找出院子的四条出路',
+      'find the apiary and open a hive': '找到蜂场，打开一只蜂箱',
+      'find the stream and fill the can': '找到溪水，把壶灌满',
+      'find the shrine among the old stones': '在那些老石头里找到圣所',
+      'row out to the lake and fish it three times': '划到湖上，钓三次鱼',
+      'take the book back to the well': '把本子带回井边',
       'a sighting': '一次遇见',
       'the Simorgh': '西摩格',
       'the Homa': '胡马',
@@ -14704,6 +14967,19 @@ props: islandProps.map(function (p) {
       'read the stone': '读那块石头',
     },
     fi: {
+      'Daryá va Donyá': 'Daryá va Donyá',
+      'Daryá': 'Daryá',
+      'Donyá': 'Donyá',
+      'walk out as {0}': 'be nám-e {0} birun boro',
+      'I find them. My sister writes them down.': 'man peydá-eshán mikonam. kháhar-am minevisad-eshán.',
+      'You write; I find. Take the book and go.': 'to benevis; man peydá mikonam. daftar rá bardár va boro.',
+      'greet Daryá': 'be daryá salám kon',
+      'find the four ways out of the yard': 'cháhár ráh-e birun az hiayát rá peydá kon',
+      'find the apiary and open a hive': 'zanbursetán rá peydá kon va yek kandu rá báz kon',
+      'find the stream and fill the can': 'juy-e áb rá peydá kon va ábpásh rá por kon',
+      'find the shrine among the old stones': 'ziaratgáh rá miyán-e sang-há-ye kohan peydá kon',
+      'row out to the lake and fish it three times': 'be daryáche páru bezan va se mártabe máhi begir',
+      'take the book back to the well': 'daftar rá be sar-e cháh bargardán',
       'a sighting': 'yek didár',
       'the Simorgh': 'Simorgh',
       'the Homa': 'Homá',
@@ -21541,8 +21817,8 @@ props: islandProps.map(function (p) {
         var roll = Math.sin(tr * 1.7 + ph) * 0.5 + Math.sin(tr * 4.4 + ph * 1.3) * 0.3;
         var shX = Math.sin(tr * 2.5 + ph * 1.1) * 0.45;
         var shY = Math.cos(tr * 3.2 + ph * 0.8) * 0.25;
-        ctx.rotate(roll * k * 0.9);
-        ctx.translate(shX * k * 1.4, shY * k * 1.1);
+        ctx.rotate(roll * k * 0.25);
+        ctx.translate(shX * k * 2.2, shY * k * 1.6);
       }
       drawLeafPile(ctx, p, gust, t);
       ctx.restore();
@@ -26180,6 +26456,17 @@ var ANIMAL_SIZES = {
     return out;
   };
 
+  window.__who = function (id) {
+    if (id) chooseSister(id);
+    var e = errandDone() ? null : errand();
+    return {
+      who: who, name: sister().name, outfit: outfit,
+      errandAt: errandAt, of: errands().length,
+      next: e ? e.line : null, nextT: e ? T(e.line) : null,
+      other: otherSister().name
+    };
+  };
+
   window.__year = function (n) {
     if (n != null) { YEAR.day = ((Math.round(n) % YEAR.days) + YEAR.days) % YEAR.days; saveYear(); propCache = {}; }
     return { day: yearDay(), season: seasonOf(), sights: sightsHere().map(function (x) { return x.id; }) };
@@ -28002,7 +28289,7 @@ var ANIMAL_SIZES = {
         }
         if (yardTree) out.push({ k: 'species', sp: yardTree, x: W * 0.79, y: H * 0.33, name: '' });
         out.push({ k: 'well', x: W * 0.24, y: H * 0.72, verb: 'look at the well', act: 'well', name: '' });
-        out.push({ k: 'sister', x: W * 0.68, y: H * 0.44, verb: 'greet Donya', act: 'sister', name: '' });
+        out.push({ k: 'sister', x: W * 0.68, y: H * 0.44, verb: who === 'darya' ? 'greet Donya' : 'greet Daryá', act: 'sister', name: '' });
       } else if (d.kind === 'henhouse') {
         out.push({ k: 'coopdoor', x: W * 0.5, y: H * 0.22, verb: 'go into the henhouse', act: 'enter', to: 'hens', name: '' });
       } else if (d.kind === 'apiary') {
@@ -28639,11 +28926,12 @@ var ANIMAL_SIZES = {
     if (p.act === 'sister') {
       donyaMet = true;
       teachWord('khahar');
-      // She went first, and she says so once: this is the handoff from the sister
-      // who was found to the sister who finds.
+      // One sister is always at the well, and it is always the other one: she says
+      // the handoff in her own voice, and which voice it is depends on whose day
+      // this is.
       beingSaid = {
-        at: clock, who: T('Donya'),
-        line: T('I went down first. You came after me. Now I find them and you write them down.')
+        at: clock, who: T(otherSister().name),
+        line: T(otherSister().greets)
       };
       addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
       checkErrand();
@@ -28669,7 +28957,7 @@ var ANIMAL_SIZES = {
       };
       addParticles(p.x, p.y - 10, '#E8E2D2', 8, 50);
       // The last errand is to come back here and close the book.
-      if (errandAt >= ERRANDS.length - 1) {
+      if (errandAt >= errands().length - 1) {
         closedAtWell = true;
         checkErrand();
       }
@@ -29490,7 +29778,7 @@ var ANIMAL_SIZES = {
       castShadow(x, y + keeperFeetBelow(R.heroSize), 52, 0.26);
       ctx.save();
       ctx.translate(x, y);
-      paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[2], false);
+      paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[otherSister().other], false);
       ctx.restore();
       return;
     }
@@ -30549,6 +30837,9 @@ var ANIMAL_SIZES = {
 
   function startJourney() {
     inJourney = true;
+    // The body she walks in is the sister she chose. The wardrobe in the house can
+    // change it afterwards; this is only where the day starts.
+    outfit = sister().own;
     startGame('island');
   }
 
@@ -31407,6 +31698,7 @@ var ANIMAL_SIZES = {
       if (th && th.act === 'book') { openBook(); return; }
       if (th && th.act === 'bag') { enterBagPlace(); return; }
       if (th && th.act === 'map') { enterMapPlace(); return; }
+      if (th && th.act === 'sister') { chooseSister(th.arg); return; }
       if (th && th.act === 'start') { startJourney(); return; }
       return;
     }
