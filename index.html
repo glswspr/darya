@@ -2723,6 +2723,16 @@ function sightSp(sg) {
      greenhouse's swept gravel, the beach's surf, the pond, the streams, the river.
      The scenery and the props both ask, so a rule cannot be true for grass and
      false for a tomato. */
+  /* The glasshouse stands at the top of its section, and she crosses the section
+     on a swept gravel apron in front of it. The drawing and the two scenery
+     guards below read the footprint from here, so no grass grows on the building
+     or on the gravel, and the places never drift apart. */
+  var GLASS_BASE = 0.315;
+  function glassBedRect(W, H) {
+    var w = W * 0.52, h = H * 0.235;
+    return { x: W * 0.5 - w / 2, y: H * 0.395, w: w, h: h };
+  }
+
   function groundBlocks(x, y) {
     var d = sectionDef();
     if (!d) return false;
@@ -2730,12 +2740,11 @@ function sightSp(sg) {
 
     if (d.kind === 'glass') {
       // The swept gravel.
-      var bedX0 = W * 0.10, bedX1 = W * 0.90;
-      var bedY = H * 0.38, bedH = H * 0.30;
-      if (x > bedX0 && x < bedX1 && y > bedY && y < bedY + bedH) return true;
+      var bd = glassBedRect(W, H);
+      if (x > bd.x && x < bd.x + bd.w && y > bd.y && y < bd.y + bd.h) return true;
       // The glasshouse's own footprint: the structure stands there, and grass
       // growing over the panes is grass growing on a building.
-      if (y < H * 0.30 + 6) return true;
+      if (y < H * GLASS_BASE + 6) return true;
     }
     if (d.kind === 'beach' && isSurf(x, y, W, H)) return true;
     if (d.kind === 'stream' && inStream(x, y, W, H)) return true;
@@ -2774,8 +2783,9 @@ function sightSp(sg) {
 
     if (d.kind === 'glass') {
       // The bed is swept gravel: nothing stands on it.
-      var bedX0 = world.w * 0.10, bedX1 = world.w * 0.90;
-      var bedY0 = world.h * 0.40, bedY1 = world.h * 0.68;
+      var bd2 = glassBedRect(world.w, world.h);
+      var bedX0 = bd2.x, bedX1 = bd2.x + bd2.w;
+      var bedY0 = bd2.y, bedY1 = bd2.y + bd2.h;
       clearOut(
         function (it) { return it.x > bedX0 - 8 && it.x < bedX1 + 8 && it.y > bedY0 - 8 && it.y < bedY1 + 8; },
         function (it) { it.x = it.x < world.w * 0.5 ? bedX0 - 20 : bedX1 + 20; }
@@ -24588,11 +24598,17 @@ var ANIMAL_SIZES = {
     // measures this view walks on. They come from the same phase the side view uses.
     var walkAt = ((((a && a.walk) || 0) % 8) + 8) % 8;
     var stepping = !!(a && a.moving);
-    var stepA = stepping ? walkLegPose(walkAt, 0, 1) : { foot: 0, lift: 0 };
-    var stepB = stepping ? walkLegPose(walkAt, 2, 1) : { foot: 0, lift: 0 };
+    // FOUR legs, not two. A quadruped seen from the front stands on two pairs: the
+    // fore pair under the chest and the hind pair a little wider behind it. With one
+    // pair it read as a figure standing upright - which is what the bear looked like.
+    var step = [];
+    for (var si = 0; si < 4; si++) {
+      step.push(stepping ? walkLegPose(walkAt, si, 1) : { foot: 0, lift: 0 });
+    }
     // The body sinks between steps, twice per stride, and rises as a leg carries it.
     var dip = stepping ? walkDipAt(walkAt) * 0.016 : 0;
     var socketY = (front ? f.legTop.fore : f.legTop.hind) - dip;
+    var hindSocketY = f.legTop.hind - dip;
     var bellyY = f.bellyY - dip;
     var topEdge = f.edges.top;
     var withersY = Math.max(topEdge.a[1], topEdge.b[1], topEdge.c[1]) - dip;
@@ -24605,19 +24621,23 @@ var ANIMAL_SIZES = {
        tone, which is how a drawing puts one leg behind another. Heavy animals get
        thicker limbs from the same rule, because legW is a share of the body.
        `lift` is the share of the leg's own length the hoof is off the ground: the
-       limb shortens from the bottom, so a lifted foot does not stretch the leg. */
-    function limb(side, isFar, lift) {
-      var hipX = side * halfW * 0.62;
-      var footX = side * halfW * 0.52;
-      var w = legW * (isFar ? 0.44 : 0.52);
+       limb shortens from the bottom, so a lifted foot does not stretch the leg.
+       `hind` is the pair it belongs to, which decides how wide it stands and how high
+       it is socketed. */
+    function limb(side, isFar, lift, hind) {
+      var spread = hind ? (isFar ? 1.02 : 0.70) : (isFar ? 0.74 : 0.46);
+      var hipX = side * halfW * spread;
+      var footX = side * halfW * (spread * 1.06);
+      var w = legW * (isFar ? 0.44 : 0.52) * (hind ? 0.94 : 1);
+      var top = hind ? hindSocketY : socketY;
       var ground = w * 0.55;
-      var footY = ground + (lift || 0) * (socketY - ground) * 0.34;
+      var footY = ground + (lift || 0) * (top - ground) * 0.34;
       g.fillStyle = isFar ? far : fur;
       g.beginPath();
-      g.moveTo(hipX - w, socketY);
-      g.quadraticCurveTo(hipX - w * 1.04, (socketY + footY) * 0.5, footX - w * 0.88, footY);
+      g.moveTo(hipX - w, top);
+      g.quadraticCurveTo(hipX - w * 1.04, (top + footY) * 0.5, footX - w * 0.88, footY);
       g.lineTo(footX + w * 0.88, footY);
-      g.quadraticCurveTo(hipX + w * 1.04, (socketY + footY) * 0.5, hipX + w, socketY);
+      g.quadraticCurveTo(hipX + w * 1.04, (top + footY) * 0.5, hipX + w, top);
       g.closePath();
       g.fill();
       if (!isFar) {
@@ -24691,6 +24711,12 @@ var ANIMAL_SIZES = {
       g.beginPath();
       g.ellipse(0, headY, headW, headW * 0.90, 0, 0, TAU);
       g.fill();
+      // A rim round the skull. Head and body are the same fur, so without an edge the
+      // skull and the chest merge into one shape - which is what made a bear a
+      // peanut. The rim is the palette's own shadow tone, so it is not a new colour.
+      g.strokeStyle = shadeHex(fur, 0.84);
+      g.lineWidth = Math.max(0.004, headW * 0.10);
+      g.stroke();
 
       if (front) {
         var noseY = headY - headW * 0.62;
@@ -24743,17 +24769,22 @@ var ANIMAL_SIZES = {
     }
 
     if (front) {
-      // The head is NEARER than the body, so it paints last. The far hoof and the
-      // near hoof are the opposite ends of one step, so one is always down.
-      limb(-1, true, stepA.lift);
+      // The head is NEARER than the body, so it paints last. Far limbs first, then
+      // the barrel, then the near pair: four legs, so it reads as a quadruped seen
+      // end-on and not as a figure standing up. The pairs are in a lateral walk, so
+      // one hoof of each pair is always down.
+      limb(-1, true, step[0].lift, true);
+      limb(-1, true, step[1].lift, false);
       barrel(withersY, brisketY, 1.0);
-      limb(1, false, stepB.lift);
+      limb(1, false, step[2].lift, true);
+      limb(1, false, step[3].lift, false);
       head();
     } else {
       // The head is FURTHER than the body: it paints first and the rump covers it,
       // leaving only the crown above the withers - which is what a back view shows.
       head();
-      limb(-1, true, stepA.lift);
+      limb(-1, true, step[0].lift, true);
+      limb(-1, true, step[1].lift, false);
       barrel(withersY * 0.99, bellyY, 1.06);
       if (f.tail.len > 0.02) {
         var tl = Math.min(f.tail.len, (withersY - bellyY) * 1.5);
@@ -24766,7 +24797,8 @@ var ANIMAL_SIZES = {
         g.quadraticCurveTo(halfW * 0.26, tTop - tl * 0.55, 0, tTop - tl);
         g.stroke();
       }
-      limb(1, false, stepB.lift);
+      limb(1, false, step[2].lift, true);
+      limb(1, false, step[3].lift, false);
     }
 
     g.restore();
@@ -26131,9 +26163,10 @@ var ANIMAL_SIZES = {
     return c.width + 'x' + c.height;
   };
 
-  window.__animalFrontSheet = function (ids, size) {
+  window.__animalFrontSheet = function (ids, size, view) {
     ids = ids || ['creature-graywolf'];
     size = Math.round(size || 120);
+    view = view || 'front';
     var frames = 8;
     var c = document.createElement('canvas');
     c.width = size * frames;
@@ -26158,7 +26191,7 @@ var ANIMAL_SIZES = {
       for (var i = 0; i < frames; i++) {
         g.save();
         g.translate(i * size + size / 2, ground);
-        paintAnimal(g, e, { moving: true, walk: i, facing: 1, seed: 3, view: 'front' }, size * 0.60);
+        paintAnimal(g, e, { moving: true, walk: i, facing: 1, seed: 3, view: view }, size * 0.60);
         g.restore();
       }
       g.fillStyle = '#4A4038';
@@ -27707,35 +27740,22 @@ var ANIMAL_SIZES = {
     }
 
     if (d.kind === 'glass') {
-      // The standing bed: a kerbed rectangle of gravel in front of the glass,
-      // with grit you can see. Not a pale oval, which reads as a puddle.
-      var bedY = H * 0.38, bedH = H * 0.30, bedW = W * 0.56;
-      var bedX = W * 0.5 - bedW / 2;
-      // The gravel, its edges fading into the grass: a swept area is a change of
-      // ground, not a rectangle of paper laid on it.
-      var gravG = ctx.createLinearGradient(bedX, 0, bedX + bedW, 0);
-      gravG.addColorStop(0, 'rgba(198,191,166,0)');
-      gravG.addColorStop(0.06, 'rgba(198,191,166,0.92)');
-      gravG.addColorStop(0.94, 'rgba(198,191,166,0.92)');
-      gravG.addColorStop(1, 'rgba(198,191,166,0)');
-      ctx.fillStyle = gravG;
-      var gravV = ctx.createLinearGradient(0, bedY, 0, bedY + bedH);
-      gravV.addColorStop(0, 'rgba(198,191,166,0)');
-      gravV.addColorStop(0.10, 'rgba(198,191,166,1)');
-      gravV.addColorStop(0.90, 'rgba(198,191,166,1)');
-      gravV.addColorStop(1, 'rgba(198,191,166,0)');
-      ctx.fillStyle = gravG;
+      // The standing bed: a swept rectangle of gravel in front of the glass,
+      // with grit you can see. Not a pale oval, which reads as a puddle. Its
+      // edge is a soft halo of nested rects: erasing to transparent burned a
+      // dark band into the canvas where the grass had been.
+      var bed = glassBedRect(W, H);
+      var bedX = bed.x, bedY = bed.y, bedW = bed.w, bedH = bed.h;
+      var GRAVEL = 'rgba(198,191,166,1)';
+      ctx.fillStyle = GRAVEL;
+      for (var ge = 8; ge >= 1; ge--) {
+        ctx.globalAlpha = 0.075;
+        roundRect(bedX - ge * 4, bedY - ge * 3, bedW + ge * 8, bedH + ge * 6, 18 + ge * 4);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
       roundRect(bedX, bedY, bedW, bedH, 18);
       ctx.fill();
-      ctx.globalCompositeOperation = 'destination-out';
-      var fadeT = ctx.createLinearGradient(0, bedY, 0, bedY + bedH);
-      fadeT.addColorStop(0, 'rgba(0,0,0,1)');
-      fadeT.addColorStop(0.08, 'rgba(0,0,0,0)');
-      fadeT.addColorStop(0.92, 'rgba(0,0,0,0)');
-      fadeT.addColorStop(1, 'rgba(0,0,0,1)');
-      ctx.fillStyle = fadeT;
-      ctx.fillRect(bedX, bedY, bedW, bedH);
-      ctx.globalCompositeOperation = 'source-over';
       // The grit.
       var grnd = seeded(3141);
       for (var gq = 0; gq < 220; gq++) {
@@ -27746,9 +27766,6 @@ var ANIMAL_SIZES = {
         ctx.ellipse(gqx, gqy, 1.4 + grnd() * 1.8, 1.1 + grnd() * 1.2, grnd() * 3, 0, TAU);
         ctx.fill();
       }
-      // Its shadow onto the grass, so the bed sits on the ground.
-      ctx.fillStyle = 'rgba(40,48,28,0.10)';
-      ctx.fillRect(bedX + 5, bedY + bedH, bedW - 10, 7);
     };
 
     if (d.kind === 'sea') {
@@ -28028,82 +28045,236 @@ var ANIMAL_SIZES = {
     }
   }
 
-  /* The glass structure (panes, frame, plants) is drawn after scenery so the
-     glass sits on top of the grass, not under it. Plants are drawn first so
-     they show through the glass. */
+/* The greenhouse that stands at the back of the section. Drawn after the
+     scenery so it sits on the grass, and before the props and the keeper so she
+     walks in front of it. The glass is a translucent wash, so the plants and the
+     shelves inside are painted first and read THROUGH it. */
   function drawGlassStructure(d) {
     var W = world.w, H = world.h;
-    // The structure: a long low greenhouse, glass panes over a painted frame,
-    // with a pitched roof and an open door at its centre.
-    var gy = H * 0.30, gw = W * 0.86;
-    var gx = W * 0.5 - gw / 2;
-    // The frame's shadow on the ground.
-    ctx.fillStyle = 'rgba(40,48,28,0.16)';
-    ctx.beginPath();
-    ctx.ellipse(W * 0.5, gy + 8, gw * 0.52, 20, 0, 0, TAU);
-    ctx.fill();
-    // Plants first, so they show through the glass.
-    ctx.fillStyle = 'rgba(126,164,110,0.42)';
-    var gprnd = seeded(9901);
-    for (var gp = 0; gp < 7; gp++) {
-      var gpx2 = gx + gw * (0.10 + gprnd() * 0.80);
-      var gpy = gy - H * 0.035 - gprnd() * H * 0.055;
+    var baseY = H * GLASS_BASE;            // where it meets the grass
+    var gw = W * 0.72;
+    var gx0 = W * 0.5 - gw / 2, gx1 = gx0 + gw;
+    var wallH = H * 0.118;
+    var eaveY = baseY - wallH;
+    var roofH = H * 0.090;
+    var ridgeY = eaveY - roofH;
+    var plinthH = H * 0.017;
+    var plinthTop = baseY - plinthH;
+    var FRAME = '#8CA79C', FRAME_DARK = '#6E8A80';
+
+    function outline() {
       ctx.beginPath();
-      ctx.ellipse(gpx2, gpy, 12 + gprnd() * 10, 9 + gprnd() * 7, 0, 0, TAU);
-      ctx.fill();
+      ctx.moveTo(gx0, baseY);
+      ctx.lineTo(gx0, eaveY);
+      ctx.lineTo(W * 0.5, ridgeY);
+      ctx.lineTo(gx1, eaveY);
+      ctx.lineTo(gx1, baseY);
+      ctx.closePath();
     }
-    // Glass, two tones so it reads as panes.
-    var gg = ctx.createLinearGradient(0, gy - H * 0.20, 0, gy);
-    gg.addColorStop(0, '#DCE8E2');
-    gg.addColorStop(0.55, '#E9F1EC');
-    gg.addColorStop(1, '#CFE0D8');
-    ctx.fillStyle = gg;
+
+    // The shadow it lays on the grass.
+    ctx.fillStyle = 'rgba(40,48,28,0.13)';
     ctx.beginPath();
-    ctx.moveTo(gx, gy);
-    ctx.lineTo(gx, gy - H * 0.115);
-    ctx.lineTo(W * 0.5, gy - H * 0.20);
-    ctx.lineTo(gx + gw, gy - H * 0.115);
-    ctx.lineTo(gx + gw, gy);
+    ctx.ellipse(W * 0.5, baseY + 7, gw * 0.54, 22, 0, 0, TAU);
+    ctx.fill();
+
+    // Everything inside, clipped to the building's own outline.
+    ctx.save();
+    outline();
+    ctx.clip();
+
+    var inside = ctx.createLinearGradient(0, ridgeY, 0, baseY);
+    inside.addColorStop(0, '#6F8C6B');
+    inside.addColorStop(0.42, '#7C9A72');
+    inside.addColorStop(1, '#6A8663');
+    ctx.fillStyle = inside;
+    ctx.fillRect(gx0, ridgeY, gw, baseY - ridgeY);
+
+    // Two shelves of pots, and the leaves that spill from them.
+    var shelfY = [eaveY + wallH * 0.30, eaveY + wallH * 0.66];
+    var sprnd = seeded(9901);
+    for (var sh = 0; sh < shelfY.length; sh++) {
+      var sy = shelfY[sh];
+      ctx.fillStyle = 'rgba(196,178,140,0.85)';
+      ctx.fillRect(gx0 + 10, sy, gw - 20, 5);
+      ctx.fillStyle = 'rgba(120,100,66,0.35)';
+      ctx.fillRect(gx0 + 10, sy + 5, gw - 20, 2);
+      var pots = Math.max(3, Math.round(gw / 78));
+      for (var pt = 0; pt < pots; pt++) {
+        var px = gx0 + 26 + (gw - 52) * (pt + 0.5) / pots;
+        var pw = 13 + sprnd() * 4;
+        // pot
+        ctx.fillStyle = sh ? '#B46238' : '#C0764A';
+        ctx.beginPath();
+        ctx.moveTo(px - pw / 2, sy - 15);
+        ctx.lineTo(px + pw / 2, sy - 15);
+        ctx.lineTo(px + pw / 2 - 2.5, sy);
+        ctx.lineTo(px - pw / 2 + 2.5, sy);
+        ctx.closePath();
+        ctx.fill();
+        // leaves above it
+        ctx.fillStyle = sh ? '#5F8F45' : '#6C9B4E';
+        for (var lv = 0; lv < 5; lv++) {
+          var la = -Math.PI / 2 + (lv - 2) * 0.45 + sprnd() * 0.2;
+          var ln = 12 + sprnd() * 9;
+          ctx.save();
+          ctx.translate(px, sy - 15);
+          ctx.rotate(la);
+          ctx.beginPath();
+          ctx.ellipse(0, -ln / 2, 3.6, ln / 2, 0, 0, TAU);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    }
+
+    // The big plants standing on the floor, rising into the roof.
+    for (var bp = 0; bp < 6; bp++) {
+      var bx = gx0 + 40 + (gw - 80) * (bp + 0.5) / 6 + (sprnd() - 0.5) * 24;
+      var tall = wallH * (0.55 + sprnd() * 0.45);
+      ctx.strokeStyle = 'rgba(72,104,58,0.9)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(bx, baseY);
+      ctx.lineTo(bx + (sprnd() - 0.5) * 10, baseY - tall);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(96,140,70,0.92)';
+      for (var bl = 0; bl < 6; bl++) {
+        var by = baseY - tall * (0.3 + bl * 0.13);
+        var ba = (bl % 2 ? 1 : -1) * (0.5 + sprnd() * 0.5);
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(ba);
+        ctx.beginPath();
+        ctx.ellipse(0, -11, 5.5, 12, 0, 0, TAU);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // The glass, a pale wash over all of it.
+    var wallGlass = ctx.createLinearGradient(0, eaveY, 0, baseY);
+    wallGlass.addColorStop(0, 'rgba(228,242,237,0.34)');
+    wallGlass.addColorStop(1, 'rgba(206,228,220,0.24)');
+    ctx.fillStyle = wallGlass;
+    ctx.fillRect(gx0, eaveY, gw, baseY - eaveY);
+    var roofGlass = ctx.createLinearGradient(0, ridgeY, 0, eaveY);
+    roofGlass.addColorStop(0, 'rgba(236,246,242,0.42)');
+    roofGlass.addColorStop(1, 'rgba(214,233,226,0.26)');
+    ctx.fillStyle = roofGlass;
+    ctx.beginPath();
+    ctx.moveTo(gx0, eaveY);
+    ctx.lineTo(W * 0.5, ridgeY);
+    ctx.lineTo(gx1, eaveY);
     ctx.closePath();
     ctx.fill();
-    // The frame, in the greenhouse's own paint.
-    ctx.strokeStyle = '#8CA79C';
-    ctx.lineWidth = 3.4;
-    ctx.lineJoin = 'round';
+
+    // One sheen across the wall, so the glass reads as a surface.
+    ctx.fillStyle = 'rgba(255,255,252,0.14)';
+    ctx.beginPath();
+    ctx.moveTo(gx0 + gw * 0.10, baseY);
+    ctx.lineTo(gx0 + gw * 0.26, eaveY);
+    ctx.lineTo(gx0 + gw * 0.40, eaveY);
+    ctx.lineTo(gx0 + gw * 0.24, baseY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // The plinth it stands on.
+    ctx.fillStyle = '#C6BBA1';
+    ctx.fillRect(gx0 - 4, plinthTop, gw + 8, plinthH);
+    ctx.fillStyle = 'rgba(122,110,86,0.45)';
+    ctx.fillRect(gx0 - 4, plinthTop, gw + 8, 2.5);
+
+    // The frame: mullions, transom, rafters, ridge.
+    ctx.strokeStyle = FRAME;
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 4.5;
+    ctx.beginPath();
+    ctx.moveTo(gx0, baseY); ctx.lineTo(gx0, eaveY); ctx.lineTo(W * 0.5, ridgeY);
+    ctx.lineTo(gx1, eaveY); ctx.lineTo(gx1, baseY);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(120,150,140,0.55)';
-    ctx.lineWidth = 1.6;
-    // Uprights and glazing bars.
-    for (var gi = 1; gi < 8; gi++) {
-      var gpx = gx + gw * (gi / 8);
-      var roofY = gy - H * 0.115 - (H * 0.085) * (1 - Math.abs(gi / 8 - 0.5) * 2);
+
+    ctx.lineWidth = 2.6;
+    var bays = 8, j;
+    for (j = 1; j < bays; j++) {
+      var mx = gx0 + gw * (j / bays);
       ctx.beginPath();
-      ctx.moveTo(gpx, gy);
-      ctx.lineTo(gpx, roofY);
+      ctx.moveTo(mx, plinthTop);
+      ctx.lineTo(mx, eaveY);
+      ctx.stroke();
+      // the rafter above it, up to the ridge
+      ctx.beginPath();
+      ctx.moveTo(mx, eaveY);
+      ctx.lineTo(W * 0.5, ridgeY);
       ctx.stroke();
     }
+    // Two purlins across the roof glass, so the rafters read as a roof and
+    // not as a fan meeting in one place.
+    var half = W * 0.5 - gx0;
+    for (var pn = 1; pn <= 2; pn++) {
+      var pt = pn / 3;
+      var py = ridgeY + (eaveY - ridgeY) * pt;
+      var px = half * pt;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.5 - px, py);
+      ctx.lineTo(W * 0.5 + px, py);
+      ctx.stroke();
+    }
+    // The transom, and the eave beam.
     ctx.beginPath();
-    ctx.moveTo(gx, gy - H * 0.055);
-    ctx.lineTo(gx + gw, gy - H * 0.055);
+    ctx.moveTo(gx0, eaveY + wallH * 0.5);
+    ctx.lineTo(gx1, eaveY + wallH * 0.5);
     ctx.stroke();
-    // The ridge, and its finial.
-    ctx.strokeStyle = '#8CA79C';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.6;
     ctx.beginPath();
-    ctx.moveTo(W * 0.5, gy - H * 0.20);
-    ctx.lineTo(W * 0.5, gy - H * 0.215);
+    ctx.moveTo(gx0, eaveY);
+    ctx.lineTo(gx1, eaveY);
     ctx.stroke();
-    // An open doorway at the centre, dark, for depth.
-    ctx.fillStyle = 'rgba(70,86,76,0.42)';
+    // The ridge, with its finial.
+    ctx.strokeStyle = FRAME_DARK;
+    ctx.lineWidth = 3.4;
     ctx.beginPath();
-    ctx.moveTo(W * 0.5 - 22, gy);
-    ctx.lineTo(W * 0.5 - 22, gy - H * 0.075);
-    ctx.quadraticCurveTo(W * 0.5, gy - H * 0.098, W * 0.5 + 22, gy - H * 0.075);
-    ctx.lineTo(W * 0.5 + 22, gy);
+    ctx.moveTo(W * 0.5, ridgeY - 10);
+    ctx.lineTo(W * 0.5, ridgeY + 3);
+    ctx.stroke();
+
+    // The door, at the centre, with its own frame.
+    var dw = 54, dh = wallH * 0.86, dx = W * 0.5 - dw / 2, dy = eaveY + wallH * 0.14;
+    ctx.fillStyle = 'rgba(150,180,170,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(dx, baseY);
+    ctx.lineTo(dx, dy + dw * 0.42);
+    ctx.quadraticCurveTo(dx + dw / 2, dy - dw * 0.10, dx + dw, dy + dw * 0.42);
+    ctx.lineTo(dx + dw, baseY);
     ctx.closePath();
     ctx.fill();
-  }
+    ctx.strokeStyle = FRAME;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    // Its handle and the step under it.
+    ctx.fillStyle = FRAME_DARK;
+    ctx.beginPath();
+    ctx.arc(dx + dw - 12, dy + dh * 0.55, 2.6, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#BFB398';
+    ctx.fillRect(dx - 6, baseY - 1, dw + 12, 6);
 
+    // A few leaves spilling out over the plinth, so the edge is not a rule.
+    var lrnd = seeded(7717);
+    ctx.fillStyle = '#5F8F45';
+    for (var fl = 0; fl < 7; fl++) {
+      var fx = gx0 + 20 + lrnd() * (gw - 40);
+      var fh = 10 + lrnd() * 14;
+      ctx.save();
+      ctx.translate(fx, baseY);
+      ctx.rotate((lrnd() - 0.5) * 1.1);
+      ctx.beginPath();
+      ctx.ellipse(0, -fh / 2, 3.4, fh / 2, 0, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
   /* ---- What stands in a section ------------------------------------------ */
   /* Built once per section and kept: species, the carved stones, the doors.
      Every prop is walked to, its verb shows in reach, and its one thing is
