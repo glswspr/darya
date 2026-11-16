@@ -22065,16 +22065,343 @@ props: islandProps.map(function (p) {
   /* A bee seen from the side: a dark head, a furry thorax, a striped abdomen,
      two wings beating, six legs and antennae. The robber bee and the honeybee
      share it and differ by colour and by size. */
+  /* WHICH INSECT. One painter used to answer for all of them, so the butterfly was a
+     bee, and so was the ant. The id is the fact; this names it once. */
+  function insectKindOf(id) {
+    if (/butterfly/.test(id)) return 'butterfly';
+    if (/moth/.test(id)) return 'moth';
+    if (/ant/.test(id)) return 'ant';
+    if (/beetle/.test(id)) return 'beetle';
+    if (/mosquito/.test(id)) return 'mosquito';
+    if (/hornet/.test(id)) return 'hornet';
+    return 'bee';
+  }
+
   function drawInsect(e, x, y, t) {
+    var kind = insectKindOf(e.id);
+    // A crawler walks the ground; a flyer wanders in the air. Same painter, two
+    // kinds of motion: the bee's hover on an ant is a bee that has lost its wings.
+    var flyer = kind === 'butterfly' || kind === 'moth' || kind === 'bee' ||
+      kind === 'hornet' || kind === 'mosquito';
+    var buzz = t * 11 + x * 0.05;
+    ctx.save();
+    if (flyer) {
+      var far = kind === 'butterfly' || kind === 'moth' ? 7 : 4;
+      ctx.translate(x + Math.sin(buzz * (kind === 'mosquito' ? 1.7 : 0.7)) * far,
+        y + Math.cos(buzz * (kind === 'mosquito' ? 1.3 : 0.8)) * far * 0.75);
+    } else {
+      // Low and slow: a crawl, and the body turns a little with each step.
+      ctx.translate(x + Math.sin(t * 1.9 + x * 0.1) * 2, y);
+      ctx.rotate(Math.sin(t * 1.1 + x * 0.07) * 0.05);
+    }
+    if (kind === 'butterfly') drawButterfly(e, x, t);
+    else if (kind === 'moth') drawMoth(e, x, t);
+    else if (kind === 'ant') drawAnt(e, t);
+    else if (kind === 'beetle') drawBeetle(e, t);
+    else if (kind === 'mosquito') drawMosquito(e, t);
+    else drawBeeBody(e, x, t, kind === 'hornet');
+    ctx.restore();
+  }
+
+  /* A BUTTERFLY: four broad wings held open, a thin body between them, and clubbed
+     antennae. Seen from above, a flap is the wings narrowing toward the body, so the
+     flutter is the wings' own width and not a bob of the whole insect. */
+  function drawButterfly(e, x, t) {
+    var h = hueOf(e.id);
+    var wing = ['#E09A3E', '#D9762F', '#E8B44A'][h % 3];
+    var edge = '#3E342B';
+    var spot = '#F4E7CD';
+    var flap = t * 2.5 + x * 0.05;
+    var open = 0.42 + 0.58 * Math.abs(Math.cos(flap));
+    var lift = Math.sin(flap) * 1.6;
+
+    ctx.save();
+    // The far pair first, so the near pair laps over them.
+    for (var pass = 0; pass < 2; pass++) {
+      var far = pass === 0;
+      var k = far ? 0.80 : 1;
+      var tint = far ? shadeHex(wing, 0.86) : wing;
+      var dy = far ? -1.2 : 0;
+      for (var side = -1; side <= 1; side += 2) {
+        ctx.save();
+        ctx.translate(side * 1.6, dy);
+        ctx.scale(side * open * k, k);
+        // Forewing.
+        ctx.fillStyle = tint;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(1.2, -10.5, 10.5, -11.0);
+        ctx.quadraticCurveTo(15.0, -10.4, 13.2, -5.2);
+        ctx.quadraticCurveTo(10.0, -1.2, 0, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+        // A pale patch, so the wing is not one flat shape.
+        ctx.fillStyle = spot;
+        ctx.beginPath();
+        ctx.ellipse(8.4, -7.6, 2.6, 1.9, -0.5, 0, TAU);
+        ctx.fill();
+        // Hindwing.
+        ctx.fillStyle = shadeHex(tint, 0.94);
+        ctx.beginPath();
+        ctx.moveTo(0, 0.4);
+        ctx.quadraticCurveTo(6.4, 1.8, 8.2, 6.4);
+        ctx.quadraticCurveTo(8.6, 10.2, 4.2, 9.6);
+        ctx.quadraticCurveTo(0.8, 8.4, 0, 0.4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    // The body: a thin abdomen with bands, a thorax, the head.
+    ctx.translate(0, lift * 0.4);
+    ctx.fillStyle = '#3E342B';
+    ctx.beginPath();
+    ctx.ellipse(0, 3.4, 1.5, 6.2, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, -2.6, 1.9, 3.0, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -6.4, 1.7, 0, TAU);
+    ctx.fill();
+    // The antennae, with their clubs.
+    ctx.strokeStyle = '#3E342B';
+    ctx.lineWidth = 0.9;
+    ctx.lineCap = 'round';
+    for (var a = -1; a <= 1; a += 2) {
+      ctx.beginPath();
+      ctx.moveTo(a * 0.7, -7.4);
+      ctx.quadraticCurveTo(a * 4.2, -11.6, a * 6.4, -12.6);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(a * 6.7, -12.9, 1.15, 0, TAU);
+      ctx.fillStyle = '#3E342B';
+      ctx.fill();
+    }
+  }
+
+  /* A MOTH: the same four wings held FLAT and pale, feathery antennae, and a body
+     thick enough to be furry. Night-coloured, so it is not a butterfly in the dark. */
+  function drawMoth(e, x, t) {
+    var flap = t * 3.4 + x * 0.05;
+    var open = 0.72 + 0.28 * Math.abs(Math.cos(flap));
+    ctx.save();
+    for (var side = -1; side <= 1; side += 2) {
+      ctx.save();
+      ctx.translate(side * 1.2, 0);
+      ctx.scale(side * open, 1);
+      ctx.fillStyle = '#D9CDB4';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(3.0, -9.6, 11.0, -8.4);
+      ctx.quadraticCurveTo(13.6, -6.0, 9.0, -2.2);
+      ctx.quadraticCurveTo(4.0, 0.4, 0, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(120,104,84,0.55)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.fillStyle = '#C9BCA1';
+      ctx.beginPath();
+      ctx.moveTo(0, 0.4);
+      ctx.quadraticCurveTo(5.0, 1.4, 7.6, 6.0);
+      ctx.quadraticCurveTo(6.4, 8.4, 2.6, 6.8);
+      ctx.quadraticCurveTo(0.4, 4.0, 0, 0.4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#B4A488';
+    ctx.beginPath();
+    ctx.ellipse(0, 1.4, 2.6, 6.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#8E7E64';
+    ctx.beginPath();
+    ctx.arc(0, -5.0, 2.0, 0, TAU);
+    ctx.fill();
+    // Feathered, not clubbed: a moth's antennae are combs.
+    ctx.strokeStyle = '#8E7E64';
+    ctx.lineWidth = 0.7;
+    ctx.lineCap = 'round';
+    for (var f = -1; f <= 1; f += 2) {
+      ctx.beginPath();
+      ctx.moveTo(f * 0.8, -6.0);
+      ctx.lineTo(f * 7.2, -9.2);
+      ctx.stroke();
+      for (var b = 1; b <= 3; b++) {
+        var u = b / 4;
+        ctx.beginPath();
+        ctx.moveTo(f * (0.8 + 6.4 * u), -6.0 - 3.2 * u);
+        ctx.lineTo(f * (0.8 + 6.4 * u) + f * 1.5, -6.0 - 3.2 * u - 1.6);
+        ctx.stroke();
+      }
+    }
+  }
+
+  /* AN ANT: three lobes strung on one line, six legs, and an elbowed antenna each
+     side. It has no wings, so nothing about it may beat. */
+  function drawAnt(e, t) {
+    var h = hueOf(e.id);
+    var shell = ['#4A3B2E', '#3F3329', '#55432F'][h % 3];
+    var step = Math.sin(t * 5.0);
+    ctx.save();
+    ctx.scale(1.05, 1.05);
+    // The legs, three a side, each pair in counter-phase with the next.
+    ctx.strokeStyle = shadeHex(shell, 0.8);
+    ctx.lineWidth = 0.9;
+    ctx.lineCap = 'round';
+    for (var s = -1; s <= 1; s += 2) {
+      for (var l = 0; l < 3; l++) {
+        var ph = step * (l % 2 === 0 ? 1 : -1);
+        ctx.beginPath();
+        ctx.moveTo(s * 2.0, -1.6 + l * 2.6);
+        ctx.lineTo(s * (5.6 + ph * 0.9), -3.4 + l * 3.0);
+        ctx.lineTo(s * (7.8 + ph * 1.1), 1.0 + l * 3.2);
+        ctx.stroke();
+      }
+    }
+    // The gaster, the waist, the thorax, the head.
+    ctx.fillStyle = shell;
+    ctx.beginPath();
+    ctx.ellipse(0, 4.6, 3.2, 4.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, -0.4, 1.9, 2.6, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, -4.4, 2.2, 2.4, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = shadeHex(shell, 0.7);
+    ctx.beginPath();
+    ctx.arc(-0.9, -5.0, 0.9, 0, TAU);
+    ctx.fill();
+    // The antennae bend: straight ones would make it a beetle.
+    ctx.strokeStyle = shell;
+    ctx.lineWidth = 0.85;
+    for (var a = -1; a <= 1; a += 2) {
+      var wig = Math.sin(t * 3.0 + a) * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(a * 1.2, -6.2);
+      ctx.lineTo(a * 3.4, -8.6);
+      ctx.lineTo(a * (4.2 + wig), -11.0);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* A BEETLE: a domed shell with a seam down the middle and a small head in front.
+     The shell is the animal; the legs are six short strokes under it. */
+  function drawBeetle(e, t) {
+    var h = hueOf(e.id);
+    var shell = ['#4E3A28', '#5A4630', '#43331F'][h % 3];
+    var step = Math.sin(t * 4.4);
+    ctx.save();
+    ctx.scale(1.15, 1.15);
+    ctx.strokeStyle = shadeHex(shell, 0.72);
+    ctx.lineWidth = 0.85;
+    ctx.lineCap = 'round';
+    for (var s = -1; s <= 1; s += 2) {
+      for (var l = 0; l < 3; l++) {
+        var ph = step * (l % 2 === 0 ? 1 : -1);
+        ctx.beginPath();
+        ctx.moveTo(s * 3.0, -1.0 + l * 2.8);
+        ctx.lineTo(s * (6.2 + ph * 0.8), 0.6 + l * 3.0);
+        ctx.stroke();
+      }
+    }
+    // The shell, wider at the back.
+    ctx.fillStyle = shell;
+    ctx.beginPath();
+    ctx.ellipse(0, 1.4, 5.6, 7.4, 0, 0, TAU);
+    ctx.fill();
+    // A pale rim, then the seam: the two things that say beetle and not a seed.
+    ctx.strokeStyle = shadeHex(shell, 1.35);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -5.4);
+    ctx.lineTo(0, 8.4);
+    ctx.strokeStyle = 'rgba(28,20,14,0.55)';
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    // The head and its two short feelers.
+    ctx.fillStyle = shadeHex(shell, 0.86);
+    ctx.beginPath();
+    ctx.ellipse(0, -7.4, 2.6, 2.0, 0, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = shell;
+    ctx.lineWidth = 0.8;
+    for (var a = -1; a <= 1; a += 2) {
+      ctx.beginPath();
+      ctx.moveTo(a * 1.6, -8.6);
+      ctx.lineTo(a * 3.6, -10.6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* A MOSQUITO: a needle with wings. Long legs trailing, a narrow body, and the
+     proboscis out in front - the one insect whose drawing is a line. */
+  function drawMosquito(e, t) {
+    var body = '#5C5245';
+    var flap = Math.sin(t * 26);
+    ctx.save();
+    // The wings: a blur, so they are two pale slivers.
+    ctx.fillStyle = 'rgba(255,255,255,0.42)';
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.ellipse(s * 3.0, -3.4, 5.4, 1.5, s * (0.5 + flap * 0.07), 0, TAU);
+      ctx.fill();
+    }
+    // The legs, long and bent, trailing behind.
+    ctx.strokeStyle = body;
+    ctx.lineWidth = 0.7;
+    ctx.lineCap = 'round';
+    for (var l = 0; l < 3; l++) {
+      for (var side = -1; side <= 1; side += 2) {
+        ctx.beginPath();
+        ctx.moveTo(side * 1.0, 2.0 + l * 1.4);
+        ctx.quadraticCurveTo(side * (5.0 + l), 5.0 + l * 1.6, side * (7.5 + l * 0.6), 9.0 + l * 1.2);
+        ctx.stroke();
+      }
+    }
+    // The body, a thorax, then the head and the needle.
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.ellipse(0, 4.6, 1.5, 6.0, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, -1.4, 2.2, 3.0, 0, 0, TAU);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -6.0, 1.5, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = shadeHex(body, 0.7);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(0, -7.2);
+    ctx.lineTo(0, -12.0);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* A BEE, and a HORNET beside it: the same body with a longer abdomen, a narrower
+     waist and a paler head, which is what a hornet is. */
+  function drawBeeBody(e, x, t, hornet) {
     var h = hueOf(e.id);
     var robber = /robber/.test(e.id);
-    var body = robber ? '#4A4038' : ['#E8B44A', '#E0A63C', '#D9C36A'][h % 3];
-    var band = robber ? '#8E7B62' : '#5B4A34';
-    var scale = robber ? 1.25 : 1.0;
+    var body = robber ? '#4A4038' : (hornet ? '#D9A93E' : ['#E8B44A', '#E0A63C', '#D9C36A'][h % 3]);
+    var band = robber ? '#8E7B62' : (hornet ? '#3A2E20' : '#5B4A34');
+    var scale = robber ? 1.25 : (hornet ? 1.12 : 1.0);
     var buzz = t * 11 + x * 0.05;
 
     ctx.save();
-    ctx.translate(x + Math.sin(buzz) * 4, y + Math.cos(buzz * 0.8) * 3);
     ctx.scale(scale, scale);
 
     // The wings, behind the body, beating fast enough to blur.
@@ -22090,16 +22417,20 @@ props: islandProps.map(function (p) {
     // The abdomen, with its bands.
     ctx.fillStyle = body;
     ctx.beginPath();
-    ctx.ellipse(-3, 1, 6.5, 5, -0.12, 0, TAU);
+    ctx.ellipse(-3, 1, hornet ? 7.6 : 6.5, hornet ? 4.4 : 5, -0.12, 0, TAU);
     ctx.fill();
     ctx.fillStyle = band;
-    for (var b = 0; b < 2; b++) {
+    for (var b = 0; b < (hornet ? 3 : 2); b++) {
       ctx.beginPath();
-      ctx.ellipse(-5.5 + b * 3.4, 1, 0.9, 4.4, -0.12, 0, TAU);
+      ctx.ellipse(-5.5 + b * (hornet ? 2.8 : 3.4), 1, hornet ? 0.8 : 0.9, hornet ? 3.8 : 4.4, -0.12, 0, TAU);
       ctx.fill();
     }
-    // The thorax, furry.
-    ctx.fillStyle = '#C9A96A';
+    // The waist, then the thorax, furry.
+    ctx.fillStyle = shadeHex(body, 0.82);
+    ctx.beginPath();
+    ctx.ellipse(1.4, 0, hornet ? 1.5 : 2.0, hornet ? 2.6 : 3.2, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = hornet ? '#E8C46A' : '#C9A96A';
     ctx.beginPath();
     ctx.ellipse(3.5, -0.5, 4.2, 4.0, 0, 0, TAU);
     ctx.fill();
@@ -27420,81 +27751,6 @@ var ANIMAL_SIZES = {
       ctx.fillRect(bedX + 5, bedY + bedH, bedW - 10, 7);
     };
 
-    /* The glass structure (panes, frame, plants) is drawn after scenery so the
-       glass sits on top of the grass, not under it. */
-    function drawGlassStructure(d) {
-      var W = world.w, H = world.h;
-      // The structure: a long low greenhouse, glass panes over a painted frame,
-      // with a pitched roof and an open door at its centre.
-      var gy = H * 0.30, gw = W * 0.86;
-      var gx = W * 0.5 - gw / 2;
-      // The frame's shadow on the ground.
-      ctx.fillStyle = 'rgba(40,48,28,0.16)';
-      ctx.beginPath();
-      ctx.ellipse(W * 0.5, gy + 8, gw * 0.52, 20, 0, 0, TAU);
-      ctx.fill();
-      // Plants first, so they show through the glass.
-      ctx.fillStyle = 'rgba(126,164,110,0.42)';
-      var gprnd = seeded(9901);
-      for (var gp = 0; gp < 7; gp++) {
-        var gpx2 = gx + gw * (0.10 + gprnd() * 0.80);
-        var gpy = gy - H * 0.035 - gprnd() * H * 0.055;
-        ctx.beginPath();
-        ctx.ellipse(gpx2, gpy, 12 + gprnd() * 10, 9 + gprnd() * 7, 0, 0, TAU);
-        ctx.fill();
-      }
-      // Glass, two tones so it reads as panes.
-      var gg = ctx.createLinearGradient(0, gy - H * 0.20, 0, gy);
-      gg.addColorStop(0, '#DCE8E2');
-      gg.addColorStop(0.55, '#E9F1EC');
-      gg.addColorStop(1, '#CFE0D8');
-      ctx.fillStyle = gg;
-      ctx.beginPath();
-      ctx.moveTo(gx, gy);
-      ctx.lineTo(gx, gy - H * 0.115);
-      ctx.lineTo(W * 0.5, gy - H * 0.20);
-      ctx.lineTo(gx + gw, gy - H * 0.115);
-      ctx.lineTo(gx + gw, gy);
-      ctx.closePath();
-      ctx.fill();
-      // The frame, in the greenhouse's own paint.
-      ctx.strokeStyle = '#8CA79C';
-      ctx.lineWidth = 3.4;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(120,150,140,0.55)';
-      ctx.lineWidth = 1.6;
-      // Uprights and glazing bars.
-      for (var gi = 1; gi < 8; gi++) {
-        var gpx = gx + gw * (gi / 8);
-        var roofY = gy - H * 0.115 - (H * 0.085) * (1 - Math.abs(gi / 8 - 0.5) * 2);
-        ctx.beginPath();
-        ctx.moveTo(gpx, gy);
-        ctx.lineTo(gpx, roofY);
-        ctx.stroke();
-      }
-      ctx.beginPath();
-      ctx.moveTo(gx, gy - H * 0.055);
-      ctx.lineTo(gx + gw, gy - H * 0.055);
-      ctx.stroke();
-      // The ridge, and its finial.
-      ctx.strokeStyle = '#8CA79C';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(W * 0.5, gy - H * 0.20);
-      ctx.lineTo(W * 0.5, gy - H * 0.215);
-      ctx.stroke();
-      // An open doorway at the centre, dark, for depth.
-      ctx.fillStyle = 'rgba(70,86,76,0.42)';
-      ctx.beginPath();
-      ctx.moveTo(W * 0.5 - 22, gy);
-      ctx.lineTo(W * 0.5 - 22, gy - H * 0.075);
-      ctx.quadraticCurveTo(W * 0.5, gy - H * 0.098, W * 0.5 + 22, gy - H * 0.075);
-      ctx.lineTo(W * 0.5 + 22, gy);
-      ctx.closePath();
-      ctx.fill();
-    }
-
     if (d.kind === 'sea') {
       // The water first, everywhere, then the shingle laid over it along the two
       // edges she comes in by. Drawn in that order so the shore always wins.
@@ -27770,6 +28026,82 @@ var ANIMAL_SIZES = {
       ctx.ellipse(W * 0.5, H * 0.06, W * 0.7, H * 0.07, 0, 0, TAU);
       ctx.fill();
     }
+  }
+
+  /* The glass structure (panes, frame, plants) is drawn after scenery so the
+     glass sits on top of the grass, not under it. Plants are drawn first so
+     they show through the glass. */
+  function drawGlassStructure(d) {
+    var W = world.w, H = world.h;
+    // The structure: a long low greenhouse, glass panes over a painted frame,
+    // with a pitched roof and an open door at its centre.
+    var gy = H * 0.30, gw = W * 0.86;
+    var gx = W * 0.5 - gw / 2;
+    // The frame's shadow on the ground.
+    ctx.fillStyle = 'rgba(40,48,28,0.16)';
+    ctx.beginPath();
+    ctx.ellipse(W * 0.5, gy + 8, gw * 0.52, 20, 0, 0, TAU);
+    ctx.fill();
+    // Plants first, so they show through the glass.
+    ctx.fillStyle = 'rgba(126,164,110,0.42)';
+    var gprnd = seeded(9901);
+    for (var gp = 0; gp < 7; gp++) {
+      var gpx2 = gx + gw * (0.10 + gprnd() * 0.80);
+      var gpy = gy - H * 0.035 - gprnd() * H * 0.055;
+      ctx.beginPath();
+      ctx.ellipse(gpx2, gpy, 12 + gprnd() * 10, 9 + gprnd() * 7, 0, 0, TAU);
+      ctx.fill();
+    }
+    // Glass, two tones so it reads as panes.
+    var gg = ctx.createLinearGradient(0, gy - H * 0.20, 0, gy);
+    gg.addColorStop(0, '#DCE8E2');
+    gg.addColorStop(0.55, '#E9F1EC');
+    gg.addColorStop(1, '#CFE0D8');
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx, gy - H * 0.115);
+    ctx.lineTo(W * 0.5, gy - H * 0.20);
+    ctx.lineTo(gx + gw, gy - H * 0.115);
+    ctx.lineTo(gx + gw, gy);
+    ctx.closePath();
+    ctx.fill();
+    // The frame, in the greenhouse's own paint.
+    ctx.strokeStyle = '#8CA79C';
+    ctx.lineWidth = 3.4;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,150,140,0.55)';
+    ctx.lineWidth = 1.6;
+    // Uprights and glazing bars.
+    for (var gi = 1; gi < 8; gi++) {
+      var gpx = gx + gw * (gi / 8);
+      var roofY = gy - H * 0.115 - (H * 0.085) * (1 - Math.abs(gi / 8 - 0.5) * 2);
+      ctx.beginPath();
+      ctx.moveTo(gpx, gy);
+      ctx.lineTo(gpx, roofY);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(gx, gy - H * 0.055);
+    ctx.lineTo(gx + gw, gy - H * 0.055);
+    ctx.stroke();
+    // The ridge, and its finial.
+    ctx.strokeStyle = '#8CA79C';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(W * 0.5, gy - H * 0.20);
+    ctx.lineTo(W * 0.5, gy - H * 0.215);
+    ctx.stroke();
+    // An open doorway at the centre, dark, for depth.
+    ctx.fillStyle = 'rgba(70,86,76,0.42)';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.5 - 22, gy);
+    ctx.lineTo(W * 0.5 - 22, gy - H * 0.075);
+    ctx.quadraticCurveTo(W * 0.5, gy - H * 0.098, W * 0.5 + 22, gy - H * 0.075);
+    ctx.lineTo(W * 0.5 + 22, gy);
+    ctx.closePath();
+    ctx.fill();
   }
 
   /* ---- What stands in a section ------------------------------------------ */
