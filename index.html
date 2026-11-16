@@ -27418,7 +27418,12 @@ var ANIMAL_SIZES = {
       // Its shadow onto the grass, so the bed sits on the ground.
       ctx.fillStyle = 'rgba(40,48,28,0.10)';
       ctx.fillRect(bedX + 5, bedY + bedH, bedW - 10, 7);
+    };
 
+    /* The glass structure (panes, frame, plants) is drawn after scenery so the
+       glass sits on top of the grass, not under it. */
+    function drawGlassStructure(d) {
+      var W = world.w, H = world.h;
       // The structure: a long low greenhouse, glass panes over a painted frame,
       // with a pitched roof and an open door at its centre.
       var gy = H * 0.30, gw = W * 0.86;
@@ -27428,6 +27433,16 @@ var ANIMAL_SIZES = {
       ctx.beginPath();
       ctx.ellipse(W * 0.5, gy + 8, gw * 0.52, 20, 0, 0, TAU);
       ctx.fill();
+      // Plants first, so they show through the glass.
+      ctx.fillStyle = 'rgba(126,164,110,0.42)';
+      var gprnd = seeded(9901);
+      for (var gp = 0; gp < 7; gp++) {
+        var gpx2 = gx + gw * (0.10 + gprnd() * 0.80);
+        var gpy = gy - H * 0.035 - gprnd() * H * 0.055;
+        ctx.beginPath();
+        ctx.ellipse(gpx2, gpy, 12 + gprnd() * 10, 9 + gprnd() * 7, 0, 0, TAU);
+        ctx.fill();
+      }
       // Glass, two tones so it reads as panes.
       var gg = ctx.createLinearGradient(0, gy - H * 0.20, 0, gy);
       gg.addColorStop(0, '#DCE8E2');
@@ -27478,17 +27493,7 @@ var ANIMAL_SIZES = {
       ctx.lineTo(W * 0.5 + 22, gy);
       ctx.closePath();
       ctx.fill();
-      // Plants showing through the glass: a few green masses behind the panes.
-      ctx.fillStyle = 'rgba(126,164,110,0.42)';
-      var gprnd = seeded(9901);
-      for (var gp = 0; gp < 7; gp++) {
-        var gpx2 = gx + gw * (0.10 + gprnd() * 0.80);
-        var gpy = gy - H * 0.035 - gprnd() * H * 0.055;
-        ctx.beginPath();
-        ctx.ellipse(gpx2, gpy, 12 + gprnd() * 10, 9 + gprnd() * 7, 0, 0, TAU);
-        ctx.fill();
-      }
-    };
+    }
 
     if (d.kind === 'sea') {
       // The water first, everywhere, then the shingle laid over it along the two
@@ -30810,6 +30815,9 @@ var ANIMAL_SIZES = {
     if (!interior) drawStepRing();
     if (!interior && d.kind !== 'sea') {
       drawScenery(clock);
+    }
+    if (d.kind === 'glass') {
+      drawGlassStructure(d);
     }
     islandProps = buildProps();
     if (!interior && d.kind !== 'sea') drawGroundShade();
