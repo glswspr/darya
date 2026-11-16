@@ -4003,6 +4003,11 @@ function sightSp(sg) {
   function render() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
+    // Three silhouettes may be baked in a frame, so a section fills its shadows in
+    // over a fifth of a second instead of stalling on forty drawings at once.
+    SILHOUETTE.budget = 3;
+    SILHOUETTE.spent = 0;
+
     if (scene !== 'island') {
       var pcW = canvas.width / dpr, pcH = canvas.height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5155,7 +5160,7 @@ function sightSp(sg) {
 
     // Her shadow, from the island's one sun: it lies the way the sun pushes it
     // and grows long as the sun drops.
-    castShadow(hero.x, hero.y + keeperFeetBelow(R.heroSize), 56, 0.26);
+    castShadow(hero.x, hero.y + keeperFeetBelow(R.heroSize), 56, 0.26, null, keeperShadow);
 
     if (watch.sit > 0.02) {
       // Sitting: hips on the ground, the same seated drawing the boat uses. She
@@ -7290,7 +7295,8 @@ function sightSp(sg) {
         ctx.save();
         ctx.translate(sp2.x, groundY - feetDown);
         ctx.scale(1.58, 1.58);
-        castShadow(0, keeperFeetBelow(R.heroSize), 12, 0.22);
+        castShadow(0, keeperFeetBelow(R.heroSize), 12, 0.22,
+          null, function () { return keeperSilhouette(R.heroSize, wearFor(S.id, S.own), 'front'); });
         paintKeeper(ctx, R.heroSize, 'front', null, false, wearFor(S.id, S.own), false);
         ctx.restore();
       } else {
@@ -22535,6 +22541,14 @@ props: islandProps.map(function (p) {
     ctx.restore();
   }
 
+  /* The house cat's own state: standing still, facing into the room. The painter reads
+     the same fields a moving animal carries, so a pet that later walks can use this one
+     object rather than a second path. */
+  var PET_CAT_ANIM = {
+    moving: false, walk: 0, facing: -1, seed: 3, gait: 'still', view: 'side',
+    grazing: false, grazeK: 0, drinking: 0
+  };
+
   function drawCat(e, x, y, t) {
     var h = hueOf(e.id);
     var fur = ['#C9A06A', '#8A6A44', '#3E3A34'][h % 3];
@@ -27014,9 +27028,328 @@ var ANIMAL_SIZES = {
 
   var GROUND_SQUASH = 0.30;
 
-  function castShadow(x, y, w, strength, h) {
+  /* ---------------------------------------------------------------------------
+     A SHADOW IS THE THING ITSELF, SEEN FROM THE SUN.
+
+     A cast shadow is not a pebble of shade: it is the thing's own outline, laid on
+     the ground and seen from wherever the light stands. So each caster's drawing is
+     rasterised once into a flat ink silhouette and kept, and every frame that
+     silhouette is sheared along the sun's line and squashed to the ground's own
+     tilt. The shear IS the projection: a point `v` above the foot lands `v * reach`
+     away along the sun's ground direction, where reach is the thing's height over
+     the tangent of the sun's elevation. So a cypress at dusk throws a long band and
+     at noon a small pool, and nobody has to decide how long a shadow should be.
+
+     What it costs: one more draw of the thing, a mask and a blur, on the frame its
+     kind is first seen (three at most in a frame, so a section fills in over a
+     fifth of a second), then one blit per shadow per frame. Measured on this page,
+     a blit is cheaper than the path fill the ellipse cost
+     (Tools/_probe_shadow_cost.mjs).
+  */
+  var SILHOUETTE = {
+    k: 1,                 // device pixels per page pixel in a bake
+    plateW: 540,          // page units a bake holds, around the contact point
+    plateH: 440,
+    ink: '#241c18',
+    blur: 1.1,            // device pixels: a shadow has no crisp edge
+    kinds: new Map(),     // drawings every instance of a kind shares
+    order: [],
+    max: 260,
+    busy: false,          // a bake is drawing, and its own shadow is already the bake
+    budget: 0,            // bakes allowed in this frame
+    spent: 0,             // milliseconds this frame has spent on bakes
+    bakes: 0,
+    blits: 0,
+    off: false,        // shadows drawn at all, for a before and after
+    ms: 0
+  };
+
+  /* The prop being drawn, so a shadow laid from inside its own drawing knows what
+     it is the shadow OF without every call site naming it. */
+  var _casting = null;
+
+  /* Rasterise one drawing into a flat ink silhouette, cropped to its own ink.
+     `draw` draws the thing with its contact point - the point it stands on - at
+     (cx, cy) in PAGE units, so a caller can hand over either a painter that draws
+     at the origin or one that draws at its own absolute place. */
+  function bakeSilhouette(draw, cx, cy) {
+    var t0 = performance.now();
+    var k = SILHOUETTE.k;
+
+    var plate = document.createElement('canvas');
+    plate.width = Math.max(24, Math.round(SILHOUETTE.plateW * k));
+    plate.height = Math.max(24, Math.round(SILHOUETTE.plateH * k));
+    var g = plate.getContext('2d');
+
+    // The contact sits low and centred, so a tall thing has room above it and the
+    // little that is drawn below the ground line has room beneath.
+    var fx = plate.width * 0.5;
+    var fy = Math.round(plate.height * 0.86);
+    g.setTransform(k, 0, 0, k, fx - cx * k, fy - cy * k);
+
+    var prevCtx = ctx;
+    var prevBusy = SILHOUETTE.busy;
+    SILHOUETTE.busy = true;
+    ctx = g;
+    try { draw(g); } catch (e) { /* a shadow nobody can draw is a shadow worth not having */ }
+    ctx = prevCtx;
+    SILHOUETTE.busy = prevBusy;
+
+    // One flat ink: whatever the drawing painted, its own coverage becomes the shade.
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = SILHOUETTE.ink;
+    g.fillRect(0, 0, plate.width, plate.height);
+    g.globalCompositeOperation = 'source-over';
+
+    // Crop to the ink, so a wide plate does not cost memory per shadow forever.
+    // The bounds are read from a QUARTER-SIZE copy: reading pixels back from the
+    // canvas is a stall, and the sixth of the pixels here is accurate to four page
+    // pixels, which the padding covers.
+    var probeW = Math.max(8, Math.round(plate.width / 4));
+    var probeH = Math.max(8, Math.round(plate.height / 4));
+    var probe = document.createElement('canvas');
+    probe.width = probeW;
+    probe.height = probeH;
+    var pg = probe.getContext('2d');
+    pg.imageSmoothingEnabled = true;
+    pg.drawImage(plate, 0, 0, probeW, probeH);
+    var d = pg.getImageData(0, 0, probeW, probeH).data;
+
+    var x0 = probeW, y0 = probeH, x1 = -1, y1 = -1;
+    for (var yy = 0; yy < probeH; yy++) {
+      var row = yy * probeW;
+      for (var xx = 0; xx < probeW; xx++) {
+        if (d[(row + xx) * 4 + 3] > 6) {
+          if (xx < x0) x0 = xx;
+          if (xx > x1) x1 = xx;
+          if (yy < y0) y0 = yy;
+          if (yy > y1) y1 = yy;
+        }
+      }
+    }
+    if (x1 < x0 || y1 < y0) return null;
+
+    var pad = 8;
+    x0 = Math.max(0, x0 * 4 - pad); y0 = Math.max(0, y0 * 4 - pad);
+    x1 = Math.min(plate.width - 1, x1 * 4 + 3 + pad); y1 = Math.min(plate.height - 1, y1 * 4 + 3 + pad);
+    var cw = x1 - x0 + 1, chh = y1 - y0 + 1;
+
+    var out = document.createElement('canvas');
+    out.width = cw;
+    out.height = chh;
+    var og = out.getContext('2d');
+    // The soft edge is baked in once here, not paid for per shadow per frame. The
+    // crop is padded by more than the blur, so the falloff is not cut off flat.
+    og.filter = 'blur(' + SILHOUETTE.blur + 'px)';
+    og.drawImage(plate, x0, y0, cw, chh, 0, 0, cw, chh);
+    og.filter = 'none';
+
+    // The light thins with distance: the end of a shadow that lies nearest the
+    // thing that casts it is the darkest, and the far end fades into the ground.
+    var fade = og.createLinearGradient(0, out.height, 0, 0);
+    fade.addColorStop(0, 'rgba(0,0,0,1)');
+    fade.addColorStop(1, 'rgba(0,0,0,0.42)');
+    og.globalCompositeOperation = 'destination-in';
+    og.fillStyle = fade;
+    og.fillRect(0, 0, out.width, out.height);
+    og.globalCompositeOperation = 'source-over';
+
+    SILHOUETTE.bakes++;
+    SILHOUETTE.ms += performance.now() - t0;
+    return { canvas: out, k: k, fx: fx - x0, fy: fy - y0 };
+  }
+
+  /* A bake is allowed while the frame can afford one: the first of a frame always
+     is, and the rest only while the frame has not already spent its budget. A slow
+     device therefore fills a section in over more frames instead of stalling. */
+  function mayBake() {
+    if (SILHOUETTE.budget <= 0) return false;
+    if (SILHOUETTE.budget < 3 && SILHOUETTE.spent > 2) return false;
+    return true;
+  }
+
+  /* The silhouette of a kind, baked on the frame it is first needed. */
+  function kindSilhouette(key, draw) {
+    var known = SILHOUETTE.kinds.get(key);
+    if (known) return known;
+    if (!mayBake()) return null;
+    var t0 = performance.now();
+    SILHOUETTE.budget--;
+    var made = bakeSilhouette(draw, 0, 0);
+    SILHOUETTE.spent += performance.now() - t0;
+    if (!made) return null;
+    SILHOUETTE.kinds.set(key, made);
+    SILHOUETTE.order.push(key);
+    while (SILHOUETTE.order.length > SILHOUETTE.max) {
+      SILHOUETTE.kinds.delete(SILHOUETTE.order.shift());
+    }
+    return made;
+  }
+
+  /* A living thing's own outline. A beast is drawn standing rather than walking -
+     a shadow does not carry a stride - and a crop in a bed is its own size, so a
+     sprout and the same plant in fruit do not share one shape. */
+  function speciesSilhouette(p) {
+    var e = p.sp;
+    if (!e) return null;
+    var sc = speciesScale(e);
+    if (p.bedStep) sc = clamp(sc, 0.55, 1.0) * (p.bedStep === 1 ? 0.30 : (p.bedStep === 2 ? 0.78 : 1));
+    var view = (p.anim && p.anim.view) || 'side';
+    var key = 'sp|' + e.id + '|' + Math.round(sc * 20) + '|' + view + '|' + (p.bedStep || 0);
+    var known = SILHOUETTE.kinds.get(key);
+    if (known) return known;
+    return kindSilhouette(key, function (g) {
+      if (e.sh === 'beast') {
+        paintAnimal(g, e, {
+          moving: false, walk: 0, facing: 1, seed: (p.anim && p.anim.seed) || 0,
+          gait: 'still', leapK: 0, grazeK: 0, drinking: 0, view: view
+        }, beastHeight(e));
+      } else {
+        drawSpecies(e, 0, 0, clock, sc);
+      }
+    });
+  }
+
+  /* A person's own outline, from the one painter that draws all of them. Her feet
+     are not her drawing's origin, so the painter is lifted by the distance the
+     keeper's feet sit below the point she is drawn at. */
+  function keeperSilhouette(size, wear, view) {
+    var w = wear || wearFor(who, outfit);
+    var key = 'k|' + Math.round(size) + '|' + (view || 'front') + '|'
+      + (w ? (w.skin + '/' + w.hair + '/' + w.top) : '');
+    return kindSilhouette(key, function (g) {
+      g.save();
+      g.translate(0, -keeperFeetBelow(size));
+      paintKeeper(g, size, view || 'front', null, false, w, false);
+      g.restore();
+    });
+  }
+
+  /* The keeper on the island, and her sister on the title, ask for it by name. */
+  function keeperShadow() {
+    var facing = hero.facing || 'front';
+    return keeperSilhouette(R.heroSize, wearFor(who, outfit), facing);
+  }
+
+  /* Her drawing and the shadow it lays, side by side on a blank page: the one way
+     to read a shadow's shape at a size a screenshot of the island cannot show.
+     Console: __shadowSample() - returns a data URL. */
+  window.__shadowSample = function (facing, size) {
+    facing = facing || 'front';
+    size = size || 420;
+    var cvs = document.createElement('canvas');
+    cvs.width = size;
+    cvs.height = Math.round(size * 0.75);
+    var g = cvs.getContext('2d');
+    g.fillStyle = '#93A970';
+    g.fillRect(0, 0, cvs.width, cvs.height);
+
+    var prev = ctx;
+    ctx = g;
+    g.save();
+    g.translate(cvs.width * 0.30, cvs.height * 0.62);
+    paintKeeper(g, R.heroSize, facing, null, false, wearFor(who, outfit), false);
+    g.restore();
+    var sil = keeperSilhouette(R.heroSize, wearFor(who, outfit), facing);
+    if (sil) laySilhouette(sil, cvs.width * 0.66, cvs.height * 0.62, 0.26);
+    // The bake itself, upright and unstretched, between the two: the laid shadow and
+    // this are the same shape, or something is upside down.
+    if (sil) {
+      var s = sil.canvas;
+      g.save();
+      g.globalAlpha = 0.55;
+      g.drawImage(s, Math.round(cvs.width * 0.44), Math.round(cvs.height * 0.62) - s.height);
+      g.restore();
+    }
+    ctx = prev;
+    return cvs.toDataURL('image/png');
+  };
+
+  /* A prop's own outline: the whole of its own drawing, captured by drawing it
+     once more with its contact point on the plate. A prop belongs to one instance
+     - a house, a boat, a well - so its bake is kept with the prop and goes when the
+     prop does, which is exactly when a section is rebuilt. */
+  function propSilhouette(p, cx, cy) {
+    if (!p) return null;
+    var known = p._shadowSil;
+    if (known) return known;
+    if (!mayBake()) return null;
+    var t0 = performance.now();
+    SILHOUETTE.budget--;
+    var made = bakeSilhouette(function () { drawProp(p); }, cx, cy);
+    SILHOUETTE.spent += performance.now() - t0;
+    if (!made) return null;
+    p._shadowSil = made;
+    return made;
+  }
+
+  /* Lay a baked silhouette on the ground: shear it along the sun's line and squash
+     it to the ground's own tilt, about the point the thing stands on. */
+  function laySilhouette(sil, x, y, strength) {
+    var L = dayLight();
+
+    // How low the sun stands: 0 at noon, 1 on the horizon. A shadow is the thing's
+    // own drawing laid down: squashed almost flat under an overhead sun, and
+    // stretched out as the sun drops, so the same shape reads at every hour.
+    var low = Math.max(0, Math.min(1, 1 - L.up));
+    var stretch = 0.34 + (1.10 - 0.34) * low;
+
+    // Which way along the page the shadow lies. A shadow points away from the sun,
+    // and the ground it lies on is seen at an angle, so the sun's own Y is already
+    // the ground's own tilt.
+    var dirX = L.sx, dirY = L.sy * GROUND_SQUASH;
+    var dl = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+    dirX /= dl; dirY /= dl;
+    var lean = -L.sx * (0.30 + 0.80 * low);
+
+    var a = (strength === undefined || strength === null ? 0.26 : strength)
+      * (0.55 + 0.45 * Math.min(1, L.up * 1.6)) * 1.7;
+    a = Math.min(0.34, a * 0.95);
+
+    // The shadow stands on the same foot as the thing that casts it: its own feet
+    // at her feet, and everything above that lies away from the sun. Hung centred
+    // instead, half of it fell in FRONT of the caster and read as a reflection.
+    var k = sil.k;
+    var inkH = sil.canvas.height / k;
+
+    // A high sun's shade spreads wider than the thing that casts it: the penumbra
+    // of a bright, near-overhead light is broad and soft, which is what makes a
+    // noon shadow read as a pool at the feet instead of a hidden copy.
+    var spread = 1 + (1 - low) * 0.45;
+
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(x, y);
+    ctx.transform(spread, 0, lean, dirY < 0 ? stretch : -stretch, 0, 0);
+    ctx.drawImage(sil.canvas, -sil.fx / k, -sil.fy / k,
+      sil.canvas.width / k, inkH);
+    ctx.restore();
+    SILHOUETTE.blits++;
+  }
+
+  /* Shadow off, for looking at a frame without them - the same switch the sprite
+     cache has, so a before and after can be photographed on one page. */
+  window.__shadowOff = function (on) { SILHOUETTE.off = !!on; return SILHOUETTE.off; };
+
+  function castShadow(x, y, w, strength, h, sil) {
     var L = dayLight();
     if (L.night) return;
+    if (SILHOUETTE.off) return;
+
+    // A bake is drawing this very thing: its shadow is the bake's own shape, and
+    // drawing it again here would recurse until the stack gives out.
+    if (SILHOUETTE.busy) return;
+
+    // The thing's own outline, when there is one to be had. `sil` names it where the
+    // caster is not a prop (the keeper); otherwise the drawer of the prop being drawn
+    // is the caster, and a species is captured from its own painter rather than
+    // through drawProp, which would draw it a second time every frame.
+    var outline = sil ? sil()
+      : _casting ? (_casting.k === 'species' ? speciesSilhouette(_casting) : propSilhouette(_casting, x, y))
+        : null;
+    if (outline) { laySilhouette(outline, x, y, strength); return; }
+
     var len = clamp(L.len, 0.55, 3.1);
     // The sun's direction, projected onto a ground plane seen at an angle.
     var dirX = L.sx, dirY = L.sy * GROUND_SQUASH;
@@ -27052,6 +27385,39 @@ var ANIMAL_SIZES = {
     ctx.fill();
     ctx.restore();
   }
+
+  /* What the shadows have cost, and how many are their own outline yet: the two
+     numbers that say whether a silhouette bake is being paid once or every frame. */
+  window.__shadows = function (which) {
+    var px = 0, kinds = 0, out = null;
+    SILHOUETTE.kinds.forEach(function (e, key) {
+      if (which !== undefined && which !== null && key.indexOf(which) === 0) out = { key: key, sil: e };
+      kinds++;
+      px += e.canvas.width * e.canvas.height;
+    });
+    // A prop's silhouette is kept with the prop itself, so it is looked for there.
+    if (!out && which) {
+      for (var pi = 0; pi < islandProps.length; pi++) {
+        var pp = islandProps[pi];
+        var label = (pp.k || '?') + '#' + (pp.i === undefined ? '?' : pp.i);
+        if (label === which && pp._shadowSil) { out = { key: label, sil: pp._shadowSil }; break; }
+      }
+    }
+    if (out) {
+      return JSON.stringify({
+        key: out.key, w: out.sil.canvas.width, h: out.sil.canvas.height,
+        fx: out.sil.fx, fy: out.sil.fy, k: out.sil.k,
+        png: out.sil.canvas.toDataURL('image/png')
+      });
+    }
+    return JSON.stringify({
+      kinds: kinds, order: SILHOUETTE.order.length,
+      bakes: SILHOUETTE.bakes,
+      blits: SILHOUETTE.blits,
+      bakeMsAvg: +(SILHOUETTE.ms / Math.max(1, SILHOUETTE.bakes)).toFixed(2),
+      kindKilobytes: Math.round(px * 4 / 1024)
+    });
+  };
 
   /* The pond's own shape, as a share of the page: a wide ellipse in the middle
      of a green bank. Both views use these numbers, so the pond in the island and
@@ -28832,54 +29198,61 @@ var ANIMAL_SIZES = {
    */
   var KIN = [
     {
-      who: 'mother', sex: 'f', place: 'house', x: 0.62, y: 0.74,
+      who: 'mother', sex: 'f', places: ['room', 'garden'], x: 0.62, y: 0.74,
       coat: '#7A3F58', lit: '#8E4A66', scarf: '#A8577A', skin: '#F0C49B',
       verb: 'greet Maman', word: 'maman', line: 'my mother'
     },
     {
-      who: 'grandmother', sex: 'f', old: true, place: 'house', x: 0.30, y: 0.86,
+      who: 'grandmother', sex: 'f', old: true, places: ['room', 'garden'], x: 0.30, y: 0.86,
       coat: '#6E4A6A', lit: '#825A7E', scarf: '#E9DCC4', skin: '#EFC9A4',
       verb: 'greet M\u00e2m\u00e2nbozorg', word: 'm\u00e1darbozorg', line: 'my grandmother'
     },
     {
-      who: 'grandfather', sex: 'm', old: true, place: 'house', x: 0.14, y: 0.56,
+      who: 'grandfather', sex: 'm', old: true, places: ['room', 'apiary'], x: 0.14, y: 0.56,
       coat: '#5E6B4A', lit: '#71805A', scarf: '#71805A', skin: '#E6BB90',
       verb: 'greet B\u00e2b\u00e2bozorg', word: 'pedarbozorg', line: 'my grandfather'
     },
     {
-      who: 'father', sex: 'm', place: 'yard', x: 0.34, y: 0.62,
+      who: 'father', sex: 'm', places: ['yard', 'meadow'], x: 0.34, y: 0.62,
       coat: '#3F5C6B', lit: '#4E7080', scarf: '#4E7080', skin: '#E4B489',
       verb: 'greet Baba', word: 'baba', line: 'my father'
     },
     {
-      who: 'brother', sex: 'm', boy: true, place: 'yard', x: 0.56, y: 0.70,
+      who: 'brother', sex: 'm', boy: true, places: ['yard', 'stream'], x: 0.56, y: 0.70,
       verb: 'greet your brother', word: 'bar\u00e1dar', line: 'my brother'
     },
     {
-      who: 'khale', sex: 'f', place: 'yard', x: 0.15, y: 0.40,
+      who: 'khale', sex: 'f', places: ['garden', 'yard'], x: 0.15, y: 0.40,
       coat: '#4E7B5E', lit: '#5F8E6E', scarf: '#B98A32', skin: '#F0C49B',
       verb: 'greet Kh\u00e1le', word: 'kh\u00e1le', line: 'my aunt, Mâmân\u2019s sister'
     },
     {
-      who: 'amme', sex: 'f', place: 'yard', x: 0.84, y: 0.34,
+      who: 'amme', sex: 'f', places: ['yard', 'room'], x: 0.84, y: 0.34,
       coat: '#4E6E8A', lit: '#5F809E', scarf: '#7E9BB3', skin: '#EFC9A4',
       verb: 'greet Amme', word: 'amme', line: 'my aunt, Baba\u2019s sister'
     },
     {
-      who: 'dai', sex: 'm', place: 'yard', x: 0.10, y: 0.86,
+      who: 'dai', sex: 'm', places: ['yard', 'pond'], x: 0.10, y: 0.86,
       coat: '#8A5A3C', lit: '#9C6C4A', scarf: '#9C6C4A', skin: '#E4B489',
       verb: 'greet D\u00e1i', word: 'd\u00e1i', line: 'my uncle, Mâmân\u2019s brother'
     },
     {
-      who: 'amu', sex: 'm', place: 'yard', x: 0.78, y: 0.78,
+      who: 'amu', sex: 'm', places: ['yard', 'steppe'], x: 0.78, y: 0.78,
       coat: '#6A5A3E', lit: '#7C6B4C', scarf: '#7C6B4C', skin: '#E6BB90',
       verb: 'greet Amu', word: 'amu', line: 'my uncle, Baba\u2019s brother'
     }
   ];
 
+  /* Where a relative is today. The island's own day decides, so a person is in
+     the same place all day and somewhere else tomorrow. */
+  function kinPlace(k, i) {
+    if (!k.places) return k.place;
+    return k.places[(yearDay() * 7 + i * 5 + k.who.length) % k.places.length];
+  }
+
   function kinAt(place) {
     var out = [];
-    for (var i = 0; i < KIN.length; i++) if (KIN[i].place === place) out.push(KIN[i]);
+    for (var i = 0; i < KIN.length; i++) if (kinPlace(KIN[i], i) === place) out.push(KIN[i]);
     return out;
   }
 
@@ -28890,8 +29263,14 @@ var ANIMAL_SIZES = {
     var list = kinAt(place);
     for (var i = 0; i < list.length; i++) {
       var k = list[i];
+      // The yard and the house are hand-placed. A relative visiting anywhere else
+      // keeps to the middle band, so the one who stood by the yard tap does not
+      // end up half off the edge of the meadow.
+      var home = (place === 'yard' || place === 'room');
+      var fx = home ? k.x : clamp(k.x, 0.24, 0.76);
+      var fy = home ? k.y : clamp(k.y, 0.34, 0.68);
       out.push({
-        k: k.who, kin: k, x: W * k.x, y: H * k.y,
+        k: k.who, kin: k, x: W * fx, y: H * fy,
         verb: k.verb, act: 'family', who: k.who, word: k.word, line: k.line, name: ''
       });
     }
@@ -29139,7 +29518,7 @@ var ANIMAL_SIZES = {
     }
 
     // The family, in the two places they stand: the house and the yard.
-    pushKin(out, interior === 'house' ? 'house' : (d.kind === 'yard' ? 'yard' : null), W, H);
+    pushKin(out, interior === 'house' ? 'room' : d.kind, W, H);
 
     // Each thing's drawn width, so two large neighbours are not stacked.
     var widthOf = function (q) {
@@ -30373,8 +30752,11 @@ var ANIMAL_SIZES = {
 
   function drawProp(p) {
     var x = p.x, y = p.y, i;
+    // Which prop is being drawn, so a shadow laid from inside its own art knows
+    // what it is the shadow of. Cleared by the caller when this prop is done.
+    _casting = p;
     var reach = islandVerb && islandVerb.i === p.i;
-    if (reach) {
+    if (reach && !SILHOUETTE.busy) {
       ctx.fillStyle = 'rgba(255,246,214,0.5)';
       ctx.beginPath();
       ctx.ellipse(x, y + 24, 54, 18, 0, 0, TAU);
@@ -31107,7 +31489,16 @@ var ANIMAL_SIZES = {
       ctx.closePath();
       ctx.fill();
     } else if (p.k === 'cat') {
-      drawCat({ id: 'pet-tabby' }, x, y, clock);
+      // The house cat is an animal like any other: the same painter, the same
+      // `smallcat` shape the wild cats use, and the same cached blit. It was the last
+      // hand-drawn animal left, and no longer matched the rest.
+      var catE = { id: 'pet-tabby' };
+      ctx.save();
+      ctx.translate(x, y);
+      // The sketch faces +x; the pet faces left, into the room.
+      ctx.scale(-1, 1);
+      paintAnimalCached(ctx, catE, PET_CAT_ANIM, beastHeight(catE));
+      ctx.restore();
     } else if (p.k === 'stone') {
       castShadow(x, y + 14, 52, 0.22, 24);
       ctx.fillStyle = '#CFC9B8';
@@ -31330,15 +31721,16 @@ var ANIMAL_SIZES = {
     // everything. Then what STANDS on it, sorted among her by its own feet.
     var i;
     for (i = 0; i < islandProps.length; i++) {
-      if (propLies(islandProps[i])) drawProp(islandProps[i]);
+      if (propLies(islandProps[i])) { drawProp(islandProps[i]); _casting = null; }
     }
     for (i = 0; i < islandProps.length; i++) {
-      if (!propLies(islandProps[i]) && islandProps[i].y <= hero.y) drawProp(islandProps[i]);
+      if (!propLies(islandProps[i]) && islandProps[i].y <= hero.y) { drawProp(islandProps[i]); _casting = null; }
     }
     drawHero();
     for (i = 0; i < islandProps.length; i++) {
-      if (!propLies(islandProps[i]) && islandProps[i].y > hero.y) drawProp(islandProps[i]);
+      if (!propLies(islandProps[i]) && islandProps[i].y > hero.y) { drawProp(islandProps[i]); _casting = null; }
     }
+    _casting = null;
     if (!interior) drawMotes();
     drawParticles();
     drawDayWash(world.w, world.h);
