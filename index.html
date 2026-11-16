@@ -5106,7 +5106,7 @@ function sightSp(sg) {
     pc.clearRect(0, 0, 200, 260);
     pc.save();
     pc.translate(100, 100);
-    try { paintKeeper(pc, size, 'front', null, false, OUTFITS[0], false); } catch (e) { /* fall through */ }
+    try { paintKeeper(pc, size, 'front', null, false, wearFor('darya', 0), false); } catch (e) { /* fall through */ }
     pc.restore();
     ctx = prev;
     var d = pc.getImageData(0, 0, 200, 260).data;
@@ -5135,7 +5135,7 @@ function sightSp(sg) {
       drawBoatHull();
       // Sitting down inside it, with her hips on the thwart.
       ctx.translate(hero.x, hero.y + 18 + boatRide.bob);
-      paintKeeper(ctx, R.heroSize * 0.92, 'back', 'sit', false, OUTFITS[outfit] || OUTFITS[0], false);
+      paintKeeper(ctx, R.heroSize * 0.92, 'back', 'sit', false, wearFor(who, outfit), false);
       ctx.restore();
       ctx.save();
       drawBoatFront();
@@ -7256,7 +7256,7 @@ function sightSp(sg) {
       ctx.translate(sp2.x, groundY - feetDown);
       ctx.scale(1.58, 1.58);
       castShadow(0, keeperFeetBelow(R.heroSize), 12, chosen ? 0.22 : 0.12);
-      paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[S.own], false);
+      paintKeeper(ctx, R.heroSize, 'front', null, false, wearFor(S.id, S.own), false);
       ctx.restore();
 
       // her name, in ink when chosen
@@ -8772,11 +8772,13 @@ function sightSp(sg) {
   var SISTERS = {
     darya: {
       id: 'darya', name: 'Daryá', own: 0, other: 2,
+      look: { skin: '#F3C39A', hair: '#2E3344', strand: '#3C4358', mouth: '#9A6650', eye: '#23262E' },
       says: 'I keep the island, and write down what it teaches me.',
       greets: 'I went down first. You came after me. Now I find them and you write them down.'
     },
     donya: {
       id: 'donya', name: 'Donyá', own: 2, other: 0,
+      look: { skin: '#DEA272', hair: '#C07E33', strand: '#9A5F22', mouth: '#8F5A44', eye: '#23262E' },
       says: 'I find them. My sister writes them down.',
       greets: 'You write; I find. Take the book and go.'
     }
@@ -8790,6 +8792,21 @@ function sightSp(sg) {
 
   function sister() { return SISTERS[who]; }
   function otherSister() { return SISTERS[who === 'darya' ? 'donya' : 'darya']; }
+  function otherWho() { return who === 'darya' ? 'donya' : 'darya'; }
+
+  /* What she is drawn in: the clothes of the outfit, and the body of the person. Daryá
+     and Donyá are sisters, not one figure in two dresses, so each keeps her own skin,
+     hair, eyes and mouth whoever's clothes she is wearing. This is also the fix for the
+     clone: the sister at the well used to be painted from the PLAYER's palette, because
+     a body and a set of clothes lived in one object and the wrong field was read. */
+  function wearFor(id, outfitIndex) {
+    var S = SISTERS[id] || SISTERS.darya;
+    var o = OUTFITS[outfitIndex == null ? S.own : outfitIndex] || OUTFITS[0];
+    var p = {};
+    for (var key in o) if (o.hasOwnProperty(key)) p[key] = o[key];
+    for (var body in S.look) if (S.look.hasOwnProperty(body)) p[body] = S.look[body];
+    return p;
+  }
   function chooseSister(id) {
     if (!SISTERS[id] || who === id) return;
     who = id;
@@ -8808,7 +8825,7 @@ function sightSp(sg) {
     // Front and back are symmetric and never mirror.
     var mirror = facing === 'side' && hero.dir === -1;
     paintKeeper(g, size, facing, null, walking !== false && hero.moving > 0.15,
-      OUTFITS[outfit] || OUTFITS[0], mirror);
+      wearFor(who, outfit), mirror);
   }
 
   function drawDustDevil(g, size) {
@@ -9692,7 +9709,7 @@ function sightSp(sg) {
       pc.clearRect(0, 0, 300, 300);
       ctx = pc;
       pc.save(); pc.translate(150, 150);
-      paintKeeper(pc, R.heroSize, 'front', null, false, OUTFITS[0], false);
+      paintKeeper(pc, R.heroSize, 'front', null, false, wearFor('darya', 0), false);
       pc.restore();
       ctx = prev;
       var body = lowest();
@@ -17217,7 +17234,7 @@ props: islandProps.map(function (p) {
     ctx.beginPath();
     ctx.ellipse(0, 6, 22, 6, 0, 0, TAU);
     ctx.fill();
-    paintKeeper(ctx, 72, 'side', 'sit', false, OUTFITS[outfit] || OUTFITS[0], true);
+    paintKeeper(ctx, 72, 'side', 'sit', false, wearFor(who, outfit), true);
     ctx.restore();
 
     var bend = lake.state === 'hooked' ? 12 : lake.state === 'rise' ? 4 : 0;
@@ -24202,10 +24219,21 @@ var ANIMAL_SIZES = {
 
     var halfW = (m.breadth || 0.28) * 0.5;      // half the barrel's width
     var legW = f.legW;
-    var socketY = front ? f.legTop.fore : f.legTop.hind;
-    var bellyY = f.bellyY;
+    // THE STEP, FROM THE FRONT. A front or back view has no fore-aft axis to draw,
+    // which is why these animals used to slide: the step is a lateral swing, and the
+    // lateral swing is toward the camera. What IS visible is the hoof leaving the
+    // ground and the body sinking over the leg that carries it, so those are the two
+    // measures this view walks on. They come from the same phase the side view uses.
+    var walkAt = ((((a && a.walk) || 0) % 8) + 8) % 8;
+    var stepping = !!(a && a.moving);
+    var stepA = stepping ? walkLegPose(walkAt, 0, 1) : { foot: 0, lift: 0 };
+    var stepB = stepping ? walkLegPose(walkAt, 2, 1) : { foot: 0, lift: 0 };
+    // The body sinks between steps, twice per stride, and rises as a leg carries it.
+    var dip = stepping ? walkDipAt(walkAt) * 0.016 : 0;
+    var socketY = (front ? f.legTop.fore : f.legTop.hind) - dip;
+    var bellyY = f.bellyY - dip;
     var topEdge = f.edges.top;
-    var withersY = Math.max(topEdge.a[1], topEdge.b[1], topEdge.c[1]);
+    var withersY = Math.max(topEdge.a[1], topEdge.b[1], topEdge.c[1]) - dip;
     // The brisket hangs BELOW the belly line - the chest, which is what comes down
     // between the forelegs in a front view.
     var brisketY = front ? bellyY * 0.80 : bellyY;
@@ -24213,17 +24241,21 @@ var ANIMAL_SIZES = {
 
     /* One limb. `side` is -1 (the animal's far side) or +1; the far limb is a darker
        tone, which is how a drawing puts one leg behind another. Heavy animals get
-       thicker limbs from the same rule, because legW is a share of the body. */
-    function limb(side, isFar, halfBody) {
+       thicker limbs from the same rule, because legW is a share of the body.
+       `lift` is the share of the leg's own length the hoof is off the ground: the
+       limb shortens from the bottom, so a lifted foot does not stretch the leg. */
+    function limb(side, isFar, lift) {
       var hipX = side * halfW * 0.62;
       var footX = side * halfW * 0.52;
       var w = legW * (isFar ? 0.44 : 0.52);
+      var ground = w * 0.55;
+      var footY = ground + (lift || 0) * (socketY - ground) * 0.34;
       g.fillStyle = isFar ? far : fur;
       g.beginPath();
       g.moveTo(hipX - w, socketY);
-      g.quadraticCurveTo(hipX - w * 1.04, socketY * 0.55, footX - w * 0.88, w * 0.55);
-      g.lineTo(footX + w * 0.88, w * 0.55);
-      g.quadraticCurveTo(hipX + w * 1.04, socketY * 0.55, hipX + w, socketY);
+      g.quadraticCurveTo(hipX - w * 1.04, (socketY + footY) * 0.5, footX - w * 0.88, footY);
+      g.lineTo(footX + w * 0.88, footY);
+      g.quadraticCurveTo(hipX + w * 1.04, (socketY + footY) * 0.5, hipX + w, socketY);
       g.closePath();
       g.fill();
       if (!isFar) {
@@ -24233,7 +24265,7 @@ var ANIMAL_SIZES = {
       }
       g.fillStyle = hoofC;
       g.beginPath();
-      g.ellipse(footX, w * 0.20, w * 0.95, w * 0.32, 0, 0, TAU);
+      g.ellipse(footX, footY - w * 0.35, w * 0.95, w * 0.32, 0, 0, TAU);
       g.fill();
     }
 
@@ -24271,6 +24303,10 @@ var ANIMAL_SIZES = {
     var headY = front
       ? Math.max(withersY + headR * 0.30, withersY + (f.head.y - withersY) * 0.85)
       : withersY + headW * 0.42;
+    // The head lags the body a little: on a walking animal it is the last thing to
+    // settle, so a head that moves exactly with the barrel reads as a figure on a
+    // spring. A third of the dip, so it trails without bobbing on its own.
+    headY -= dip * 0.34;
 
     function head() {
       // No neck in a back view: it is behind the rump, and drawing it was what made
@@ -24345,16 +24381,17 @@ var ANIMAL_SIZES = {
     }
 
     if (front) {
-      // The head is NEARER than the body, so it paints last.
-      limb(-1, true);
+      // The head is NEARER than the body, so it paints last. The far hoof and the
+      // near hoof are the opposite ends of one step, so one is always down.
+      limb(-1, true, stepA.lift);
       barrel(withersY, brisketY, 1.0);
-      limb(1, false);
+      limb(1, false, stepB.lift);
       head();
     } else {
       // The head is FURTHER than the body: it paints first and the rump covers it,
       // leaving only the crown above the withers - which is what a back view shows.
       head();
-      limb(-1, true);
+      limb(-1, true, stepA.lift);
       barrel(withersY * 0.99, bellyY, 1.06);
       if (f.tail.len > 0.02) {
         var tl = Math.min(f.tail.len, (withersY - bellyY) * 1.5);
@@ -24367,7 +24404,7 @@ var ANIMAL_SIZES = {
         g.quadraticCurveTo(halfW * 0.26, tTop - tl * 0.55, 0, tTop - tl);
         g.stroke();
       }
-      limb(1, false);
+      limb(1, false, stepB.lift);
     }
 
     g.restore();
@@ -25020,7 +25057,7 @@ var ANIMAL_SIZES = {
     // Her first, as the measure.
     g.save();
     g.translate(x, H - 60);
-    paintKeeper(g, R.heroSize, 'front', null, false, OUTFITS[0], false);
+    paintKeeper(g, R.heroSize, 'front', null, false, wearFor('darya', 0), false);
     g.restore();
     g.fillStyle = '#4A4038';
     g.font = '11px Georgia, serif';
@@ -25077,7 +25114,7 @@ var ANIMAL_SIZES = {
       g.stroke();
       g.save();
       g.translate(cx, S - 22);
-      paintKeeper(g, S * 0.80, views[i], null, false, OUTFITS[0], false);
+      paintKeeper(g, S * 0.80, views[i], null, false, wearFor('darya', 0), false);
       g.restore();
       g.fillStyle = '#1E2A1C';
       g.font = '600 13px Georgia, serif';
@@ -25101,7 +25138,7 @@ var ANIMAL_SIZES = {
     for (var i = 0; i < views.length; i++) {
       g.save();
       g.translate(i * boxW + boxW / 2, boxH - 46);
-      paintKeeper(g, 300, views[i], null, false, OUTFITS[0], false);
+      paintKeeper(g, 300, views[i], null, false, wearFor('darya', 0), false);
       g.restore();
       g.fillStyle = '#4A4038';
       g.font = '15px Georgia, serif';
@@ -25150,7 +25187,7 @@ var ANIMAL_SIZES = {
       g.strokeStyle = '#C9BFA8';
       g.beginPath(); g.moveTo(cx - 80, cy + 2); g.lineTo(cx + 80, cy + 2); g.stroke();
       g.save(); g.translate(cx, cy);
-      paintKeeper(g, 230, views[i], null, false, OUTFITS[0], false);
+      paintKeeper(g, 230, views[i], null, false, wearFor('darya', 0), false);
       g.restore();
       g.fillStyle = '#4A4038'; g.font = '16px Georgia, serif'; g.textAlign = 'center';
       g.fillText(views[i], cx, box + 22);
@@ -25183,7 +25220,7 @@ var ANIMAL_SIZES = {
       g.stroke();
       g.save();
       g.translate(cx, cy);
-      paintKeeper(g, 100, views[i], null, false, OUTFITS[0], false);
+      paintKeeper(g, 100, views[i], null, false, wearFor('darya', 0), false);
       g.restore();
       g.fillStyle = '#4A4038';
       g.font = '11px Georgia, serif';
@@ -25219,7 +25256,7 @@ var ANIMAL_SIZES = {
       g.stroke();
       g.save();
       g.translate(cx, cy);
-      paintKeeper(g, 108, 'front', null, false, OUTFITS[i], false);
+      paintKeeper(g, 108, 'front', null, false, wearFor(who, i), false);
       g.restore();
       g.fillStyle = '#4A4038';
       g.font = '11px Georgia, serif';
@@ -25687,6 +25724,84 @@ var ANIMAL_SIZES = {
       g.font = '12px Georgia, serif';
       g.textAlign = 'left';
       g.fillText(states[i].n, i * size + size * 0.06, size - size * 0.035);
+    }
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
+  };
+
+  /* The same walk strip, seen from the FRONT: the view an animal moving toward the
+     camera is drawn in, so the step can be judged where it has no fore-aft axis. */
+  window.__animalFrontWalk = function (id, size) {
+    id = id || 'creature-graywolf';
+    size = size || 150;
+    var frames = 8;
+    var c = document.createElement('canvas');
+    c.width = size * frames;
+    c.height = size;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    var ground = size - size * 0.16;
+    g.strokeStyle = 'rgba(150,138,112,0.55)';
+    g.beginPath();
+    g.moveTo(6, ground);
+    g.lineTo(c.width - 6, ground);
+    g.stroke();
+    for (var i = 0; i < frames; i++) {
+      var ox = i * size + size / 2;
+      g.save();
+      g.translate(ox, ground);
+      paintAnimal(g, e, { moving: true, walk: i, facing: 1, seed: 3, view: 'front' }, size * 0.62);
+      g.restore();
+      g.fillStyle = '#8a7f72';
+      g.font = '10px Georgia, serif';
+      g.textAlign = 'center';
+      g.fillText(String(i), i * size + size / 2, size - 4);
+    }
+    ctx = prev;
+    document.body.appendChild(c);
+    return c.width + 'x' + c.height;
+  };
+
+  window.__animalFrontSheet = function (ids, size) {
+    ids = ids || ['creature-graywolf'];
+    size = Math.round(size || 120);
+    var frames = 8;
+    var c = document.createElement('canvas');
+    c.width = size * frames;
+    c.height = size * ids.length;
+    c.style.cssText = 'position:fixed;left:0;top:0;z-index:99999;background:#EFE9D8;' +
+      'width:' + c.width + 'px;height:' + c.height + 'px;max-width:none;';
+    var g = c.getContext('2d');
+    var prev = ctx;
+    ctx = g;
+    g.fillStyle = '#EFE9D8';
+    g.fillRect(0, 0, c.width, c.height);
+    g.font = '10px ui-monospace, Consolas, monospace';
+    for (var r = 0; r < ids.length; r++) {
+      var e = findSpecies(ids[r]) || { id: ids[r], sh: 'beast', f: ids[r], e: ids[r] };
+      var oy = r * size;
+      var ground = oy + size - size * 0.16;
+      g.strokeStyle = 'rgba(150,138,112,0.45)';
+      g.beginPath();
+      g.moveTo(0, ground);
+      g.lineTo(c.width, ground);
+      g.stroke();
+      for (var i = 0; i < frames; i++) {
+        g.save();
+        g.translate(i * size + size / 2, ground);
+        paintAnimal(g, e, { moving: true, walk: i, facing: 1, seed: 3, view: 'front' }, size * 0.60);
+        g.restore();
+      }
+      g.fillStyle = '#4A4038';
+      g.textAlign = 'left';
+      g.fillText(ids[r].replace('creature-', ''), 6, oy + 14);
     }
     ctx = prev;
     document.body.appendChild(c);
@@ -26454,6 +26569,16 @@ var ANIMAL_SIZES = {
       });
     }
     return out;
+  };
+
+  window.__looks = function () {
+    var me = wearFor(who, outfit);
+    var them = wearFor(otherWho(), SISTERS[otherWho()].own);
+    return {
+      player: { id: who, name: sister().name, skin: me.skin, hair: me.hair, top: me.top },
+      sister: { id: otherWho(), name: otherSister().name, skin: them.skin, hair: them.hair, top: them.top },
+      sameSkin: me.skin === them.skin, sameHair: me.hair === them.hair
+    };
   };
 
   window.__who = function (id) {
@@ -28289,7 +28414,7 @@ var ANIMAL_SIZES = {
         }
         if (yardTree) out.push({ k: 'species', sp: yardTree, x: W * 0.79, y: H * 0.33, name: '' });
         out.push({ k: 'well', x: W * 0.24, y: H * 0.72, verb: 'look at the well', act: 'well', name: '' });
-        out.push({ k: 'sister', x: W * 0.68, y: H * 0.44, verb: who === 'darya' ? 'greet Donya' : 'greet Daryá', act: 'sister', name: '' });
+        out.push({ k: 'sister', x: W * 0.24 + 96, y: H * 0.72 - 6, verb: who === 'darya' ? 'greet Donya' : 'greet Daryá', act: 'sister', name: '' });
       } else if (d.kind === 'henhouse') {
         out.push({ k: 'coopdoor', x: W * 0.5, y: H * 0.22, verb: 'go into the henhouse', act: 'enter', to: 'hens', name: '' });
       } else if (d.kind === 'apiary') {
@@ -29778,7 +29903,7 @@ var ANIMAL_SIZES = {
       castShadow(x, y + keeperFeetBelow(R.heroSize), 52, 0.26);
       ctx.save();
       ctx.translate(x, y);
-      paintKeeper(ctx, R.heroSize, 'front', null, false, OUTFITS[otherSister().other], false);
+      paintKeeper(ctx, R.heroSize, 'front', null, false, wearFor(otherWho(), SISTERS[otherWho()].own), false);
       ctx.restore();
       return;
     }
