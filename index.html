@@ -7184,6 +7184,31 @@ function sightSp(sg) {
     return T(n === 1 ? '1 word learned' : '{0} words learned', n);
   }
 
+  var titleFade = { canvas: null };
+
+  /* The sister who is not chosen, drawn whole and then faded as one picture. */
+  function paintFadedSister(g, cx, groundY, id, alpha) {
+    var W = 280, H = 360, feetIn = 26;
+    if (!titleFade.canvas) titleFade.canvas = document.createElement('canvas');
+    var c2 = titleFade.canvas;
+    if (c2.width !== W || c2.height !== H) { c2.width = W; c2.height = H; }
+    var g2 = c2.getContext('2d');
+    g2.setTransform(1, 0, 0, 1, 0, 0);
+    g2.clearRect(0, 0, W, H);
+    g2.save();
+    var feetDown = keeperFeetBelow(R.heroSize) * 1.58;
+    g2.translate(W / 2, H - feetIn - feetDown);
+    g2.scale(1.58, 1.58);
+    castShadow(0, keeperFeetBelow(R.heroSize), 12, 0.12);
+    paintKeeper(g2, R.heroSize, 'front', null, false, wearFor(id, SISTERS[id].own), false);
+    g2.restore();
+
+    g.save();
+    g.globalAlpha = alpha;
+    g.drawImage(c2, cx - W / 2, groundY - (H - feetIn), W, H);
+    g.restore();
+  }
+
   function drawTitle(cssW, cssH) {
     hits = [];
     ctx.fillStyle = C.plaster;
@@ -7250,14 +7275,17 @@ function sightSp(sg) {
       var sp2 = spots[i];
       var S = SISTERS[sp2.id];
       var chosen = who === S.id;
-      ctx.save();
-      ctx.globalAlpha = chosen ? 1 : 0.42;
-      var feetDown = keeperFeetBelow(R.heroSize) * 1.58;
-      ctx.translate(sp2.x, groundY - feetDown);
-      ctx.scale(1.58, 1.58);
-      castShadow(0, keeperFeetBelow(R.heroSize), 12, chosen ? 0.22 : 0.12);
-      paintKeeper(ctx, R.heroSize, 'front', null, false, wearFor(S.id, S.own), false);
-      ctx.restore();
+      if (chosen) {
+        var feetDown = keeperFeetBelow(R.heroSize) * 1.58;
+        ctx.save();
+        ctx.translate(sp2.x, groundY - feetDown);
+        ctx.scale(1.58, 1.58);
+        castShadow(0, keeperFeetBelow(R.heroSize), 12, 0.22);
+        paintKeeper(ctx, R.heroSize, 'front', null, false, wearFor(S.id, S.own), false);
+        ctx.restore();
+      } else {
+        paintFadedSister(ctx, sp2.x, groundY, S.id, 0.5);
+      }
 
       // her name, in ink when chosen
       ctx.fillStyle = chosen ? C.ink : C.inkFaint;
@@ -10066,6 +10094,8 @@ props: islandProps.map(function (p) {
         };
       }),
       hive: { x: round(hive.x), y: round(hive.y), r: round(hive.r) },
+      cam: { x: round(cam.x), y: round(cam.y), k: round(fitScale),
+        ox: round(ox), oy: round(oy) },
       enemies: enemies.map(function (e) { return { x: round(e.x), y: round(e.y) }; }),
       pickups: pickups.map(function (p) { return { x: round(p.x), y: round(p.y) }; }),
       sprouts: sprouts.map(function (s) { return { x: round(s.x), y: round(s.y), water: round(s.water), done: s.done }; }),
