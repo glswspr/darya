@@ -1840,11 +1840,11 @@
   var caught = 0;
   var sprouts = [];
   var fireflies = [];
-  var pour = null;        // the sprout being watered
-  var pourHeld = false;
+  var waterCan = 0;       // scoops in the can (0..2)
+  var waterBucket = { x: 0, y: 0 }; // where the can is filled
   var notice = null;      // the card that announces a new task
   var duskK = 0;          // how far the day has gone, for the dusk light
-  var lastWaterNote = 0;
+  var lastWaterPour = 0;
   var lastAutoTap = 0;
   var invuln = 0;
   var shake = 0;
@@ -2315,9 +2315,10 @@ function sightSp(sg) {
     caught = 0;
     sprouts = [];
     fireflies = [];
-    pour = null;
-    pourHeld = false;
+    waterCan = 0;
+    waterBucket = { x: 0, y: 0 };
     notice = null;
+    lastWaterPour = 0;
     duskK = dayMode === 'fireflies' ? 0.8 : (dayMode === 'water' ? 0.4 : 0.12);
     if (dayMode === 'island') duskK = 0.1;    invuln = 0;
     shake = 0;
@@ -2352,7 +2353,7 @@ function sightSp(sg) {
       showNotice(T('Gather nectar'), T('carry it home to the hive'));
     } else if (dayMode === 'water') {
       spawnSprouts();
-      showNotice(T('The sprouts are thirsty'), T('hold on a sprout to pour'));
+      showNotice(T('The sprouts are thirsty'), T('fill the can, give each sprout its scoops'));
     } else if (dayMode === 'fireflies') {
       spawnFireflies();
       showNotice(T('The fireflies are out'), T('tap a light to keep it'));
@@ -3831,16 +3832,17 @@ function sightSp(sg) {
     nectar += carry;
     carry = 0;
     pickups.length = 0;
-    pour = null;
+    waterCan = 0;
+    lastWaterPour = 0;
+    waterBucket = { x: world.w * 0.5, y: world.h * 0.82 };
     spawnSprouts();
-    showNotice(T('Midday: the sprouts are thirsty'), T('hold on a sprout to pour'));
+    showNotice(T('Midday: the sprouts are thirsty'), T('fill the can at the bucket, tap a sprout to give a scoop'));
     teachWord('ab');
   }
 
   function beginFireflies() {
     stage = 'fireflies';
     sprouts.length = 0;
-    pour = null;
     enemies.length = 0;
     spawnFireflies();
     showNotice(T('Dusk: the fireflies are out'), T('tap a light to keep it'));
@@ -3851,14 +3853,15 @@ function sightSp(sg) {
     var spots = [
       { x: world.w * 0.22, y: world.h * 0.40 },
       { x: world.w * 0.78, y: world.h * 0.38 },
-      { x: world.w * 0.26, y: world.h * 0.70 },
-      { x: world.w * 0.74, y: world.h * 0.72 },
-      { x: world.w * 0.50, y: world.h * 0.56 }
+      { x: world.w * 0.26, y: world.h * 0.66 },
+      { x: world.w * 0.74, y: world.h * 0.68 },
+      { x: world.w * 0.50, y: world.h * 0.52 }
     ];
     sprouts = [];
+    var needs = [1, 2, 2, 3, 2];
     var n = Math.min(R.waterGoal, spots.length);
     for (var i = 0; i < n; i++) {
-      sprouts.push({ x: spots[i].x, y: spots[i].y, water: 0, done: false, sway: rand(0, TAU) });
+      sprouts.push({ x: spots[i].x, y: spots[i].y, need: needs[i] || 2, given: 0, done: false, sway: rand(0, TAU), spill: 0 });
     }
   }
 
@@ -3880,16 +3883,6 @@ function sightSp(sg) {
     }
   }
 
-  function nearestSprout(maxD) {
-    var best = null, bd = maxD || 150;
-    for (var i = 0; i < sprouts.length; i++) {
-      if (sprouts[i].done) continue;
-      var d = dist(hero.x, hero.y, sprouts[i].x, sprouts[i].y);
-      if (d < bd) { bd = d; best = sprouts[i]; }
-    }
-    return best;
-  }
-
   function sproutAt(x, y, maxD) {
     var best = null, bd = maxD || 90;
     for (var i = 0; i < sprouts.length; i++) {
@@ -3902,7 +3895,7 @@ function sightSp(sg) {
 
   function bloom(s) {
     s.done = true;
-    s.water = 1;
+    s.given = s.need;
     watered++;
     addParticles(s.x, s.y - 20, C.rosa, 14, 100);
     addParticles(s.x, s.y - 20, '#FFF3D0', 6, 60);
@@ -3910,6 +3903,44 @@ function sightSp(sg) {
     shake = 0.12;
     sfx.deliver();
     if (watered >= R.waterGoal) endGame(true);
+  }
+
+  function pourOnSprout(s) {
+    if (!s || s.done || stage !== 'water') return;
+    if (clock - lastWaterPour < 0.2) return;
+    if (waterCan <= 0) {
+      addFloater(s.x, s.y - 40, T('fill the can'), '#7A5D2E');
+      showNotice(T('The can is empty'), T('fill the can at the bucket'));
+      sfx.bad();
+      return;
+    }
+    lastWaterPour = clock;
+    waterCan--;
+    s.spill = 0.28;
+    for (var k = 0; k < 6; k++) particles.push({ x: s.x + rand(-10, 10), y: s.y - 50, vx: rand(-16, 16), vy: rand(120, 190), life: 0.38, age: 0, color: '#BFDADC', r: rand(1.5, 2.8) });
+    if (s.given >= s.need) {
+      s.given = 0;
+      addFloater(s.x, s.y - 44, T('too much water'), '#A56A3A');
+      showNotice(T('Too much water'), T('that sprout needs the right amount'));
+      shake = 0.08;
+      sfx.bad();
+      return;
+    }
+    s.given++;
+    if (s.given >= s.need) {
+      bloom(s);
+    } else {
+      addFloater(s.x, s.y - 44, s.given + ' / ' + s.need, C.turquoiseDeep);
+      sfx.drop();
+    }
+  }
+
+  function refillCan() {
+    if (stage !== 'water' || waterCan >= 2) return;
+    waterCan = 2;
+    addFloater(waterBucket.x, waterBucket.y - 30, T('can filled'), C.turquoiseDeep);
+    addParticles(waterBucket.x, waterBucket.y - 10, '#BFDADC', 10, 60);
+    sfx.step();
   }
 
   function tryCatch(px, py) {
@@ -4200,22 +4231,10 @@ function sightSp(sg) {
     /* --- The hive: carrying nectar home is the whole game ---------- */
     if (stage === 'gather' && carry > 0 && dist(hive.x, hive.y, hero.x, hero.y) < hive.r) deliver();
 
-    /* --- Midday: pour water on each sprout until it blooms --------- */
+    /* --- Midday: measure scoops of water for each sprout ----------- */
     if (stage === 'water') {
-      var holding = pourHeld || keys[' '] || keys['space'];
-      if (holding) {
-        if (!pour || pour.done) pour = nearestSprout(160);
-        if (pour && !pour.done && dist(hero.x, hero.y, pour.x, pour.y) < 175) {
-          pour.water = Math.min(1, pour.water + dt * 0.62);
-          if (clock - lastWaterNote > 0.07) {
-            lastWaterNote = clock;
-            particles.push({ x: pour.x + rand(-9, 9), y: pour.y - 54, vx: rand(-10, 10), vy: 150, life: 0.34, age: 0, color: '#BFDADC', r: rand(1.4, 2.6) });
-          }
-          if (pour.water >= 1) { var doneSprout = pour; pour = null; bloom(doneSprout); }
-        }
-      } else {
-        pour = null;
-      }
+      if (waterCan < 2 && dist(hero.x, hero.y, waterBucket.x, waterBucket.y) < 140) refillCan();
+      for (i = 0; i < sprouts.length; i++) if (sprouts[i].spill > 0) sprouts[i].spill = Math.max(0, sprouts[i].spill - dt);
     }
 
     /* --- Dusk: the fireflies wander, and a tap keeps one ---------- */
@@ -5802,11 +5821,42 @@ function sightSp(sg) {
     }
   }
 
-  /* Midday's sprouts: dry and drooping until water brings them upright. */
+  /* Midday's sprouts: each needs a measured number of scoops to bloom. */
   function drawSprouts() {
+    if (stage === 'water') {
+      // The bucket that refills the can.
+      ctx.save();
+      ctx.translate(waterBucket.x, waterBucket.y);
+      ctx.fillStyle = 'rgba(44,76,92,0.22)';
+      ctx.beginPath(); ctx.ellipse(0, 18, 44, 14, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#6E8EA0';
+      roundRect(-28, -18, 56, 36, 8); ctx.fill();
+      ctx.fillStyle = '#5D7B8D';
+      roundRect(-24, -14, 48, 10, 4); ctx.fill();
+      ctx.fillStyle = '#9FD7EA';
+      ctx.beginPath(); ctx.ellipse(0, -16, 20, 6, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#4A6575'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, -22, 16, Math.PI, 0); ctx.stroke();
+      ctx.fillStyle = C.paperInk; ctx.font = '700 11px ' + FONT_UI; ctx.textAlign = 'center';
+      ctx.fillText(waterCan + '/2', 0, 38);
+      ctx.restore();
+
+      // The can the keeper carries.
+      ctx.save();
+      ctx.translate(hero.x + 18, hero.y - 18);
+      ctx.rotate(-0.1);
+      ctx.fillStyle = '#7FA7A2';
+      roundRect(-10, -8, 20, 16, 4); ctx.fill();
+      ctx.fillStyle = waterCan > 0 ? '#9FD7EA' : 'rgba(159,215,234,0.25)';
+      roundRect(-7, -5 - waterCan * 2, 14, 4 + waterCan * 4, 3); ctx.fill();
+      ctx.strokeStyle = '#5E8783'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(8, -4); ctx.lineTo(16, -10); ctx.stroke();
+      ctx.restore();
+    }
+
     for (var i = 0; i < sprouts.length; i++) {
       var s = sprouts[i];
-      var w = s.water;
+      var w = s.need > 0 ? s.given / s.need : 1;
       var sway = Math.sin(clock * 1.4 + s.sway) * (1.5 + w * 2.5)
         + plantBend(s.x, s.y, 44, clock, s.sway) / 1.45;
 
@@ -5814,7 +5864,6 @@ function sightSp(sg) {
       ctx.translate(s.x, s.y);
       ctx.scale(1.45, 1.45);
 
-      // A patch of dry earth marks the spot from across the meadow.
       ctx.fillStyle = 'rgba(214,190,144,0.92)';
       ctx.beginPath();
       ctx.ellipse(0, 7, 31, 14, 0, 0, TAU);
@@ -5826,47 +5875,18 @@ function sightSp(sg) {
       ctx.strokeStyle = 'rgba(140,110,66,0.45)';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(-17, 4);
-      ctx.lineTo(-9, 8);
-      ctx.lineTo(-13, 13);
-      ctx.moveTo(12, 3);
-      ctx.lineTo(17, 8);
+      ctx.moveTo(-17, 4); ctx.lineTo(-9, 8); ctx.lineTo(-13, 13);
+      ctx.moveTo(12, 3); ctx.lineTo(17, 8);
       ctx.stroke();
 
-      // A watering can tips over the sprout while it is being poured.
-      if (s === pour) {
-        ctx.save();
-        ctx.translate(-20, -74);
-        ctx.rotate(-0.42 + Math.sin(clock * 6) * 0.03);
-        ctx.fillStyle = '#7FA7A2';
-        roundRect(-11, -9, 22, 16, 5);
-        ctx.fill();
-        ctx.fillStyle = '#6C938E';
-        ctx.beginPath();
-        ctx.moveTo(9, -6);
-        ctx.lineTo(20, -13);
-        ctx.lineTo(21, -8);
-        ctx.lineTo(11, 1);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#5E8783';
-        ctx.lineWidth = 2.6;
-        ctx.beginPath();
-        ctx.arc(-2, -10, 6, Math.PI * 1.05, Math.PI * 1.95);
-        ctx.stroke();
-        ctx.restore();
-
-        for (var d = 0; d < 3; d++) {
-          var fall = (clock * 90 + d * 14) % 46;
-          ctx.fillStyle = 'rgba(150,205,208,' + (0.9 - fall / 60).toFixed(2) + ')';
-          ctx.beginPath();
-          ctx.ellipse(4 + d * 3, -52 + fall, 1.8, 2.6, 0.2, 0, TAU);
-          ctx.fill();
-        }
+      if (s.spill > 0) {
+        ctx.strokeStyle = 'rgba(127,190,210,' + (0.3 + s.spill) + ')';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(10, -68); ctx.lineTo(2, -36); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(12, -64); ctx.lineTo(6, -34); ctx.stroke();
       }
 
       if (s.done) {
-        // A bloom, with the stem that carried it.
         ctx.strokeStyle = '#4E6E33';
         ctx.lineWidth = 3.4;
         ctx.lineCap = 'round';
@@ -5892,7 +5912,6 @@ function sightSp(sg) {
         ctx.moveTo(0, 5);
         ctx.quadraticCurveTo(bend * 0.7 + sway, -lift * 0.5, bend + sway, -lift);
         ctx.stroke();
-
         for (var k = -1; k <= 1; k += 2) {
           ctx.save();
           ctx.translate(bend * 0.5 + sway * 0.6, -lift * 0.52);
@@ -5901,33 +5920,22 @@ function sightSp(sg) {
           ctx.beginPath();
           ctx.ellipse(k * 13, 0, 14, 6.5, 0, 0, TAU);
           ctx.fill();
-          ctx.strokeStyle = 'rgba(60,84,36,0.35)';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
           ctx.restore();
         }
-
         ctx.fillStyle = w > 0.8 ? C.saffron : '#C2B485';
         ctx.beginPath();
         ctx.arc(bend + sway, -lift, 5 + w * 2.6, 0, TAU);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(90,72,40,0.35)';
-        ctx.lineWidth = 1.1;
-        ctx.stroke();
 
-        // How much water it has.
-        ctx.strokeStyle = 'rgba(42,35,32,0.3)';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.arc(0, 9, 21, 0, TAU);
-        ctx.stroke();
-        if (w > 0.01) {
-          ctx.strokeStyle = C.turquoise;
-          ctx.beginPath();
-          ctx.arc(0, 9, 21, -Math.PI / 2, -Math.PI / 2 + TAU * w);
-          ctx.stroke();
-        }
+        // Scoops needed.
+        ctx.fillStyle = 'rgba(250,246,234,0.92)';
+        roundRect(-18, -84, 36, 18, 6); ctx.fill();
+        ctx.fillStyle = '#5B6F49';
+        ctx.font = '700 10px ' + FONT_UI;
+        ctx.textAlign = 'center';
+        ctx.fillText(s.given + '/' + s.need, 0, -71);
       }
+
       ctx.restore();
     }
   }
@@ -6257,8 +6265,8 @@ function sightSp(sg) {
           hint = 'gather nectar from the meadow';
         }
       } else if (stage === 'water') {
-        hint = pour ? 'pouring\u2026' : 'walk to a sprout and hold to pour';
-        if (pour) tone = C.turquoiseDeep;
+        hint = waterCan > 0 ? T('tap a sprout to pour a scoop ({0}/2)', waterCan) : T('fill the can at the bucket');
+        tone = C.turquoiseDeep;
       } else {
         hint = 'tap a firefly to keep it';
       }
@@ -10008,8 +10016,13 @@ function sightSp(sg) {
       return;
     }
 
-    // Midday: walk to a dry sprout and pour.
+    // Midday: fill the can at the bucket, then give each sprout its scoops.
     if (state.stage === 'water') {
+      if (waterCan <= 0) {
+        setWalkTarget({ x: waterBucket.x, y: waterBucket.y - 30 });
+        if (dist(state.hero.x, state.hero.y, waterBucket.x, waterBucket.y) < 150) refillCan();
+        return;
+      }
       best = null; bd = Infinity;
       var list2 = state.sprouts || [];
       for (i = 0; i < list2.length; i++) {
@@ -10019,13 +10032,11 @@ function sightSp(sg) {
         if (qd < bd) { bd = qd; best = list2[i]; }
       }
       if (!best) return;
-      if (Math.sqrt(bd) < 140) {
-        pour = nearestSprout(220);
-        pourHeld = true;
-        setWalkTarget({ x: best.x, y: best.y });
+      if (Math.sqrt(bd) < 150) {
+        var spr = sproutAt(best.x, best.y, 50);
+        if (spr) { pourOnSprout(spr); setWalkTarget({ x: spr.x, y: spr.y + 20 }); }
       } else {
-        pourHeld = false;
-        setWalkTarget({ x: best.x, y: best.y + 18 });
+        setWalkTarget(best);
       }
       return;
     }
@@ -10786,7 +10797,7 @@ props: islandProps.map(function (p) {
         ox: round(ox), oy: round(oy) },
       enemies: enemies.map(function (e) { return { x: round(e.x), y: round(e.y) }; }),
       pickups: pickups.map(function (p) { return { x: round(p.x), y: round(p.y) }; }),
-      sprouts: sprouts.map(function (s) { return { x: round(s.x), y: round(s.y), water: round(s.water), done: s.done }; }),
+      sprouts: sprouts.map(function (s) { return { x: round(s.x), y: round(s.y), given: s.given, need: s.need, done: s.done }; }),
       fireflies: fireflies.map(function (f) { return { x: round(f.x), y: round(f.y) }; }),
       comb: { capped: comb.capped, goal: comb.goal, ready: comb.cells.filter(function (c) { return c.state === 'ready'; }).length, done: comb.done },
       queen: { at: queen.at, found: queen.found, notes: queen.notes.slice() },
@@ -12644,60 +12655,60 @@ props: islandProps.map(function (p) {
       'greet Donya': 'به دنیا سلام کن',
       'hear storyteller out': 'قصه‌گو را تا آخر بشنو',
       'read the stone': 'سنگ را بخوان',
-      'The pond keeps its own counsel. Ask it at dusk.': 'حوض به حال خودش است؛ وقت غروب از او بپرس.',
-      'Every row is a decision. You cannot take one back.': 'هر خط یک تصمیم است؛ هیچ خطی را نمیتوانی برگردانی.',
-      'Up here the flock knows the ground better than I do.': 'این بالا، گله زمین را بهتر از من میشناسد.',
-      'The sand remembers every path. I only follow the cool ones.': 'شن همه راهها را به یاد داشته است؛ من فقط راههای خنک را میروم.',
+      'The pond keeps its own counsel. Ask it at dusk.': 'حوض به حال خودشه؛ وقت غروب ازش بپرس.',
+      'Every row is a decision. You cannot take one back.': 'هر خط یه تصمیمه؛ هیچ خطی رو نمی‌تونی برگردونی.',
+      'Up here the flock knows the ground better than I do.': 'این بالا، گله زمین رو بهتر از من می‌شناسه.',
+      'The sand remembers every path. I only follow the cool ones.': 'شن همه راه‌ها رو یادشه؛ من فقط راه‌های خنک رو میرم.',
       'Forty days to the sea, and every one of them a story.': 'چهل روز تا دریا، و هر روزش یک قصه.',
-      'Sit. The island has been waiting to tell you something.': 'بنشین؛ این جزیره چیزی برای گفتن داشته است.',
+      'Sit. The island has been waiting to tell you something.': 'بنشین؛ این جزیره منتظر بوده چیزی بهت بگه.',
       'It speaks the way a drum does: nothing said, and still your chest moves.': 'مثل طبل حرف می‌زند: چیزی نمی‌گوید، و باز سینه‌ات تکان می‌خورد.',
-      'Truth is a small thing here. A shell, a thorn, a footprint that fills with rain.': 'راستی اینجا چیز کوچکی است. یک صدف، یک خار، یک جای پا که با باران پر می‌شود.',
-      'Take the drum. Hit it once and the whole yard answers.': 'طبل را بگیر. یک بار بزن، تمام حیاط جواب می‌دهد.',
-      'Because you are the one who came back. A story needs someone to return to it.': 'چون تو همان کسی هستی که برگشت. قصه کسی را می‌خواهد که به آن برگردد.',
-      'Rosemary keeps its smell through winter. Nobody asked it to.': 'رزماری بویش را تا زمستان نگه می‌دارد. هیچ‌کس از او نخواست.',
-      'Then hear this: I never tell a story the same way twice, and I never lie the same way twice either.': 'پس این را بشنو: من هیچ قصه‌ای را دو بار یک‌طور نمی‌گویم، و هیچ دروغی را هم دو بار یک‌طور نمی‌گویم.',
-      'It does. Ask the drum, and it answers with your own heart.': 'بله. از طبل بپرس، با دل خودت جواب می‌دهد.',
-      'Then the yard keeps its sleep, and I keep my best story for the morning.': 'پس حیاط خوابش را نگه می‌دارد، و من بهترین قصه‌ام را برای صبح نگه می‌دارم.',
+      'Truth is a small thing here. A shell, a thorn, a footprint that fills with rain.': 'راستی اینجا چیز کوچیکیه. یه صدف، یه خار، یه جای پا که با بارون پر می‌شه.',
+      'Take the drum. Hit it once and the whole yard answers.': 'طبل رو بگیر. یه بار بزن، تمام حیاط جواب می‌ده.',
+      'Because you are the one who came back. A story needs someone to return to it.': 'چون تو همون کسی هستی که برگشتی. قصه کسی رو می‌خواد که بهش برگرده.',
+      'Rosemary keeps its smell through winter. Nobody asked it to.': 'رزماری بوش رو تا زمستون نگه می‌داره. هیچ‌کس ازش نخواست.',
+      'Then hear this: I never tell a story the same way twice, and I never lie the same way twice either.': 'پس این رو بشنو: من هیچ قصه‌ای رو دو بار یه‌طور نمی‌گم، هیچ دروغی رو هم دو بار یه‌طور نمی‌گم.',
+      'It does. Ask the drum, and it answers with your own heart.': 'بله. از طبل بپرس، با دل خودت جواب می‌ده.',
+      'Then the yard keeps its sleep, and I keep my best story for the morning.': 'پس حیاط خوابش رو نگه می‌داره، من بهترین قصه‌ام رو برای صبح نگه می‌دارم.',
       'So the island keeps a chair for you. Not out of politeness - out of patience.': 'پس جزیره صندلی‌ای برایت نگه می‌دارد. نه از ادب، از صبر.',
-      'The garden and the story are one trade. One feeds the mouth, the other the winter.': 'باغ و قصه یک پیشه‌اند. یکی دهان را سیر می‌کند، آن یکی زمستان را.',
-      'That is all. All anything asks of you is to keep something living through a hard month.': 'همین است. هر چیزی از تو فقط این را می‌خواهد که چیزی زنده را از یک ماه سخت بگذرانی.',
+      'The garden and the story are one trade. One feeds the mouth, the other the winter.': 'باغ و قصه یه پیشه‌ان. یکی دهن رو سیر می‌کنه، اون یکی زمستون رو.',
+      'That is all. All anything asks of you is to keep something living through a hard month.': 'همینه. هر چیزی ازت فقط این رو می‌خواد که یه چیز زنده رو از یه ماه سخت بگذرونی.',
       'Plant it by the wall, and tell me when it flowers.': 'کنار دیوار بکارش، و وقتی گل داد به من بگو.',
-      'Go and tell it, then. A craft lives by the telling.': 'پس برو و بگو. پیشه با گفتن زنده است.',
-      'And the second time you will hear what I did not say.': 'و بار دوم چیزی را می‌شنوی که من نگفته‌ام.',
-      'Then let it speak.': 'پس بگذار حرف بزند.',
-      'Tell me something true.': 'چیزی راست به من بگو.',
+      'Go and tell it, then. A craft lives by the telling.': 'پس برو و بگو. پیشه با گفتن زنده‌س.',
+      'And the second time you will hear what I did not say.': 'و بار دوم چیزی رو می‌شنوی که من نگفته‌ام.',
+      'Then let it speak.': 'پس بذار حرف بزنه.',
+      'Tell me something true.': 'یه چیز راست بهم بگو.',
       'Show me.': 'نشانم بده.',
-      'Why does it wait for me?': 'چرا منتظر من است؟',
-      'Then give me a small truth.': 'پس یک راستی کوچک به من بده.',
-      'I would rather hear a lie well told.': 'ترجیح می‌دهم یک دروغ خوب‌ساخته را بشنوم.',
-      'It answers me?': 'به من جواب می‌دهد؟',
-      'I will not wake the yard.': 'من حیاط را بیدار نمی‌کنم.',
+      'Why does it wait for me?': 'چرا منتظر منه؟',
+      'Then give me a small truth.': 'پس یه راستی کوچیک بهم بده.',
+      'I would rather hear a lie well told.': 'ترجیح می‌دم یه دروغ خوب‌ساخته رو بشنوم.',
+      'It answers me?': 'به من جواب می‌ده؟',
+      'I will not wake the yard.': 'من حیاط رو بیدار نمی‌کنم.',
       'I did come back.': 'من برگشتم.',
       'I came for the garden, not the stories.': 'من برای باغ آمدم، نه برای قصه‌ها.',
       'That is all?': 'همین؟',
       'I will plant it.': 'من می‌کارمش.',
-      'That is a fine craft.': 'این پیشه‌ی خوبی است.',
+      'That is a fine craft.': 'این پیشه‌ی خوبیه.',
       'Then I will listen twice.': 'پس دو بار گوش می‌دهم.',
       'Then I will come at dusk.': 'پس وقت غروب می‌آیم.',
       'What does it say at noon?': 'وقت ظهر چه می‌گوید؟',
-      'Bring patience and no bucket. It gives to the patient.': 'صبر بیاور و سطل نیاور. به صابر می‌دهد.',
-      'At noon it says nothing, and that is what it says.': 'ظهر چیزی نمی‌گوید، و همین را می‌گوید.',
+      'Bring patience and no bucket. It gives to the patient.': 'صبر بیار، سطل نیار. به صابر می‌ده.',
+      'At noon it says nothing, and that is what it says.': 'ظهر هیچ نمی‌گه، و همین رو می‌گه.',
       'Then I will decide slowly.': 'پس آهسته تصمیم می‌گیرم.',
       'What are you weaving?': 'چه می‌بافی؟',
-      'Slow hands make straight cloth. The loom does not forgive hurry.': 'دست‌های آهسته پارچه‌ی راست می‌سازند. کارگاه عجله را نمی‌بخشد.',
+      'Slow hands make straight cloth. The loom does not forgive hurry.': 'دست‌های آهسته پارچه‌ی راست می‌سازن. کارگاه بافندگی عجله رو نمی‌بخشه.',
       'A field. Not a picture of one - a field that stays.': 'یک کشتزار. نه عکسی از آن — کشتزاری که می‌ماند.',
       'Then let them lead.': 'پس بگذار راهبری کنند.',
-      'Do they ever lose you?': 'هیچ‌وقت تو را گم می‌کنند؟',
+      'Do they ever lose you?': 'هیچ‌وقت تو رو گم می‌کنن؟',
       'They do. At dusk I follow the bell, not the map.': 'بله. وقت غروب دنبال زنگ می‌روم، نه نقشه.',
-      'Every spring one ewe takes the high path. I find her where the grass is sweetest.': 'هر بهار یک میش راه بلند را می‌گیرد. او را آنجا که سبزه شیرین‌تر است پیدا می‌کنم.',
-      'Which path is cool today?': 'امروز کدام راه خنک است؟',
-      'Do the old paths still work?': 'راه‌های کهن هنوز کار می‌کنند؟',
-      'The one that keeps the low dune on your left. It ends at a well nobody dug.': 'آن که تپه‌ی کوچک را در دست چپ نگه می‌دارد. به چاهی می‌رسد که هیچ‌کس نکنده است.',
-      'They do. A path is not lost when nobody walks it, only unused.': 'بله. راه وقتی هیچ‌کس از آن نمی‌رود گم نمی‌شود، فقط بی‌استفاده می‌ماند.',
-      'Tell me one of them.': 'یکی از آن‌ها را برایم بگو.',
+      'Every spring one ewe takes the high path. I find her where the grass is sweetest.': 'هر بهار یه میش راه بلند رو می‌گیره. اون رو اونجا که سبزه شیرین‌تره پیدا می‌کنم.',
+      'Which path is cool today?': 'امروز کدوم راه خنکه؟',
+      'Do the old paths still work?': 'راه‌های کهن هنوز کار می‌کنن؟',
+      'The one that keeps the low dune on your left. It ends at a well nobody dug.': 'اون که تپه‌ی کوچیک رو دست چپت نگه می‌داره. به چاهی می‌رسه که هیچ‌کس نکندش.',
+      'They do. A path is not lost when nobody walks it, only unused.': 'آره. راه وقتی هیچ‌کس نمی‌ره روش گم نمی‌شه، فقط بی‌استفاده می‌مونه.',
+      'Tell me one of them.': 'یکی از اون‌ها رو بهم بگو.',
       'What do you carry?': 'چه حمل می‌کنی؟',
-      'On the ninth night a man traded his camel for a song. He had the better bargain.': 'شب نهم مردی شترش را با یک آواز معاوضه کرد. او معامله‌ی بهتری داشت.',
-      'Salt, wool, and letters nobody paid me to carry.': 'نمک، پشم، و نامه‌هایی که هیچ‌کس پولش را به من نداد.',
+      'On the ninth night a man traded his camel for a song. He had the better bargain.': 'شب نهم یه مرد شترش رو با یه آواز عوض کرد. اون معامله‌ی بهتری کرد.',
+      'Salt, wool, and letters nobody paid me to carry.': 'نمک، پشم، و نامه‌هایی که هیچ‌کس پولش رو به من نداد.',
       'I will leave you to it.': 'تو را به حال خودت می‌گذارم.',
 
     },
@@ -16927,17 +16938,17 @@ props: islandProps.map(function (p) {
       'Sit. The kettle is on the coals.': 'Beshin. Ketri ruye zoghálhá-st.',
       'She kept a book, not a treasure. Remember that.': 'Un ye daftar negah dásht, na ye ganj. Yádat báshad.',
       'Do not hurry the dough or the day.': 'Na khamir-ro ajale bede na ruz-ro.',
-      'Sit in the shade; the sun is not kind at this hour.': 'Sáye beshin; áftáb in sáat mehrabun nist.',
-      'When I was a boy the sea came closer than this.': 'Vaghti bache budam daryá az in nazdiktar bud.',
-      'Take the long way by the shrine. The short way is for carts.': 'Ráh-e boland az kenár-e ziáratgáh borow. Ráh-e kutáh mál-e gárihá-st.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Sáye beshin; áftáb in sá\'at mehrabun nist.',
+      'When I was a boy the sea came closer than this.': 'Vaghti báche budam daryá az in nazdiktar bud.',
+      'Take the long way by the shrine. The short way is for carts.': 'Ráh-e boland az kenár-e ziaratgáh borow. Ráh-e kutáh mál-e gárihá-st.',
       'I am mending the net; hand me the twine.': 'Tur-ro vasle mizanam; nakh-ro bede.',
       'The wind is off the land today. We stay in.': 'Bád emruz az khoshki miád. Khune mimunim.',
-      'Ask your aunt for the salt; I have none in the boat.': 'Namak-ro az kháleat begir; tuye gháyegh nadáram.',
+      'Ask your aunt for the salt; I have none in the boat.': 'namak-ro az kháleat begir; tuye Gháyegh nadáram.',
       'Do not tell Mâmân I was at the water.': 'Be mámán nagu man lab-e áb budam.',
       'I can hold my breath longer than you.': 'Man mitunam bishtar az to nafas negah dáram.',
       'The cat follows me everywhere now.': 'Gorbe hálá hamme-já donbálam miád.',
       'The pot is heavy; take the other handle.': 'Ghábalambe sangine; dasteye digash-ro begir.',
-      'Your mother cooked yesterday. Today it is mine.': 'Mámánat diruz pokht. Emruz nobat-e mane.',
+      'Your mother cooked yesterday. Today it is mine.': 'Mámánat diruz pokht. Emruz nobat-e máne.',
       'There is mint by the channel. Bring a handful.': 'Kenár-e juy na\'ná hast. Ye mosht biár.',
       'The comb is on the shelf, not in your hand.': 'Sháne ruye tághche-st, na dast-e to.',
       'You have grown again. Stand still.': 'Báz ghad keshidi. Yek já báyest.',
@@ -16959,9 +16970,9 @@ props: islandProps.map(function (p) {
       'You step back into your own day': 'Be ruz-e khodat barmigardi.',
       'done': 'anjám shod',
       'Put your coat on the hook; the fire is lit.': 'Kotat-ro begozár ru ghalláb; átash roshane.',
-      'I have counted four winters since she left.': 'Chahár zemestun az vaghti raft shemordam.',
+      'I have counted four winters since she left.': 'Cháhár zemestun az vaghti raft shemordam.',
       'My hands know this wall better than my eyes.': 'Dasthám in divár-ro behtar az cheshmhám mishenásan.',
-      'Sit at the bow and keep still; the boat does the rest.': 'Damághe beshin va tekun nakhor; baghiyash kár-e gháyegh-e.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Damághe beshin va tekun nakhor; baghiyash kár-e Gháyegh-e.',
       'There is a frog that thinks it owns the trough.': 'Ye ghorbegháhe ke fekr mikone ábshakhur mál-e une.',
       'Do not eat standing up; you will forget what you ate.': 'Istáde ghazá nakhor; yádet mire chi khordi.',
       'Sit by the lamp; your hair is still wet.': 'Kenár-e cherágh beshin; muhát hanooz khise.',
@@ -17564,60 +17575,60 @@ props: islandProps.map(function (p) {
       'greet Donya': 'be Donyá salám kon',
       'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
       'read the stone': 'sang rá bekhán',
-      'The pond keeps its own counsel. Ask it at dusk.': 'hozd be hál-e khodash ast; vaght-e ghurub az u bepors.',
-      'Every row is a decision. You cannot take one back.': 'har khat yek tasmim ast; hich khat-i rá nemitaváni bargardani.',
-      'Up here the flock knows the ground better than I do.': 'in bálá, galle zamin rá behtar az man mishenásad.',
-      'The sand remembers every path. I only follow the cool ones.': 'shen hame ráh-há rá be yád dáshte ast; man faghat ráh-há-ye khonak rá mi-ravam.',
+      'The pond keeps its own counsel. Ask it at dusk.': 'hozd be hál-e khodashe; vaght-e ghurub azash bepors.',
+      'Every row is a decision. You cannot take one back.': 'har khat ye tasmime; hich khat-i ro nemituni bargarduni.',
+      'Up here the flock knows the ground better than I do.': 'in bálá, galle zamin ro behtar az man mishenáse.',
+      'The sand remembers every path. I only follow the cool ones.': 'shen hame ráh-há ro yadeshe; man faghat ráh-há-ye khonak ro miram.',
       'Forty days to the sea, and every one of them a story.': 'chehel ruz tá daryá, va har ruz yek ghesse.',
-      'Sit. The island has been waiting to tell you something.': 'beneshin; in jazire chiz-i baray-e goftan dáshte ast.',
+      'Sit. The island has been waiting to tell you something.': 'beneshin; in jazire montazer bude chiz-i behet bege.',
       'It speaks the way a drum does: nothing said, and still your chest moves.': 'mesl-e tabl harf mizanad: hich chiz nemiguyad, va báz sine-ye to mi-jonbad.',
-      'Truth is a small thing here. A shell, a thorn, a footprint that fills with rain.': 'rasti injá chiz-e kuchaki ast. yek sadaf, yek khár, yek já-ye pa ke bá bárán por mishavad.',
-      'Take the drum. Hit it once and the whole yard answers.': 'tabl rá begir. yek bar bezan, tamám-e hayát javáb midahad.',
-      'Because you are the one who came back. A story needs someone to return to it.': 'chon to hamin kas-i hasti ke bargasht. ghesse kasi rá mikháhad ke be u bargardad.',
-      'Rosemary keeps its smell through winter. Nobody asked it to.': 'rezmari bu-ye khodash rá tá zemestán negah midárad. hich kas az u nakhast.',
-      'Then hear this: I never tell a story the same way twice, and I never lie the same way twice either.': 'pas in rá beshno: man hich ghesse-i rá do bar yek tor nemiguyam, va hich dorough-i rá ham do bar yek tor nemiguyam.',
-      'It does. Ask the drum, and it answers with your own heart.': 'bale. az tabl bepors, bá del-e khodat javáb midahad.',
-      'Then the yard keeps its sleep, and I keep my best story for the morning.': 'pas hayát khabesh rá negah midárad, va man behtarin ghesse-am rá baray-e sobh negah midaram.',
+      'Truth is a small thing here. A shell, a thorn, a footprint that fills with rain.': 'rasti injá chiz-e kuchiki-e. ye sadaf, ye khár, ye já-ye pa ke bá barun por mishe.',
+      'Take the drum. Hit it once and the whole yard answers.': 'tabl ro begir. ye bar bezan, tamám-e hayát javáb mide.',
+      'Because you are the one who came back. A story needs someone to return to it.': 'chon to hamin kasi hasti ke bargashti. ghesse kasi ro mikhád ke behesh bargarde.',
+      'Rosemary keeps its smell through winter. Nobody asked it to.': 'rezmari bush ro tá zemestun negah midáre. hich kas azash nakhast.',
+      'Then hear this: I never tell a story the same way twice, and I never lie the same way twice either.': 'pas in ro beshno: man hich ghesse-i ro do bar ye tor nemigam, hich dorough-i ro ham do bar ye tor nemigam.',
+      'It does. Ask the drum, and it answers with your own heart.': 'bale. az tabl bepors, bá del-e khodat javáb mide.',
+      'Then the yard keeps its sleep, and I keep my best story for the morning.': 'pas hayát khabesh ro negah midáre, va man behtarin ghesse-am ro baray-e sobh negah midaram.',
       'So the island keeps a chair for you. Not out of politeness - out of patience.': 'pas jazire yek sandali baray-e to negah midárad. na az adab - az sabr.',
-      'The garden and the story are one trade. One feeds the mouth, the other the winter.': 'bágh va ghesse yek pishe-and. yeki dahan rá ser mikonad, án yeki zemestán rá.',
-      'That is all. All anything asks of you is to keep something living through a hard month.': 'hamin ast. har chiz-i az to faghat in rá mikháhad ke chiz-i zende rá az yek mah-e sakht bogozarani.',
+      'The garden and the story are one trade. One feeds the mouth, the other the winter.': 'bágh va ghesse ye pishe-án. yeki dahan ro ser mikone, un yeki zemestun ro.',
+      'That is all. All anything asks of you is to keep something living through a hard month.': 'hamine. har chiz-i azat faghat in ro mikhád ke ye chiz-e zende ro az ye mah-e sakht bogozaruni.',
       'Plant it by the wall, and tell me when it flowers.': 'kenár-e divár bekár-ásh, va vaght-i gol dád be man begu.',
-      'Go and tell it, then. A craft lives by the telling.': 'pas beru va begu-ásh. pishe bá goftan zende ast.',
-      'And the second time you will hear what I did not say.': 'va bár-e dovvom chiz-i rá mishenavi ke man nagofte-am.',
-      'Then let it speak.': 'pas bezár harf bezanad.',
-      'Tell me something true.': 'chiz-i rast be man begu.',
+      'Go and tell it, then. A craft lives by the telling.': 'pas beru va begu. pishe bá goftan zende-s.',
+      'And the second time you will hear what I did not say.': 'va bár-e dovvom chiz-i ro mishenavi ke man nagofte-am.',
+      'Then let it speak.': 'pas bezár harf bezane.',
+      'Tell me something true.': 'ye chiz-e rást behem begu.',
       'Show me.': 'neshán-am bede.',
-      'Why does it wait for me?': 'cherá montazer-e man ast?',
-      'Then give me a small truth.': 'pas yek rasti-ye kuchak be man bede.',
-      'I would rather hear a lie well told.': 'man tarjih midaham yek dorough-e khub-sakht rá beshenavam.',
-      'It answers me?': 'be man javáb midahad?',
-      'I will not wake the yard.': 'man hayát rá bidár nemikonam.',
+      'Why does it wait for me?': 'cherá montazer-e máne?',
+      'Then give me a small truth.': 'pas ye rasti-ye kuchik behem bede.',
+      'I would rather hear a lie well told.': 'man tarjih midam ye dorough-e khub-sakht ro beshenavam.',
+      'It answers me?': 'be man javáb mide?',
+      'I will not wake the yard.': 'man hayát ro bidár nemikonam.',
       'I did come back.': 'man bargashtam.',
       'I came for the garden, not the stories.': 'man baray-e bágh amadam, na baray-e ghesse-há.',
       'That is all?': 'hamin?',
       'I will plant it.': 'man bekár-ásh mikonam.',
-      'That is a fine craft.': 'in pishe-ye khubi ast.',
+      'That is a fine craft.': 'in pishe-ye khubi-e.',
       'Then I will listen twice.': 'pas do bar gush mikonam.',
       'Then I will come at dusk.': 'pas vaght-e ghurub mi-ayam.',
       'What does it say at noon?': 'vaght-e zohr che miguyad?',
-      'Bring patience and no bucket. It gives to the patient.': 'sabr biár va satl nayár. be sáber midahad.',
-      'At noon it says nothing, and that is what it says.': 'zohr hich nemiguyad, va hamin rá miguyad.',
+      'Bring patience and no bucket. It gives to the patient.': 'sabr biár, satl nayár. be sáber mide.',
+      'At noon it says nothing, and that is what it says.': 'zohr hich nemige, va hamin ro mige.',
       'Then I will decide slowly.': 'pas áheste tasmim migiram.',
       'What are you weaving?': 'che mi-bafi?',
-      'Slow hands make straight cloth. The loom does not forgive hurry.': 'dast-há-ye áheste parche-ye rast mikonand. kargah-e bafandegi shetab rá nemibakhshad.',
+      'Slow hands make straight cloth. The loom does not forgive hurry.': 'dast-há-ye áheste parche-ye rást misazan. kargah-e bafandegi shetab ro nemibakhshe.',
       'A field. Not a picture of one - a field that stays.': 'yek keshtzar. na aks-i az án - yek keshtzar ke mimánad.',
       'Then let them lead.': 'pas bezár ráhbari konand.',
-      'Do they ever lose you?': 'hich vaght to rá gom mikonand?',
+      'Do they ever lose you?': 'hich vaght to ro gom mikonan?',
       'They do. At dusk I follow the bell, not the map.': 'bale. vaght-e ghurub donbál-e zang mi-ravam, na naghshe.',
-      'Every spring one ewe takes the high path. I find her where the grass is sweetest.': 'har bahár yek mad-e gusfand ráh-e boland rá mi-girad. u rá ánjá ke sabze shirin-tar ast peydá mikonam.',
-      'Which path is cool today?': 'emruz kodám ráh khonak ast?',
-      'Do the old paths still work?': 'ráh-há-ye kohan hanuz kár mikonand?',
-      'The one that keeps the low dune on your left. It ends at a well nobody dug.': 'án ke tappe-ye kuchak rá dákhel-e dast-e chap negah midárad. be cháh-i miresad ke hich kas nakande ast.',
-      'They do. A path is not lost when nobody walks it, only unused.': 'bale. ráh vaght-i ke hich kas rá nemiravad gom nemishavad, faghat bi-kár manad.',
-      'Tell me one of them.': 'yeki az án-há rá be man begu.',
+      'Every spring one ewe takes the high path. I find her where the grass is sweetest.': 'har bahár ye mish ráh-e boland ro migire. un ro unjá ke sabze shirin-tare peydá mikonam.',
+      'Which path is cool today?': 'emruz kodum ráh khonake?',
+      'Do the old paths still work?': 'ráh-há-ye kohan hanuz kár mikonan?',
+      'The one that keeps the low dune on your left. It ends at a well nobody dug.': 'un ke tappe-ye kuchik ro dast-e chapat negah midáre. be chahi mirese ke hich kas nakandesh.',
+      'They do. A path is not lost when nobody walks it, only unused.': 'áre. ráh vaght-i ke hich kas nemire rushesh gom nemishe, faghat bi-estefade mimune.',
+      'Tell me one of them.': 'yeki az un-há ro be man begu.',
       'What do you carry?': 'che haml mikon-i?',
-      'On the ninth night a man traded his camel for a song. He had the better bargain.': 'shab-e nohom yek mard shotor-ásh rá bá yek avaz moaveze kard. u moamele-ye behtar-i dásht.',
-      'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va náme-há-i ke hich kas poolesh rá be man nadád.',
+      'On the ninth night a man traded his camel for a song. He had the better bargain.': 'shab-e nohom ye mard shotor-ásh ro bá ye avaz avaz kard. un moamele-ye behtari kard.',
+      'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va nâme-há-i ke hich kas poolesh ro be man nadád.',
       'I will leave you to it.': 'to rá be hál-e khodat migozaram.',
     },
   };
@@ -17927,41 +17938,41 @@ props: islandProps.map(function (p) {
       '鼓'
     ],
     fi: [
-      'setun',       'átash',       'pol',       'gardane',       'kárván',       'sekke', 
-            'zanbur', 'kandu', 'sháne', 'malake',
-      'asal', 'kane', 'mum', 'garde',
-      'shahd', 'parváz', 'zanbur-e kárgar', 'zanbur-e parastár',
-      'zanbur-e negahbán', 'lárv', 'shafire', 'derakht',
-      'goldán', 'bahár', 'tábestán', 'páyiz',
-      'zemestán', 'dozd', 'kane', 'áb',
-      'ordak', 'gol', 'sabze, alaf', 'shokufe',
-      'bágh, baghestan', 'giáh', 'bazr', 'nar',
-      'zhele-ye saltanati', 'bare-mum', 'kháne-ye sháne', 'koloni',
-      'nán-e zanbur', 'daste', 'bál', 'cheshm',
-      'rishe', 'barg', 'shákhe', 'mive',
-      'ghonche', 'khár', 'khák', 'áftáb',
-      'sáye', 'bárán', 'ruz', 'shab',
-      'kháne', 'mámán', 'bábá', 'kháhar',
-      'dust', 'kháneváde', 'mádarbozorg', 'pedarbozorg',
-      'barádar', 'khále', 'amme', 'dái',
-      'amu', 'bád', 'ráh', 'jazire',
-      'ásemán', 'áftábi', 'ábri', 'tufán',
-      'garmá', 'barf', 'setáre', 'Dob-e Akbar',
-      'Shekárchi', 'Zat al-Korsi', 'Ghu', 'Chang',
-      'Kazhdom', 'Shir', 'Gáv', 'Dopeykar',
-      'Ogháb', 'Sag-e Bozorg', 'Gávrán', 'Dob-e Asghar',
-      'Asb-e Bál-dar', 'Zan-e Barzanjir', 'Barsávosh', 'Arábe-ran',
-      'Barre', 'Sag-e Kuchak', 'Kharchang', 'Dushize',
-      'Tarázu', 'Kamán', 'Bozghále', 'daryá',
-      'sáf', 'nime ábri', 'kámelan ábri', 'meh alud',
-      'ghobar alud', 'báráni', 'nám nám', 'ragbár',
-      'bárán-e shadid', 'barfi', 'kulák', 'tagarg',
-      'makhlut', 'bádi', 'nasim', 'tondbád',
-      'tufáni', 'rad va bargh', 'gerdbád', 'dágh',
-      'garm', 'khonak', 'sard', 'yakhbandán',
-      'martub', 'khoshk', 'pish-bini-ye hava', 'daraje-ye hararat',
-      'moj-e garmá', 'jebhe-ye sarma', 'sang', 'kanal, qanát',
-      'tabl',
+      'setun', 'átash', 'pol', 'gardane',
+      'kárván', 'sekke', 'zanbur', 'kandu',
+      'sháne', 'malake', 'asal', 'kane',
+      'mum', 'garde', 'shahd', 'parváz',
+      'zanbur-e kárgar', 'zanbur-e parastár', 'zanbur-e negahbán', 'lárv',
+      'shafire', 'derakht', 'goldán', 'bahár',
+      'tábestán', 'páyiz', 'zemestán', 'dozd',
+      'kane', 'áb', 'ordak', 'gol',
+      'sabze, alaf', 'shokufe', 'bágh, baghestan', 'giáh',
+      'bazr', 'nar', 'zhele-ye saltanati', 'bare-mum',
+      'kháne-ye sháne', 'koloni', 'nán-e zanbur', 'daste',
+      'bál', 'cheshm', 'rishe', 'barg',
+      'shákhe', 'mive', 'ghonche', 'khár',
+      'khák', 'áftáb', 'sáye', 'bárán',
+      'ruz', 'shab', 'kháne', 'mámán',
+      'bábá', 'kháhar', 'dust', 'kháneváde',
+      'mádarbozorg', 'pedarbozorg', 'barádar', 'khále',
+      'amme', 'dái', 'amu', 'bád',
+      'ráh', 'jazire', 'ásemán', 'áftábi',
+      'ábri', 'tufán', 'garmá', 'barf',
+      'setáre', 'Dob-e Akbar', 'Shekárchi', 'Zat al-Korsi',
+      'Ghu', 'Chang', 'Kazhdom', 'Shir',
+      'Gáv', 'Dopeykar', 'Ogháb', 'Sag-e Bozorg',
+      'Gávrán', 'Dob-e Asghar', 'Asb-e Bál-dar', 'Zan-e Barzanjir',
+      'Barsávosh', 'Arábe-ran', 'Barre', 'Sag-e Kuchak',
+      'Kharchang', 'Dushize', 'Tarázu', 'Kamán',
+      'Bozghále', 'daryá', 'sáf', 'nime ábri',
+      'kámelan ábri', 'meh alud', 'ghobar alud', 'báráni',
+      'nám nám', 'ragbár', 'bárán-e shadid', 'barfi',
+      'kulák', 'tagarg', 'makhlut', 'bádi',
+      'nasim', 'tondbád', 'tufáni', 'rad va bargh',
+      'gerdbád', 'dágh', 'garm', 'khonak',
+      'sard', 'yakhbandán', 'martub', 'khoshk',
+      'pish-bini-ye hava', 'daraje-ye hararat', 'moj-e garmá', 'jebhe-ye sarma',
+      'sang', 'kanal, qanát', 'tabl',
     ],
   };
 
@@ -35547,13 +35558,8 @@ var ANIMAL_SIZES = {
     }
     if (stage === 'water') {
       var near = sproutAt(pt.x, pt.y, 92);
-      if (near && dist(hero.x, hero.y, near.x, near.y) < 175) {
-        pour = near;
-        pourHeld = true;
-        ripple = { x: near.x, y: near.y + 6, age: 0 };
-        e.preventDefault();
-        return;
-      }
+      if (near) { pourOnSprout(near); e.preventDefault(); return; }
+      if (dist(pt.x, pt.y, waterBucket.x, waterBucket.y) < 110) { refillCan(); e.preventDefault(); return; }
     }
     setWalkTarget(pt);
     e.preventDefault();
@@ -35565,13 +35571,12 @@ var ANIMAL_SIZES = {
       return;
     }
     if (pointerId === null || e.pointerId !== pointerId) return;
-    if (stage === 'fireflies' || pourHeld) return;
+    if (stage === 'fireflies') return;
     setWalkTarget(pointerWorld(e));
     e.preventDefault();
   });
   function releasePointer(e) {
     if (pointerId !== null && e.pointerId === pointerId) pointerId = null;
-    pourHeld = false;
   }
   canvas.addEventListener('pointerup', function (e) {
     if (scene !== 'island') {
