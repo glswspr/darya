@@ -3713,10 +3713,14 @@ function sightSp(sg) {
     if (pickups.length >= R.maxPickups) return;
     var p, tries = 0;
     do {
-      p = { x: rand(78, world.w - 78), y: rand(215, world.h - 90) };
+      // Honey jars ready by the hive for the keeper to store.
+      var a = rand(-0.9, 0.9);
+      var rr = hive.r * rand(1.05, 1.9);
+      p = { x: clamp(hive.x + Math.cos(a) * rr, 78, world.w - 78),
+            y: clamp(hive.y + hive.r * 0.25 + Math.sin(a) * rr * 0.7, 200, world.h - 110) };
       tries++;
-    } while (tries < 60 && (dist(p.x, p.y, hero.x, hero.y) < R.pickupSize * 3 + R.heroSize ||
-      dist(p.x, p.y, hive.x, hive.y) < hive.r * 0.9));
+    } while (tries < 60 && (dist(p.x, p.y, hero.x, hero.y) < R.pickupSize * 2.2 + R.heroSize ||
+      dist(p.x, p.y, hive.x, hive.y) < hive.r * 0.75));
     p.age = rand(0, 4);
     p.kind = Math.floor(Math.random() * 3);
     p.wob = rand(0, TAU);
@@ -3751,7 +3755,7 @@ function sightSp(sg) {
     if (carry >= R.carryMax) {
       if (clock - lastFullNote > 1.6) {
         lastFullNote = clock;
-        addFloater(hero.x, hero.y - 46, T('basket full'), C.inkSoft);
+        addFloater(hero.x, hero.y - 46, T('hands full'), C.inkSoft);
       }
       return;
     }
@@ -4228,7 +4232,7 @@ function sightSp(sg) {
       if (dist(p.x, p.y, hero.x, hero.y) < collectR) collectPickup(i);
     }
 
-    /* --- The hive: carrying nectar home is the whole game ---------- */
+    /* --- The pantry: storing honey jars is the keeper's work --------- */
     if (stage === 'gather' && carry > 0 && dist(hive.x, hive.y, hero.x, hero.y) < hive.r) deliver();
 
     /* --- Midday: measure scoops of water for each sprout ----------- */
@@ -5588,56 +5592,55 @@ function sightSp(sg) {
     ctx.restore();
   }
 
-  /* One nectar drop, with its stem, glow and bloom. Design units: the drop is
-   * about 40 tall. The world and the studio's close-up share it. */
+  /* One honey jar for the keeper to store. Design units: about 40 tall. */
   function paintNectar(g, age, kind, withGlow) {
     if (withGlow !== false) {
       var glow = g.createRadialGradient(0, 0, 2, 0, 0, 44);
-      glow.addColorStop(0, 'rgba(244,206,115,0.55)');
-      glow.addColorStop(0.5, 'rgba(244,206,115,0.18)');
+      glow.addColorStop(0, 'rgba(244,206,115,0.45)');
+      glow.addColorStop(0.55, 'rgba(244,206,115,0.14)');
       glow.addColorStop(1, 'rgba(244,206,115,0)');
       g.fillStyle = glow;
       g.fillRect(-50, -50, 100, 100);
     }
 
-    // Little stem and leaf, so it reads as the flower's nectar.
-    g.strokeStyle = '#5A8A3C';
-    g.lineWidth = 2.4;
-    g.lineCap = 'round';
+    // A honey jar for the keeper to store.
+    var honeyTop = kind === 1 ? '#F6D88A' : (kind === 2 ? '#F0BE58' : '#F2C96A');
+    var honeyBot = kind === 1 ? '#E3A23A' : (kind === 2 ? '#D98B1E' : '#D98B22');
+    g.fillStyle = 'rgba(244,236,220,0.92)';
     g.beginPath();
-    g.moveTo(0, 10);
-    g.quadraticCurveTo(-3, 20, 0, 27);
-    g.stroke();
-    g.fillStyle = '#6E9A4C';
-    g.beginPath();
-    g.ellipse(7, 21, 6, 3, 0.6, 0, TAU);
-    g.fill();
-
-    if (kind === 1) {
-      // A paler drop, as if from a white bloom.
-      g.fillStyle = 'rgba(255,255,255,0.0)';
-    }
-
-    // Nectar drop, in three shades so the meadow is not one colour.
-    var top = kind === 1 ? '#FFEBB4' : (kind === 2 ? '#F7D07A' : '#FBE2A0');
-    var bottom = kind === 1 ? '#E7B45A' : (kind === 2 ? '#DA8F2C' : '#E8A33D');
-    var drop = g.createLinearGradient(0, -16, 0, 12);
-    drop.addColorStop(0, top);
-    drop.addColorStop(1, bottom);
-    g.fillStyle = drop;
-    g.beginPath();
-    g.moveTo(0, -15);
-    g.bezierCurveTo(8, -6, 10, 1, 9, 6);
-    g.bezierCurveTo(8, 12, -8, 12, -9, 6);
-    g.bezierCurveTo(-10, 1, -8, -6, 0, -15);
+    g.moveTo(-11, -6);
+    g.lineTo(-9, 12);
+    g.quadraticCurveTo(0, 15, 9, 12);
+    g.lineTo(11, -6);
+    g.quadraticCurveTo(0, -10, -11, -6);
     g.closePath();
     g.fill();
-    g.strokeStyle = 'rgba(122,80,20,0.25)';
+    var honey = g.createLinearGradient(0, -2, 0, 13);
+    honey.addColorStop(0, honeyTop);
+    honey.addColorStop(1, honeyBot);
+    g.fillStyle = honey;
+    g.beginPath();
+    g.moveTo(-8.5, 0);
+    g.lineTo(-7, 11);
+    g.quadraticCurveTo(0, 13.5, 7, 11);
+    g.lineTo(8.5, 0);
+    g.quadraticCurveTo(0, -2.5, -8.5, 0);
+    g.closePath();
+    g.fill();
+    g.fillStyle = '#C08A45';
+    g.beginPath();
+    g.moveTo(-12, -8);
+    g.lineTo(12, -8);
+    g.lineTo(10, -2);
+    g.quadraticCurveTo(0, -5, -10, -2);
+    g.closePath();
+    g.fill();
+    g.strokeStyle = 'rgba(122,80,20,0.28)';
     g.lineWidth = 1.2;
     g.stroke();
-    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.fillStyle = 'rgba(255,255,255,0.75)';
     g.beginPath();
-    g.ellipse(-3, 2, 2.4, 3.4, -0.2, 0, TAU);
+    g.ellipse(-4, 4, 1.8, 3.2, -0.2, 0, TAU);
     g.fill();
   }
 
@@ -6276,10 +6279,10 @@ function sightSp(sg) {
       var hint, tone = 'rgba(42,35,32,0.42)';
       if (stage === 'gather') {
         if (carry > 0) {
-          hint = 'basket ' + carry + ' / ' + R.carryMax + '  \u00b7  take it to the hive';
+          hint = T('jars {0} / {1}  ·  carry them to the pantry', carry, R.carryMax);
           tone = C.turquoiseDeep;
         } else {
-          hint = 'gather nectar from the meadow';
+          hint = T('collect a honey jar by the hive');
         }
       } else if (stage === 'water') {
         hint = waterCan > 0 ? T('tap a sprout to pour a scoop ({0}/2)', waterCan) : T('fill the can at the bucket');
@@ -6504,8 +6507,8 @@ function sightSp(sg) {
 
   /* ---- The notebook: the day and the thirteen places, as one story -------- */
   var STORY = [
-    { c: 'I \u00b7 the first morning', id: 'nectar', label: 'the meadow', w: 'asal',
-      line: 'I walked out at first light, and the meadow gave up its nectar.' },
+    { c: 'I \u00b7 the first morning', id: 'nectar', label: 'the pantry', w: 'asal',
+      line: 'I capped the honey and set each jar on the shelf.' },
     { id: 'water', label: 'the thirsty sprouts', w: 'áb',
       line: 'The can stayed steady, and every sprout drank its fill.' },
     { id: 'fireflies', label: 'the fireflies', w: 'shab',
@@ -7805,7 +7808,7 @@ function sightSp(sg) {
     }
     if (phase === 'won') {
       drawPaperCard(cssW, cssH, T('The day is done'), T('A good day on the island.'), [
-        T('{0} nectar carried home', nectar),
+        T('{0} honey jars stored', nectar),
         T('{0} of {1} sprouts watered', watered, R.waterGoal),
         T('{0} fireflies caught', caught),
         wordsLine()
@@ -7815,7 +7818,7 @@ function sightSp(sg) {
     if (phase === 'lost') {
       var why = T(bees <= 0 ? 'The last bee flew home.' : 'Dusk came before the day was done.');
       drawPaperCard(cssW, cssH, T('The day ends'), why, [
-        T('{0} of {1} nectar', nectar, R.goal),
+        T('{0} of {1} honey jars stored', nectar, R.goal),
         T('{0} of {1} sprouts watered', watered, R.waterGoal),
         T('{0} of {1} fireflies caught', caught, R.catchGoal),
         wordsLine()
@@ -7969,7 +7972,7 @@ function sightSp(sg) {
     if (best > 0) {
       ctx.fillStyle = C.inkFaint;
       ctx.font = '400 11px ' + FONT_UI;
-      ctx.fillText(T('best: {0} nectar', best), cssW / 2, by + bh + 26);
+      ctx.fillText(T('best: {0} jars', best), cssW / 2, by + bh + 26);
     }
     ctx.textAlign = 'left';
 
@@ -11586,7 +11589,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'KEEPERSKANS Ö',
       'I keep the island, and write down what it teaches me.': 'Jag sköter ön och skriver ner vad den lär mig.',
       'Start': 'Börja',
-      'best: {0} nectar': 'bäst: {0} nektar',
+      'best: {0} jars': 'bäst: {0} burkar',
       'the notebook': 'anteckningsboken',
       'the pages': 'sidorna',
       'the words': 'orden',
@@ -11628,8 +11631,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'Ön ligger under det här ljuset, och dess skuggor känner timmen.',
       'the stars are out': 'stjärnorna är ute',
       'look for the stars tonight': 'leta efter stjärnorna i natt',
-      'Gather nectar': 'Samla nektar',
-      'carry it home to the hive': 'bär den hem till kupan',
+      'Store the honey': 'Ställ in honungen',
+      'carry each jar to the pantry shelf': 'bär varje burk till skafferihyllan',
       'The sprouts are thirsty': 'Skotten är törstiga',
       'hold on a sprout to pour': 'håll på ett skott för att vattna',
       'The fireflies are out': 'Eldflugorna är ute',
@@ -11705,7 +11708,7 @@ props: islandProps.map(function (p) {
       'the open water': 'det öppna vattnet',
       'the river mouth bay': 'flodmynningsviken',
       'inside the house': 'inne i huset',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Jag gick ut i första ljuset, och ängen gav ifrån sig sin nektar.',
+      'I capped the honey and set each jar on the shelf.': 'Jag förseglade honungen och ställde varje burk på hyllan.',
       'The can stayed steady, and every sprout drank its fill.': 'Kannan stod stadigt, och varje skott drack sitt fyll.',
       'At dusk I kept a few lights, for the dark path home.': 'I skymningen behöll jag några ljus, för den mörka vägen hem.',
       'Eight cells capped, before the honey thinned.': 'Åtta celler täckta, innan honungen blev tunn.',
@@ -11805,7 +11808,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'ETT NYTT ORD',
       'THE WORDS': 'ORDEN',
       'the wild is on the chart': 'vildmarken finns på kartan',
-      'basket full': 'korgen full',
+      'hands full': 'händerna är fulla',
       'a bee flew home': 'ett bi flög hem',
       'a bee is back': 'ett bi är tillbaka',
       'bloomed': 'blommade',
@@ -11968,10 +11971,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'Två par, valda efter sina siffror.',
       'reel': 'veva in',
       '{0} fireflies caught': '{0} eldflugor fångade',
-      '{0} nectar carried home': '{0} nektar buret hem',
+      '{0} honey jars stored': '{0} honungsburkar inlagda',
       '{0} of {1} fireflies caught': '{0} av {1} eldflugor fångade',
       '{0} of {1} lamps were lit as she passed.': '{0} av {1} lampor tändes när hon gick förbi.',
-      '{0} of {1} nectar': '{0} av {1} nektar',
+      '{0} of {1} honey jars stored': '{0} av {1} honungsburkar',
       '{0} of {1} sprouts watered': '{0} av {1} plantor vattnade',
       'draw water': 'hämta vatten',
       'greet Donya': 'hälsa på Donya',
@@ -12299,7 +12302,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'جزیره‌ی نگهبان',
       'I keep the island, and write down what it teaches me.': 'من از جزیره نگهداری می‌کنم و هر چه یادم می‌دهد را می‌نویسم.',
       'Start': 'شروع',
-      'best: {0} nectar': 'بهترین: {0} شهد',
+      'best: {0} jars': 'بهترین: {0} شیشه',
       'the notebook': 'دفتر یادداشت',
       'the pages': 'صفحه‌ها',
       'the words': 'واژه‌ها',
@@ -12341,8 +12344,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'جزیره زیر این نور است و سایه‌هایش ساعت را می‌شناسند.',
       'the stars are out': 'ستاره‌ها بیرونند',
       'look for the stars tonight': 'امشب ستاره‌ها را بجو',
-      'Gather nectar': 'شهد جمع کن',
-      'carry it home to the hive': 'آن را به کندو ببر',
+      'Store the honey': 'شهد جمع کن',
+      'carry each jar to the pantry shelf': 'هر شیشه را به قفسهٔ انباری ببر',
       'The sprouts are thirsty': 'جوانه‌ها تشنه‌اند',
       'hold on a sprout to pour': 'روی جوانه نگه دار تا آب بریزی',
       'The fireflies are out': 'کرم‌های شب‌تاب بیرونند',
@@ -12418,7 +12421,7 @@ props: islandProps.map(function (p) {
       'the open water': 'آب باز',
       'the river mouth bay': 'خلیج دهانه‌ی رود',
       'inside the house': 'داخل خانه',
-      'I walked out at first light, and the meadow gave up its nectar.': 'با نخستین روشنی بیرون رفتم و چمن‌زار شهدش را داد.',
+      'I capped the honey and set each jar on the shelf.': 'با نخستین روشنی بیرون رفتم و چمن‌زار شهدش را داد.',
       'The can stayed steady, and every sprout drank its fill.': 'آبپاش استوار ماند و هر جوانه سیر نوشید.',
       'At dusk I kept a few lights, for the dark path home.': 'در غروب چند چراغ نگه داشتم، برای راه تاریک خانه.',
       'Eight cells capped, before the honey thinned.': 'هشت خانه بسته شد، پیش از آنکه عسل رقیق شود.',
@@ -12518,7 +12521,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'واژه‌ی تازه',
       'THE WORDS': 'واژه‌ها',
       'the wild is on the chart': 'بیابان روی نقشه است',
-      'basket full': 'سبد پر',
+      'hands full': 'دست‌ها پر است',
       'a bee flew home': 'زنبوری به خانه رفت',
       'a bee is back': 'زنبوری برگشت',
       'bloomed': 'شکفت',
@@ -12681,10 +12684,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'دو جفت، بر پایهٔ عددهایشان.',
       'reel': 'بکش',
       '{0} fireflies caught': '{0} کرم شب‌تاب گرفته شد',
-      '{0} nectar carried home': '{0} شهد به خانه برده شد',
+      '{0} honey jars stored': '{0} شیشهٔ عسل ذخیره شد',
       '{0} of {1} fireflies caught': '{0} از {1} کرم شب‌تاب',
       '{0} of {1} lamps were lit as she passed.': '{0} از {1} فانوس در گذر او روشن شد.',
-      '{0} of {1} nectar': '{0} از {1} شهد',
+      '{0} of {1} honey jars stored': '{0} از {1} شیشهٔ عسل',
       '{0} of {1} sprouts watered': '{0} از {1} جوانه آبیاری شد',
       'draw water': 'آب بکش',
       'greet Donya': 'به دنیا سلام کن',
@@ -13012,7 +13015,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'DIE INSEL DER HÜTERIN',
       'I keep the island, and write down what it teaches me.': 'Ich hüte die Insel und schreibe auf, was sie mich lehrt.',
       'Start': 'Beginnen',
-      'best: {0} nectar': 'bestes: {0} Nektar',
+      'best: {0} jars': 'bestes: {0} Nektar',
       'the notebook': 'das Notizbuch',
       'the pages': 'die Seiten',
       'the words': 'die Wörter',
@@ -13054,8 +13057,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'Die Insel liegt unter diesem Licht, und ihre Schatten kennen die Stunde.',
       'the stars are out': 'die Sterne sind da',
       'look for the stars tonight': 'such heute Nacht die Sterne',
-      'Gather nectar': 'Nektar sammeln',
-      'carry it home to the hive': 'trag ihn heim zum Stock',
+      'Store the honey': 'Den Honig einlagern',
+      'carry each jar to the pantry shelf': 'trag jedes Glas zum Vorratsregal',
       'The sprouts are thirsty': 'Die Keimlinge dürsten',
       'hold on a sprout to pour': 'halte auf einem Keimling, um zu gießen',
       'The fireflies are out': 'Die Glühwürmchen sind da',
@@ -13131,7 +13134,7 @@ props: islandProps.map(function (p) {
       'the open water': 'das offene Wasser',
       'the river mouth bay': 'die Mündungsbucht',
       'inside the house': 'im Haus',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Ich ging im ersten Licht hinaus, und die Wiese gab ihren Nektar her.',
+      'I capped the honey and set each jar on the shelf.': 'Ich verschloss den Honig und stellte jedes Glas ins Regal.',
       'The can stayed steady, and every sprout drank its fill.': 'Die Kanne blieb ruhig, und jeder Keimling trank sich satt.',
       'At dusk I kept a few lights, for the dark path home.': 'In der Dämmerung behielt ich ein paar Lichter, für den dunklen Heimweg.',
       'Eight cells capped, before the honey thinned.': 'Acht Zellen verdeckelt, bevor der Honig dünn wurde.',
@@ -13231,7 +13234,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'EIN NEUES WORT',
       'THE WORDS': 'DIE WÖRTER',
       'the wild is on the chart': 'die Wildnis steht auf der Karte',
-      'basket full': 'Korb voll',
+      'hands full': 'Hände voll',
       'a bee flew home': 'eine Biene flog heim',
       'a bee is back': 'eine Biene ist zurück',
       'bloomed': 'erblüht',
@@ -13394,10 +13397,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'Zwei Paare, nach ihren Zahlen gewählt.',
       'reel': 'einholen',
       '{0} fireflies caught': '{0} Glühwürmchen gefangen',
-      '{0} nectar carried home': '{0} Nektar nach Hause getragen',
+      '{0} honey jars stored': '{0} Honiggläser eingelagert',
       '{0} of {1} fireflies caught': '{0} von {1} Glühwürmchen gefangen',
       '{0} of {1} lamps were lit as she passed.': '{0} von {1} Laternen wurden entzündet, als sie vorbeiging.',
-      '{0} of {1} nectar': '{0} von {1} Nektar',
+      '{0} of {1} honey jars stored': '{0} von {1} Honiggläsern',
       '{0} of {1} sprouts watered': '{0} von {1} Sprösslingen gegossen',
       'draw water': 'Wasser holen',
       'greet Donya': 'Donya begrüßen',
@@ -13725,7 +13728,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'L\'ÎLE DE LA GARDIENNE',
       'I keep the island, and write down what it teaches me.': 'Je garde l\'île et j\'écris ce qu\'elle m\'apprend.',
       'Start': 'Commencer',
-      'best: {0} nectar': 'record : {0} nectar',
+      'best: {0} jars': 'record : {0} pots',
       'the notebook': 'le carnet',
       'the pages': 'les pages',
       'the words': 'les mots',
@@ -13767,8 +13770,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'L\'île est sous cette lumière, et ses ombres connaissent l\'heure.',
       'the stars are out': 'les étoiles sont là',
       'look for the stars tonight': 'cherche les étoiles ce soir',
-      'Gather nectar': 'Récolter du nectar',
-      'carry it home to the hive': 'rapporte-le à la ruche',
+      'Store the honey': 'Ranger le miel',
+      'carry each jar to the pantry shelf': 'porte chaque pot à l’étagère du cellier',
       'The sprouts are thirsty': 'Les pousses ont soif',
       'hold on a sprout to pour': 'maintiens sur une pousse pour verser',
       'The fireflies are out': 'Les lucioles sont sorties',
@@ -13844,7 +13847,7 @@ props: islandProps.map(function (p) {
       'the open water': 'l’eau libre',
       'the river mouth bay': 'la baie de l’embouchure',
       'inside the house': 'dans la maison',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Je suis sortie à la première lueur, et la prairie a donné son nectar.',
+      'I capped the honey and set each jar on the shelf.': 'J’ai operculé le miel et posé chaque pot sur l’étagère.',
       'The can stayed steady, and every sprout drank its fill.': 'L\'arrosoir est resté stable, et chaque pousse a bu son soûl.',
       'At dusk I kept a few lights, for the dark path home.': 'Au crépuscule j\'ai gardé quelques lumières, pour le chemin sombre du retour.',
       'Eight cells capped, before the honey thinned.': 'Huit cellules operculées, avant que le miel ne s’affine.',
@@ -13944,7 +13947,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'UN MOT NOUVEAU',
       'THE WORDS': 'LES MOTS',
       'the wild is on the chart': 'la nature sauvage est sur la carte',
-      'basket full': 'panier plein',
+      'hands full': 'mains pleines',
       'a bee flew home': 'une abeille est rentrée',
       'a bee is back': 'une abeille est revenue',
       'bloomed': 'fleuri',
@@ -14106,10 +14109,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'Deux couples, choisis par leurs nombres.',
       'reel': 'ramener',
       '{0} fireflies caught': '{0} lucioles attrapées',
-      '{0} nectar carried home': '{0} nectar rapporté à la maison',
+      '{0} honey jars stored': '{0} pots de miel rangés',
       '{0} of {1} fireflies caught': '{0} lucioles sur {1} attrapées',
       '{0} of {1} lamps were lit as she passed.': '{0} lanternes sur {1} s\'allumèrent à son passage.',
-      '{0} of {1} nectar': '{0} nectar sur {1}',
+      '{0} of {1} honey jars stored': '{0} pots de miel sur {1}',
       '{0} of {1} sprouts watered': '{0} pousses arrosées sur {1}',
       'draw water': 'puiser de l\'eau',
       'greet Donya': 'saluer Donya',
@@ -14437,7 +14440,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'LA ISLA DE LA GUARDIANA',
       'I keep the island, and write down what it teaches me.': 'Cuido la isla y escribo lo que me enseña.',
       'Start': 'Empezar',
-      'best: {0} nectar': 'mejor: {0} néctar',
+      'best: {0} jars': 'mejor: {0} frascos',
       'the notebook': 'el cuaderno',
       'the pages': 'las páginas',
       'the words': 'las palabras',
@@ -14479,8 +14482,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'La isla yace bajo esta luz, y sus sombras conocen la hora.',
       'the stars are out': 'las estrellas están fuera',
       'look for the stars tonight': 'busca las estrellas esta noche',
-      'Gather nectar': 'Recoger néctar',
-      'carry it home to the hive': 'llévalo a casa, a la colmena',
+      'Store the honey': 'Guardar la miel',
+      'carry each jar to the pantry shelf': 'lleva cada frasco al estante de la despensa',
       'The sprouts are thirsty': 'Los brotes tienen sed',
       'hold on a sprout to pour': 'mantén sobre un brote para verter',
       'The fireflies are out': 'Las luciérnagas han salido',
@@ -14556,7 +14559,7 @@ props: islandProps.map(function (p) {
       'the open water': 'el agua abierta',
       'the river mouth bay': 'la bahía de la desembocadura',
       'inside the house': 'dentro de la casa',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Salí con la primera luz, y la pradera entregó su néctar.',
+      'I capped the honey and set each jar on the shelf.': 'Sellé la miel y puse cada frasco en el estante.',
       'The can stayed steady, and every sprout drank its fill.': 'La regadera se quedó quieta, y cada brote bebió hasta saciarse.',
       'At dusk I kept a few lights, for the dark path home.': 'Al anochecer guardé unas luces, para el camino oscuro a casa.',
       'Eight cells capped, before the honey thinned.': 'Ocho celdas operculadas, antes de que la miel se aclarara.',
@@ -14656,7 +14659,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'UNA PALABRA NUEVA',
       'THE WORDS': 'LAS PALABRAS',
       'the wild is on the chart': 'lo salvaje está en el mapa',
-      'basket full': 'cesta llena',
+      'hands full': 'manos llenas',
       'a bee flew home': 'una abeja voló a casa',
       'a bee is back': 'una abeja ha vuelto',
       'bloomed': 'floreció',
@@ -14819,10 +14822,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'Dos parejas, elegidas por sus números.',
       'reel': 'recoger',
       '{0} fireflies caught': '{0} luciérnagas atrapadas',
-      '{0} nectar carried home': '{0} néctar llevado a casa',
+      '{0} honey jars stored': '{0} frascos de miel guardados',
       '{0} of {1} fireflies caught': '{0} de {1} luciérnagas',
       '{0} of {1} lamps were lit as she passed.': '{0} de {1} faroles se encendieron a su paso.',
-      '{0} of {1} nectar': '{0} de {1} néctar',
+      '{0} of {1} honey jars stored': '{0} de {1} frascos de miel',
       '{0} of {1} sprouts watered': '{0} de {1} brotes regados',
       'draw water': 'sacar agua',
       'greet Donya': 'saludar a Donya',
@@ -15150,7 +15153,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'BEKÇİNİN ADASI',
       'I keep the island, and write down what it teaches me.': 'Adayı ben gözetirim ve bana öğrettiklerini yazarım.',
       'Start': 'Başla',
-      'best: {0} nectar': 'en iyi: {0} nektar',
+      'best: {0} jars': 'en iyi: {0} kavanoz',
       'the notebook': 'defter',
       'the pages': 'sayfalar',
       'the words': 'kelimeler',
@@ -15192,8 +15195,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'Ada bu ışığın altında yatar ve gölgeleri saati bilir.',
       'the stars are out': 'yıldızlar çıktı',
       'look for the stars tonight': 'bu gece yıldızları ara',
-      'Gather nectar': 'Nektar topla',
-      'carry it home to the hive': 'eve, kovana götür',
+      'Store the honey': 'Balı depola',
+      'carry each jar to the pantry shelf': 'her kavanozu kiler rafına taşı',
       'The sprouts are thirsty': 'Filizler susadı',
       'hold on a sprout to pour': 'sulamak için filizin üstünde tut',
       'The fireflies are out': 'Ateş böcekleri çıktı',
@@ -15269,7 +15272,7 @@ props: islandProps.map(function (p) {
       'the open water': 'açık su',
       'the river mouth bay': 'nehir ağzı koyu',
       'inside the house': 'evin içinde',
-      'I walked out at first light, and the meadow gave up its nectar.': 'İlk ışıkta dışarı çıktım ve çayır nektarını verdi.',
+      'I capped the honey and set each jar on the shelf.': 'Balı kapattım ve her kavanozu rafa koydum.',
       'The can stayed steady, and every sprout drank its fill.': 'Suluk sabit durdu ve her filiz doyasıya içti.',
       'At dusk I kept a few lights, for the dark path home.': 'Akşam birkaç ışık sakladım, karanlık ev yoluna.',
       'Eight cells capped, before the honey thinned.': 'Bal incelmeden önce sekiz göz kapandı.',
@@ -15369,7 +15372,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'YENİ BİR KELİME',
       'THE WORDS': 'KELİMELER',
       'the wild is on the chart': 'yaban haritada',
-      'basket full': 'sepet dolu',
+      'hands full': 'eller dolu',
       'a bee flew home': 'bir arı eve uçtu',
       'a bee is back': 'bir arı geri döndü',
       'bloomed': 'çiçek açtı',
@@ -15532,10 +15535,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'İki çift, sayılarına göre seçildi.',
       'reel': 'çek',
       '{0} fireflies caught': '{0} ateşböceği yakalandı',
-      '{0} nectar carried home': '{0} nektar eve taşındı',
+      '{0} honey jars stored': '{0} bal kavanozu depolandı',
       '{0} of {1} fireflies caught': '{1} ateşböceğinden {0} tanesi',
       '{0} of {1} lamps were lit as she passed.': 'Geçerken {1} fenerden {0} tanesi yandı.',
-      '{0} of {1} nectar': '{1} nektardan {0} tanesi',
+      '{0} of {1} honey jars stored': '{1} kavanozdan {0} tanesi',
       '{0} of {1} sprouts watered': '{1} filizden {0} tanesi sulandı',
       'draw water': 'su çek',
       'greet Donya': 'Donya\'yı selamla',
@@ -15863,7 +15866,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'جزيرة الحارسة',
       'I keep the island, and write down what it teaches me.': 'أرعى الجزيرة وأكتب ما تعلّمني.',
       'Start': 'ابدأ',
-      'best: {0} nectar': 'الأفضل: {0} رحيق',
+      'best: {0} jars': 'الأفضل: {0} جرار',
       'the notebook': 'الدفتر',
       'the pages': 'الصفحات',
       'the words': 'الكلمات',
@@ -15905,8 +15908,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'الجزيرة تحت هذا الضوء، وظلالها تعرف الساعة.',
       'the stars are out': 'النجوم ظاهرة',
       'look for the stars tonight': 'ابحث عن النجوم الليلة',
-      'Gather nectar': 'اجمع الرحيق',
-      'carry it home to the hive': 'احمله إلى الخلية',
+      'Store the honey': 'خزّن العسل',
+      'carry each jar to the pantry shelf': 'احمل كل جرة إلى رف المخزن',
       'The sprouts are thirsty': 'البراعم عطشى',
       'hold on a sprout to pour': 'اضغط على برعم لتصبّ',
       'The fireflies are out': 'حشرات الضوء خرجت',
@@ -15982,7 +15985,7 @@ props: islandProps.map(function (p) {
       'the open water': 'الماء المفتوح',
       'the river mouth bay': 'خليج المصبّ',
       'inside the house': 'داخل البيت',
-      'I walked out at first light, and the meadow gave up its nectar.': 'خرجت في أول الضوء، فأعطى المرج رحيقه.',
+      'I capped the honey and set each jar on the shelf.': 'خرجت في أول الضوء، فأعطى المرج رحيقه.',
       'The can stayed steady, and every sprout drank its fill.': 'ثبتت المرشّة، وشرب كل برعم حتى ارتوى.',
       'At dusk I kept a few lights, for the dark path home.': 'في الغسق حفظت أضواء قليلة، للطريق المظلم إلى البيت.',
       'Eight cells capped, before the honey thinned.': 'ثماني عيون مُغطّاة، قبل أن يرقّ العسل.',
@@ -16082,7 +16085,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'كلمة جديدة',
       'THE WORDS': 'الكلمات',
       'the wild is on the chart': 'البريّة على الخريطة',
-      'basket full': 'السلة ممتلئة',
+      'hands full': 'اليدان ممتلئتان',
       'a bee flew home': 'نحلة طارت إلى البيت',
       'a bee is back': 'نحلة عادت',
       'bloomed': 'أزهر',
@@ -16245,10 +16248,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'زوجان، اختيرا بأرقامهما.',
       'reel': 'اسحب',
       '{0} fireflies caught': '{0} حباحب أُمسك',
-      '{0} nectar carried home': '{0} رحيق حُمل إلى البيت',
+      '{0} honey jars stored': '{0} رحيق حُمل إلى البيت',
       '{0} of {1} fireflies caught': '{0} من {1} حباحب',
       '{0} of {1} lamps were lit as she passed.': '{0} من {1} فانوسًا أُضيء وهي تمر.',
-      '{0} of {1} nectar': '{0} من {1} رحيق',
+      '{0} of {1} honey jars stored': '{0} من {1} جرار عسل',
       '{0} of {1} sprouts watered': '{0} من {1} شتلة سُقيت',
       'draw water': 'اسحب الماء',
       'greet Donya': 'سلّم على دنيا',
@@ -16576,7 +16579,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': '守岛人的岛',
       'I keep the island, and write down what it teaches me.': '我照看这座岛，写下它教给我的事。',
       'Start': '开始',
-      'best: {0} nectar': '最好：{0} 份花蜜',
+      'best: {0} jars': '最好：{0} 份花蜜',
       'the notebook': '记事本',
       'the pages': '书页',
       'the words': '词语',
@@ -16618,8 +16621,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': '岛就在这片光下，它的影子认得时辰。',
       'the stars are out': '星星出来了',
       'look for the stars tonight': '今晚去找星星',
-      'Gather nectar': '采花蜜',
-      'carry it home to the hive': '把它带回家，带回蜂巢',
+      'Store the honey': '采花蜜',
+      'carry each jar to the pantry shelf': '把它带回家，带回蜂巢',
       'The sprouts are thirsty': '幼苗渴了',
       'hold on a sprout to pour': '按住一株幼苗浇水',
       'The fireflies are out': '萤火虫出来了',
@@ -16695,7 +16698,7 @@ props: islandProps.map(function (p) {
       'the open water': '开阔的水面',
       'the river mouth bay': '河口湾',
       'inside the house': '屋子里',
-      'I walked out at first light, and the meadow gave up its nectar.': '我在第一缕光里走出去，草地交出了它的花蜜。',
+      'I capped the honey and set each jar on the shelf.': '我在第一缕光里走出去，草地交出了它的花蜜。',
       'The can stayed steady, and every sprout drank its fill.': '水壶端得很稳，每一株幼苗都喝足了。',
       'At dusk I kept a few lights, for the dark path home.': '黄昏时我留了几点光，给回家的黑路。',
       'Eight cells capped, before the honey thinned.': '封了八格，蜜还没变稀。',
@@ -16795,7 +16798,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': '一个新词',
       'THE WORDS': '词语',
       'the wild is on the chart': '荒野在地图上',
-      'basket full': '篮子满了',
+      'hands full': '手满了',
       'a bee flew home': '一只蜂飞回家了',
       'a bee is back': '一只蜂回来了',
       'bloomed': '开花了',
@@ -16958,10 +16961,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': '两对，按它们的数字选出。',
       'reel': '收线',
       '{0} fireflies caught': '捉到 {0} 只萤火虫',
-      '{0} nectar carried home': '把 {0} 份花蜜带回了家',
+      '{0} honey jars stored': '把 {0} 份花蜜带回了家',
       '{0} of {1} fireflies caught': '{1} 只萤火虫中捉到 {0} 只',
       '{0} of {1} lamps were lit as she passed.': '她经过时点亮了 {1} 盏灯中的 {0} 盏。',
-      '{0} of {1} nectar': '{1} 份花蜜中的 {0} 份',
+      '{0} of {1} honey jars stored': '{1} 罐中的 {0} 罐',
       '{0} of {1} sprouts watered': '{1} 株幼苗中浇了 {0} 株',
       'draw water': '打水',
       'greet Donya': '和多妮娅打招呼',
@@ -17289,7 +17292,7 @@ props: islandProps.map(function (p) {
       'THE KEEPER\'S ISLAND': 'Jazire-ye negahbán',
       'I keep the island, and write down what it teaches me.': 'man az jazire negahdári mikonam va har che yádam midahad rá minevisam.',
       'Start': 'Shoru',
-      'best: {0} nectar': 'behtarin: {0} shahed',
+      'best: {0} jars': 'behtarin: {0} shishe',
       'the notebook': 'daftar-e yáddásht',
       'the pages': 'safe-há',
       'the words': 'vázhe-há',
@@ -17331,8 +17334,8 @@ props: islandProps.map(function (p) {
       'The island lies under this light, and its shadows know the hour.': 'Jazire zir-e in nur ast va sáye-háyash sá\'at rá mishenásand.',
       'the stars are out': 'setáre-há birunand',
       'look for the stars tonight': 'emshab setáre-há rá bejoo',
-      'Gather nectar': 'Shahed jam kon',
-      'carry it home to the hive': 'án rá be kandu bebar',
+      'Store the honey': 'Asal zakhire kon',
+      'carry each jar to the pantry shelf': 'án rá be kandu bebar',
       'The sprouts are thirsty': 'Javáne-há teshne-and',
       'hold on a sprout to pour': 'ru-ye javáne negah dár tá áb berizi',
       'The fireflies are out': 'Kerm-há-ye shab-táb birunand',
@@ -17408,7 +17411,7 @@ props: islandProps.map(function (p) {
       'the open water': 'áb-e báz',
       'the river mouth bay': 'khalij-e daháne-ye rud',
       'inside the house': 'dákhel-e kháne',
-      'I walked out at first light, and the meadow gave up its nectar.': 'Bá nokhostin roshnai birun raftam va chamanzár shahedash rá dád.',
+      'I capped the honey and set each jar on the shelf.': 'Bá nokhostin roshnai birun raftam va chamanzár shahedash rá dád.',
       'The can stayed steady, and every sprout drank its fill.': 'Ábpásh ostovár mánd va har javáne sir nushid.',
       'At dusk I kept a few lights, for the dark path home.': 'dar ghoroob chand cherágh negah dáshtam, baráye ráh-e tárik-e kháne.',
       'Eight cells capped, before the honey thinned.': 'Hasht kháne baste shod, pish az ánke asal raghigh shavad.',
@@ -17508,7 +17511,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'Vázhe-ye táze',
       'THE WORDS': 'Vázhe-há',
       'the wild is on the chart': 'biábán ru-ye naghshe ast',
-      'basket full': 'sabad por',
+      'hands full': 'dast-ha por ast',
       'a bee flew home': 'zanburi be kháne raft',
       'a bee is back': 'zanburi bargasht',
       'bloomed': 'shekoft',
@@ -17671,10 +17674,10 @@ props: islandProps.map(function (p) {
       'Two pairs, chosen by their numbers.': 'do joft, bar paye-ye adad-háyeshán.',
       'reel': 'bekesh',
       '{0} fireflies caught': '{0} kerm-e shab-táb gerefte shod',
-      '{0} nectar carried home': '{0} shahd be kháne borde shod',
+      '{0} honey jars stored': '{0} shahd be kháne borde shod',
       '{0} of {1} fireflies caught': '{0} az {1} kerm-e shab-táb',
       '{0} of {1} lamps were lit as she passed.': '{0} az {1} fánus dar gozar-e u roshan shod.',
-      '{0} of {1} nectar': '{0} az {1} shahd',
+      '{0} of {1} honey jars stored': '{0} az {1} shishe-ye asal',
       '{0} of {1} sprouts watered': '{0} az {1} jovane áb-yári shod',
       'draw water': 'áb bekesh',
       'greet Donya': 'be Donyá salám kon',
@@ -33502,7 +33505,7 @@ var ANIMAL_SIZES = {
       // grass, so the whole drawing is scaled about the ground point it stands on -
       // walls, roof, door and windows keep their proportions because they scale
       // together.
-      var HOUSE_SCALE = 2.2;
+      var HOUSE_SCALE = 1.5;
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(HOUSE_SCALE, HOUSE_SCALE);
@@ -34591,10 +34594,12 @@ var ANIMAL_SIZES = {
     return false;
   };
   window.__mission = function () {
+    var here = false, list = buildProps();
+    for (var i = 0; i < list.length; i++) if (list[i].act === 'sister') here = true;
     return {
       on: !!mission, id: mission ? mission.id : '',
       sisterInYard: !sisterGone(), sisterAtPond: sisterWaitingHere(),
-      here: section.cx + ',' + section.cy
+      sisterPropHere: here, here: section.cx + ',' + section.cy
     };
   };
   /* Who is standing on this ground, so a talk can be found without a guess. */
@@ -35152,7 +35157,7 @@ var ANIMAL_SIZES = {
 
   /* One minigame, one round: the meadow's three verbs are three places now. */
   addPlace('nectar', { from: 'start',
-    label: 'the meadow',
+    label: 'the pantry',
     enter: function () { startGame('gather'); },
     update: function () {}, draw: function () {}, down: function () {}, auto: function () {}
   });
