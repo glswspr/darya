@@ -3700,6 +3700,10 @@ function sightSp(sg) {
     var ml = Math.sqrt(mx * mx + my * my);
     if (ml > 1) { mx /= ml; my /= ml; }
 
+    // Walking away ends the talk: the slip belongs to standing still and
+    // listening, and she cannot carry it off with her.
+    if (talk.on && ml > 0.05) endTalk();
+
     hero.moving = lerp(hero.moving, ml > 0.05 ? 1 : 0, 1 - Math.exp(-dt * 10));
     if (mx !== 0) hero.dir = mx > 0 ? 1 : -1;
     if (Math.abs(mx) + Math.abs(my) > 0.05) {
@@ -4340,34 +4344,109 @@ function sightSp(sg) {
   var PEOPLE = {
     'being-fisher': {
       where: 'the pond', ask: 'bring the fisher word of the water',
-      said: '"The pond keeps its own counsel. Ask it at dusk."'
+      said: 'The pond keeps its own counsel. Ask it at dusk.'
     },
     'being-weaver': {
       where: 'the garden', ask: 'sit with the weaver while she works',
-      said: '"Every row is a decision. You cannot take one back."'
+      said: 'Every row is a decision. You cannot take one back.'
     },
     'being-shepherd': {
       where: 'the steppe', ask: 'walk the steppe with the shepherd',
-      said: '"Up here the flock knows the ground better than I do."'
+      said: 'Up here the flock knows the ground better than I do.'
     },
     'being-nomad': {
       where: 'the desert', ask: 'ask the nomad where the water is',
-      said: '"The sand remembers every path. I only follow the cool ones."'
+      said: 'The sand remembers every path. I only follow the cool ones.'
     },
     'being-caravaneer': {
       where: 'the desert', ask: 'hear the caravaneer out',
-      said: '"Forty days to the sea, and every one of them a story."'
+      said: 'Forty days to the sea, and every one of them a story.'
     },
     'being-storyteller': {
       where: 'the yard', ask: 'hear the storyteller to the end',
-      said: '"Sit. The island has been waiting to tell you something."'
+      said: 'Sit. The island has been waiting to tell you something.'
     }
   };
 
   function beingLineFor(id) {
     var p = PEOPLE[id];
-    return p ? p.said : '"Well met."';
+    return p ? p.said : 'Well met.';
   }
+
+  /* ---- The talk: what she can ask a person, and what that person answers ----
+
+     A conversation here is not a tree. The keeper asks a person about the three
+     things that person knows; each ask is one authored answer joined to one
+     remark on the world - the season or the hour - so the same question in
+     another season is not the same answer. Every ask leads back to the same
+     three, and a word she has asked about is spent for that person. So the
+     branches do not grow with the depth of the talk: they grow with what has
+     been written, one row per question, and a new question is one row on the
+     person and one row per language.
+
+     Nothing is generated while she plays. The lines were written once, outside
+     the game, and confirmed by a person; the game only chooses among them. A
+     model trained on Finglish was tried and produced grammatical nonsense -
+     words that do not belong together - so the lines stay authored. */
+
+  /* The three words each person knows. Every one is in the word table, so an
+     answer teaches the word it was about: talk is the other way into the book. */
+  var TALK_OF = {
+    'being-fisher': ['áb', 'daryá', 'bád'],
+    'being-weaver': ['giáh', 'barg', 'áftáb'],
+    'being-shepherd': ['sabze', 'ásemán', 'bád'],
+    'being-nomad': ['áb', 'sang', 'shab'],
+    'being-caravaneer': ['ráh', 'sang', 'shab'],
+    'being-storyteller': ['tabl', 'setáre', 'jazire']
+  };
+
+  /* What a person says to one of those words. The English sentence is the key
+     the language tables answer to, so an answer that was never translated shows
+     up in the audit and in __untranslated() instead of going blank. */
+  var TALK_ANSWER = {
+    'being-fisher|áb': 'The water here is cold, but it likes your hands.',
+    'being-fisher|daryá': 'The sea changes its colour every day.',
+    'being-fisher|bád': 'When the wind comes, the fish come to me.',
+    'being-weaver|giáh': 'The plants in this garden grew up with me.',
+    'being-weaver|barg': 'I keep the yellow leaf; I use its colour.',
+    'being-weaver|áftáb': 'The sun of this island likes green.',
+    'being-shepherd|sabze': 'The grass of this plain grows taller after rain.',
+    'being-shepherd|ásemán': 'The sky over this plain is bigger than anything else.',
+    'being-shepherd|bád': 'The wind here carries sounds away.',
+    'being-nomad|áb': 'The water under the sand tells me where I am.',
+    'being-nomad|sang': 'These desert stones were old houses.',
+    'being-nomad|shab': 'I give the nights to the stars.',
+    'being-caravaneer|ráh': 'The desert road shows me something new every day.',
+    'being-caravaneer|sang': 'Every stone of this road is one camp.',
+    'being-caravaneer|shab': 'The nights are the pillars of our road.',
+    'being-storyteller|tabl': 'The drum is the heartbeat of this island.',
+    'being-storyteller|setáre': 'The stars tell stories older than me.',
+    'being-storyteller|jazire': 'This island forgets nothing.'
+  };
+
+  /* The world's own remark, joined under the answer. The island keeps a season
+     and an hour and nothing else, and they are enough: half the answers carry
+     the season, half the hour, so two visits to one person do not read alike. */
+  var TALK_SEASON = {
+    bahár: 'In spring the island smells of wet soil.',
+    tábestán: 'In summer the light stays late.',
+    páyiz: 'In autumn the leaves come down to the ground.',
+    zemestán: 'In winter the island keeps its voice low.'
+  };
+  var TALK_HOUR = { day: 'It is a good day.', night: 'It is a good night.' };
+
+  /* How a person closes, once the three are spent. Whoever it is says one of
+     these, so the end of a talk is a farewell, not an empty menu. */
+  var TALK_CLOSE = [
+    'I have nothing more to say; but this is enough for one day.',
+    'Go on; the garden is waiting for you.'
+  ];
+
+  /* Her side. A chip names the word, so the question needs no grammar in any
+     language; the answer comes back in Finglish, because that is the voice of
+     the island. */
+  var TALK_LEAVE = 'I will let you be.';
+  var TALK_NONE = 'There is nothing more to ask.';
 
   /* Donyá's day. The same island and the same predicates, but every errand is
      shaped like finding, because that is her half of the work. No new mechanic and
@@ -9916,6 +9995,33 @@ function sightSp(sg) {
       }
     }
 
+    // 4d. Every line of the talk, in every language. A line that was never
+    // translated reads as English in the middle of a Persian page; a person
+    // with a word and no answer offers a question nobody can answer; and a word
+    // outside the word table teaches nothing when it is asked about.
+    var talkKeys = [];
+    for (var ak in TALK_ANSWER) if (TALK_ANSWER.hasOwnProperty(ak)) talkKeys.push(TALK_ANSWER[ak]);
+    for (var sk in TALK_SEASON) if (TALK_SEASON.hasOwnProperty(sk)) talkKeys.push(TALK_SEASON[sk]);
+    for (var hk in TALK_HOUR) if (TALK_HOUR.hasOwnProperty(hk)) talkKeys.push(TALK_HOUR[hk]);
+    for (i = 0; i < TALK_CLOSE.length; i++) talkKeys.push(TALK_CLOSE[i]);
+    for (var bk in PEOPLE) if (PEOPLE.hasOwnProperty(bk)) talkKeys.push(PEOPLE[bk].said);
+    talkKeys.push(TALK_LEAVE, TALK_NONE);
+    for (i = 0; i < LANGS.length; i++) {
+      if (LANGS[i].id === "en") continue;
+      var ttab = TRANSLATIONS[LANGS[i].id] || {};
+      var miss = [];
+      for (var ti = 0; ti < talkKeys.length; ti++) if (!ttab[talkKeys[ti]]) miss.push(talkKeys[ti]);
+      if (miss.length) fail("talk " + LANGS[i].id, miss.length + " line(s) not translated");
+    }
+    for (var pk in TALK_OF) {
+      if (!TALK_OF.hasOwnProperty(pk)) continue;
+      for (i = 0; i < TALK_OF[pk].length; i++) {
+        var wf = TALK_OF[pk][i];
+        if (!wordRowBy(wf)) fail("talk " + pk, "asks about " + wf + ", which is not a word");
+        if (!TALK_ANSWER[pk + "|" + wf]) fail("talk " + pk, "has no answer to " + wf);
+      }
+    }
+
     // 5. Every species row is drawable.
     var speciesCount = 0;
     for (var k in SPECIES) {
@@ -10363,7 +10469,7 @@ props: islandProps.map(function (p) {
     { id: 'zh', native: '中文', english: 'Chinese', dir: 'ltr' }
   ];
 
-  var LANG = 'en';
+  var LANG = 'fi';   // first run opens in the game's own voice; the notebook's Language page switches it
   function langDef(id) {
     for (var i = 0; i < LANGS.length; i++) if (LANGS[i].id === id) return LANGS[i];
     return LANGS[0];
@@ -10371,7 +10477,7 @@ props: islandProps.map(function (p) {
   try {
     var savedLang = localStorage.getItem('darya.lang');
     if (savedLang && langDef(savedLang).id === savedLang) LANG = savedLang;
-  } catch (e) { /* private mode: English */ }
+  } catch (e) { /* private mode: Finglish */ }
 
   /* A line in the chosen language. {0} {1} {2} are filled from the arguments, so
      a composed line ("page 2 of 5") stays one sentence in every language and its
@@ -10681,7 +10787,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'Locket sitter på. Baba lade det där veckan vi kom tillbaka.',
       'Donya': 'Donya',
       'I went down first. You came after me. Now I find them and you write them down.': 'Jag gick ner först. Du kom efter. Nu hittar jag dem och du skriver ner dem.',
-      'Mâmânbozorg': 'Mâmânbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'Hon höll den före mig. Hon gick ut till vattnet och vattnet behöll henne.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'Bortom grundet blev vattnet mörkt, och det var samma hav som tog Eranshahr: resten av världen.',
       'go back to the well and close the book': 'gå tillbaka till brunnen och stäng boken',
@@ -10744,8 +10850,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'fiska i dammen',
       'fill the can': 'fyll kannan',
       'Tabl': 'Tabl',
-      'greet Mâmânbozorg': 'hälsa på Mâmânbozorg',
-      'greet Bâbâbozorg': 'hälsa på Bâbâbozorg',
+      'greet Mámánbozorg': 'hälsa på Mámánbozorg',
+      'greet Bábábozorg': 'hälsa på Bábábozorg',
       'greet your brother': 'hälsa på din bror',
       'greet Khále': 'hälsa på Khále',
       'greet Amme': 'hälsa på Amme',
@@ -10756,9 +10862,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'min morfar',
       'my father': 'min pappa',
       'my brother': 'min bror',
-      'my aunt, Mâmân’s sister': 'min moster',
+      'my aunt, Mámán’s sister': 'min moster',
       'my aunt, Baba’s sister': 'min faster',
-      'my uncle, Mâmân’s brother': 'min morbror',
+      'my uncle, Mámán’s brother': 'min morbror',
       'my uncle, Baba’s brother': 'min farbror',
       'The tabl': 'Tablen',
       'take up the tabl': 'ta upp tablen',
@@ -11164,7 +11270,41 @@ props: islandProps.map(function (p) {
       'draw water': 'hämta vatten',
       'greet Donya': 'hälsa på Donya',
       'hear storyteller out': 'hör berättaren till slut',
-      'read the stone': 'läs stenen',
+      'read the stone': 'läs stenen',      'The pond keeps its own counsel. Ask it at dusk.': 'Dammen sköter sig själv. Fråga den i skymningen.',
+      'Every row is a decision. You cannot take one back.': 'Varje rad är ett beslut. Du kan inte ta tillbaka en.',
+      'Up here the flock knows the ground better than I do.': 'Här uppe känner hjorden marken bättre än jag.',
+      'The sand remembers every path. I only follow the cool ones.': 'Sanden minns varje stig. Jag följer bara de svala.',
+      'Forty days to the sea, and every one of them a story.': 'Fyrtio dagar till havet, och varje dag en berättelse.',
+      'Sit. The island has been waiting to tell you something.': 'Sitt. Ön har väntat på att berätta något för dig.',
+      'The water here is cold, but it likes your hands.': 'Vattnet här är kallt, men det tycker om dina händer.',
+      'The sea changes its colour every day.': 'Havet byter färg varje dag.',
+      'When the wind comes, the fish come to me.': 'När vinden kommer, kommer fiskarna till mig.',
+      'The plants in this garden grew up with me.': 'Växterna i den här trädgården växte upp med mig.',
+      'I keep the yellow leaf; I use its colour.': 'Jag behåller det gula bladet; jag använder dess färg.',
+      'The sun of this island likes green.': 'Öns sol tycker om grönt.',
+      'The grass of this plain grows taller after rain.': 'Gräset på den här slätten blir högre efter regn.',
+      'The sky over this plain is bigger than anything else.': 'Himlen över den här slätten är större än allt annat.',
+      'The wind here carries sounds away.': 'Vinden här bär bort ljud.',
+      'The water under the sand tells me where I am.': 'Vattnet under sanden säger mig var jag är.',
+      'These desert stones were old houses.': 'Stenarna i den här öknen var gamla hus.',
+      'I give the nights to the stars.': 'Jag ger nätterna till stjärnorna.',
+      'The desert road shows me something new every day.': 'Öknenvägen visar mig något nytt varje dag.',
+      'Every stone of this road is one camp.': 'Varje sten på den här vägen är ett läger.',
+      'The nights are the pillars of our road.': 'Nätterna är pelarna i vår väg.',
+      'The drum is the heartbeat of this island.': 'Trumman är den här öns hjärtslag.',
+      'The stars tell stories older than me.': 'Stjärnorna berättar historier äldre än jag.',
+      'This island forgets nothing.': 'Den här ön glömmer ingenting.',
+      'In spring the island smells of wet soil.': 'På våren doftar ön av våt jord.',
+      'In summer the light stays late.': 'På sommaren stannar ljuset kvar sent.',
+      'In autumn the leaves come down to the ground.': 'På hösten kommer löven ner till marken.',
+      'In winter the island keeps its voice low.': 'På vintern håller ön rösten låg.',
+      'It is a good day.': 'Det är en fin dag.',
+      'It is a good night.': 'Ha en fin natt.',
+      'I have nothing more to say; but this is enough for one day.': 'Jag har inget mer att säga; men det räcker för en dag.',
+      'Go on; the garden is waiting for you.': 'Gå du; trädgården väntar på dig.',
+      'I will let you be.': 'Jag låter dig vara.',
+      'There is nothing more to ask.': 'Det finns inget mer att fråga om.',
+
     },
     fa: {
       'Daryá va Donyá': 'دریا و دنیا',
@@ -11233,7 +11373,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'سرپوش روی آن است. بابا هفته‌ای که برگشتیم آن را گذاشت.',
       'Donya': 'دنیا',
       'I went down first. You came after me. Now I find them and you write them down.': 'من اول پایین رفتم. تو دنبالم آمدی. حالا من پیدا می‌کنم و تو می‌نویسی.',
-      'Mâmânbozorg': 'مادربزرگ',
+      'Mámánbozorg': 'مادربزرگ',
       'She kept it before me. She went out to the water and the water kept her.': 'او پیش از من اینجا را نگه داشت. به آب رفت و آب او را نگه داشت.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'آن‌سوی کم‌عمقی آب تاریک شد، و همان دریایی بود که ارانشهر را گرفت: باقی جهان.',
       'go back to the well and close the book': 'به چاه برگرد و دفتر را ببند',
@@ -11296,8 +11436,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'در آبگیر ماهی بگیر',
       'fill the can': 'قوطی را پر کن',
       'Tabl': 'طبل',
-      'greet Mâmânbozorg': 'به مادربزرگ سلام کن',
-      'greet Bâbâbozorg': 'به پدربزرگ سلام کن',
+      'greet Mámánbozorg': 'به مادربزرگ سلام کن',
+      'greet Bábábozorg': 'به پدربزرگ سلام کن',
       'greet your brother': 'به برادرت سلام کن',
       'greet Khále': 'به خاله سلام کن',
       'greet Amme': 'به عمه سلام کن',
@@ -11308,9 +11448,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'پدربزرگم',
       'my father': 'پدرم',
       'my brother': 'برادرم',
-      'my aunt, Mâmân’s sister': 'خاله‌ام، خواهر مامان',
+      'my aunt, Mámán’s sister': 'خاله‌ام، خواهر مامان',
       'my aunt, Baba’s sister': 'عمه‌ام، خواهر بابا',
-      'my uncle, Mâmân’s brother': 'دایی‌ام، برادر مامان',
+      'my uncle, Mámán’s brother': 'دایی‌ام، برادر مامان',
       'my uncle, Baba’s brother': 'عمویم، برادر بابا',
       'The tabl': 'طبل',
       'take up the tabl': 'طبل را بردار',
@@ -11716,7 +11856,41 @@ props: islandProps.map(function (p) {
       'draw water': 'آب بکش',
       'greet Donya': 'به دنیا سلام کن',
       'hear storyteller out': 'قصه‌گو را تا آخر بشنو',
-      'read the stone': 'سنگ را بخوان',
+      'read the stone': 'سنگ را بخوان',      'The pond keeps its own counsel. Ask it at dusk.': 'حوض به حال خودش است؛ وقت غروب از او بپرس.',
+      'Every row is a decision. You cannot take one back.': 'هر خط یک تصمیم است؛ هیچ خطی را نمیتوانی برگردانی.',
+      'Up here the flock knows the ground better than I do.': 'این بالا، گله زمین را بهتر از من میشناسد.',
+      'The sand remembers every path. I only follow the cool ones.': 'شن همه راهها را به یاد داشته است؛ من فقط راههای خنک را میروم.',
+      'Forty days to the sea, and every one of them a story.': 'چهل روز تا دریا، و هر روزش یک قصه.',
+      'Sit. The island has been waiting to tell you something.': 'بنشین؛ این جزیره چیزی برای گفتن داشته است.',
+      'The water here is cold, but it likes your hands.': 'آب اینجا سرد است، ولی دستهای تو را دوست دارد.',
+      'The sea changes its colour every day.': 'دریا هر روز رنگ خودش را عوض میکند.',
+      'When the wind comes, the fish come to me.': 'وقتی باد میآید، ماهیها به سمت من میآیند.',
+      'The plants in this garden grew up with me.': 'گیاههای این باغ با من بزرگ شدهاند.',
+      'I keep the yellow leaf; I use its colour.': 'برگ زرد را نگه میدارم؛ رنگش را به کار میبرم.',
+      'The sun of this island likes green.': 'آفتاب این جزیره رنگ سبز را دوست دارد.',
+      'The grass of this plain grows taller after rain.': 'سبزهی این دشت بعد از باران بلندتر میشود.',
+      'The sky over this plain is bigger than anything else.': 'آسمان این دشت از هر چیز دیگری بزرگتر است.',
+      'The wind here carries sounds away.': 'باد اینجا صداها را میبرد.',
+      'The water under the sand tells me where I am.': 'آب زیر شن به من میگوید کجا هستم.',
+      'These desert stones were old houses.': 'سنگهای این بیابان خانههای کهن بودند.',
+      'I give the nights to the stars.': 'من شبها را به ستارهها میسپارم.',
+      'The desert road shows me something new every day.': 'راه این بیابان هر روز چیز تازهای به من نشان میدهد.',
+      'Every stone of this road is one camp.': 'هر سنگ این راه یک منزل است.',
+      'The nights are the pillars of our road.': 'شبها ستونهای راه ما هستند.',
+      'The drum is the heartbeat of this island.': 'طبل صدای دل این جزیره است.',
+      'The stars tell stories older than me.': 'ستارهها قصههای کهنتر از من میگویند.',
+      'This island forgets nothing.': 'این جزیره هیچ چیز را فراموش نمیکند.',
+      'In spring the island smells of wet soil.': 'در بهار، بوی خاک تر از جزیره میآید.',
+      'In summer the light stays late.': 'در تابستان، روز تا دیروقت میماند.',
+      'In autumn the leaves come down to the ground.': 'در پاییز، برگها به زمین میآیند.',
+      'In winter the island keeps its voice low.': 'در زمستان، این جزیره صدایش را آرام نگه میدارد.',
+      'It is a good day.': 'روز خوبی است!',
+      'It is a good night.': 'شب خوبی داشته باشی!',
+      'I have nothing more to say; but this is enough for one day.': 'حرف دیگری ندارم؛ ولی این برای یک روز کافی است.',
+      'Go on; the garden is waiting for you.': 'برو؛ باغ منتظر توست.',
+      'I will let you be.': 'من تو را به حال خودت میگذارم.',
+      'There is nothing more to ask.': 'چیز دیگری برای پرسیدن نیست.',
+
     },
     de: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -11785,7 +11959,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'Der Deckel ist drauf. Baba hat ihn in der Woche gelegt, in der wir zurückkamen.',
       'Donya': 'Donya',
       'I went down first. You came after me. Now I find them and you write them down.': 'Ich bin zuerst hinunter. Du bist mir nach. Jetzt finde ich sie und du schreibst sie auf.',
-      'Mâmânbozorg': 'Mâmânbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'Sie hütete ihn vor mir. Sie ging hinaus aufs Wasser, und das Wasser behielt sie.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'Hinter der Untiefe wurde das Wasser dunkel, und es war dasselbe Meer, das Eranschahr nahm: den Rest der Welt.',
       'go back to the well and close the book': 'zum Brunnen zurückgehen und das Buch schließen',
@@ -11848,8 +12022,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'im Teich fischen',
       'fill the can': 'die Kanne füllen',
       'Tabl': 'Tabl',
-      'greet Mâmânbozorg': 'Mâmânbozorg begrüßen',
-      'greet Bâbâbozorg': 'Bâbâbozorg begrüßen',
+      'greet Mámánbozorg': 'Mámánbozorg begrüßen',
+      'greet Bábábozorg': 'Bábábozorg begrüßen',
       'greet your brother': 'deinen Bruder begrüßen',
       'greet Khále': 'Khále begrüßen',
       'greet Amme': 'Amme begrüßen',
@@ -11860,9 +12034,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'mein Opa',
       'my father': 'mein Vater',
       'my brother': 'mein Bruder',
-      'my aunt, Mâmân’s sister': 'meine Tante, Mamans Schwester',
+      'my aunt, Mámán’s sister': 'meine Tante, Mamans Schwester',
       'my aunt, Baba’s sister': 'meine Tante, Babas Schwester',
-      'my uncle, Mâmân’s brother': 'mein Onkel, Mamans Bruder',
+      'my uncle, Mámán’s brother': 'mein Onkel, Mamans Bruder',
       'my uncle, Baba’s brother': 'mein Onkel, Babas Bruder',
       'The tabl': 'Die Tabl',
       'take up the tabl': 'die Tabl nehmen',
@@ -12268,7 +12442,41 @@ props: islandProps.map(function (p) {
       'draw water': 'Wasser holen',
       'greet Donya': 'Donya begrüßen',
       'hear storyteller out': 'dem Erzähler zuhören',
-      'read the stone': 'den Stein lesen',
+      'read the stone': 'den Stein lesen',      'The pond keeps its own counsel. Ask it at dusk.': 'Der Teich kümmert sich um sich selbst. Frag ihn in der Dämmerung.',
+      'Every row is a decision. You cannot take one back.': 'Jede Reihe ist eine Entscheidung. Du kannst keine zurücknehmen.',
+      'Up here the flock knows the ground better than I do.': 'Hier oben kennt die Herde den Boden besser als ich.',
+      'The sand remembers every path. I only follow the cool ones.': 'Der Sand erinnert sich an jeden Pfad. Ich folge nur den kühlen.',
+      'Forty days to the sea, and every one of them a story.': 'Vierzig Tage bis zum Meer, und jeder davon eine Geschichte.',
+      'Sit. The island has been waiting to tell you something.': 'Setz dich. Die Insel wartet schon darauf, dir etwas zu erzählen.',
+      'The water here is cold, but it likes your hands.': 'Das Wasser hier ist kalt, aber es mag deine Hände.',
+      'The sea changes its colour every day.': 'Das Meer wechselt jeden Tag seine Farbe.',
+      'When the wind comes, the fish come to me.': 'Wenn der Wind kommt, kommen die Fische zu mir.',
+      'The plants in this garden grew up with me.': 'Die Pflanzen in diesem Garten sind mit mir aufgewachsen.',
+      'I keep the yellow leaf; I use its colour.': 'Ich behalte das gelbe Blatt; ich nutze seine Farbe.',
+      'The sun of this island likes green.': 'Die Sonne dieser Insel mag Grün.',
+      'The grass of this plain grows taller after rain.': 'Das Gras dieser Ebene wird nach Regen höher.',
+      'The sky over this plain is bigger than anything else.': 'Der Himmel über dieser Ebene ist größer als alles andere.',
+      'The wind here carries sounds away.': 'Der Wind hier trägt die Geräusche fort.',
+      'The water under the sand tells me where I am.': 'Das Wasser unter dem Sand sagt mir, wo ich bin.',
+      'These desert stones were old houses.': 'Diese Steine der Wüste waren alte Häuser.',
+      'I give the nights to the stars.': 'Ich gebe die Nächte den Sternen.',
+      'The desert road shows me something new every day.': 'Die Wüstenstraße zeigt mir jeden Tag etwas Neues.',
+      'Every stone of this road is one camp.': 'Jeder Stein dieser Straße ist ein Lager.',
+      'The nights are the pillars of our road.': 'Die Nächte sind die Säulen unserer Straße.',
+      'The drum is the heartbeat of this island.': 'Die Trommel ist der Herzschlag dieser Insel.',
+      'The stars tell stories older than me.': 'Die Sterne erzählen Geschichten, älter als ich.',
+      'This island forgets nothing.': 'Diese Insel vergisst nichts.',
+      'In spring the island smells of wet soil.': 'Im Frühling riecht die Insel nach nasser Erde.',
+      'In summer the light stays late.': 'Im Sommer bleibt das Licht lange.',
+      'In autumn the leaves come down to the ground.': 'Im Herbst kommen die Blätter auf den Boden.',
+      'In winter the island keeps its voice low.': 'Im Winter hält die Insel die Stimme leise.',
+      'It is a good day.': 'Es ist ein guter Tag.',
+      'It is a good night.': 'Hab eine gute Nacht.',
+      'I have nothing more to say; but this is enough for one day.': 'Ich habe nichts mehr zu sagen; aber das reicht für einen Tag.',
+      'Go on; the garden is waiting for you.': 'Geh weiter; der Garten wartet auf dich.',
+      'I will let you be.': 'Ich lasse dich in Ruhe.',
+      'There is nothing more to ask.': 'Es gibt nichts mehr zu fragen.',
+
     },
     fr: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -12337,7 +12545,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'Le couvercle est dessus. Baba l’a posé la semaine où nous sommes revenus.',
       'Donya': 'Donya',
       'I went down first. You came after me. Now I find them and you write them down.': 'Je suis descendue la première. Tu m’as suivie. Maintenant je les trouve et tu les écris.',
-      'Mâmânbozorg': 'Mâmânbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'Elle l’a gardé avant moi. Elle est allée sur l’eau et l’eau l’a gardée.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'Au-delà du haut-fond l’eau est devenue sombre, et c’était la même mer qui a pris Eranshahr : le reste du monde.',
       'go back to the well and close the book': 'retourner au puits et fermer le livre',
@@ -12400,8 +12608,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'pêcher dans l\'étang',
       'fill the can': 'remplir le bidon',
       'Tabl': 'Tabl',
-      'greet Mâmânbozorg': 'saluer Mâmânbozorg',
-      'greet Bâbâbozorg': 'saluer Bâbâbozorg',
+      'greet Mámánbozorg': 'saluer Mámánbozorg',
+      'greet Bábábozorg': 'saluer Bábábozorg',
       'greet your brother': 'saluer ton frère',
       'greet Khále': 'saluer Khále',
       'greet Amme': 'saluer Amme',
@@ -12412,9 +12620,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'mon grand-père',
       'my father': 'mon père',
       'my brother': 'mon frère',
-      'my aunt, Mâmân’s sister': 'ma tante, la sœur de Maman',
+      'my aunt, Mámán’s sister': 'ma tante, la sœur de Maman',
       'my aunt, Baba’s sister': 'ma tante, la sœur de Baba',
-      'my uncle, Mâmân’s brother': 'mon oncle, le frère de Maman',
+      'my uncle, Mámán’s brother': 'mon oncle, le frère de Maman',
       'my uncle, Baba’s brother': 'mon oncle, le frère de Baba',
       'The tabl': 'Le tabl',
       'take up the tabl': 'prendre le tabl',
@@ -12819,7 +13027,41 @@ props: islandProps.map(function (p) {
       'draw water': 'puiser de l\'eau',
       'greet Donya': 'saluer Donya',
       'hear storyteller out': 'écouter le conteur',
-      'read the stone': 'lire la pierre',
+      'read the stone': 'lire la pierre',      'The pond keeps its own counsel. Ask it at dusk.': 'L\'étang garde ses secrets. Interroge-le au crépuscule.',
+      'Every row is a decision. You cannot take one back.': 'Chaque rangée est une décision. On ne peut pas revenir en arrière.',
+      'Up here the flock knows the ground better than I do.': 'Ici-haut, le troupeau connaît le terrain mieux que moi.',
+      'The sand remembers every path. I only follow the cool ones.': 'Le sable se souvient de chaque chemin. Je ne suis que les plus frais.',
+      'Forty days to the sea, and every one of them a story.': 'Quarante jours jusqu\'à la mer, et chacun une histoire.',
+      'Sit. The island has been waiting to tell you something.': 'Assieds-toi. L\'île attend de te raconter quelque chose.',
+      'The water here is cold, but it likes your hands.': 'L\'eau ici est froide, mais elle aime tes mains.',
+      'The sea changes its colour every day.': 'La mer change de couleur chaque jour.',
+      'When the wind comes, the fish come to me.': 'Quand le vent se lève, les poissons viennent à moi.',
+      'The plants in this garden grew up with me.': 'Les plantes de ce jardin ont grandi avec moi.',
+      'I keep the yellow leaf; I use its colour.': 'Je garde la feuille jaune; j\'utilise sa couleur.',
+      'The sun of this island likes green.': 'Le soleil de cette île aime le vert.',
+      'The grass of this plain grows taller after rain.': 'L\'herbe de cette plaine pousse plus haut après la pluie.',
+      'The sky over this plain is bigger than anything else.': 'Le ciel au-dessus de cette plaine est plus grand que tout.',
+      'The wind here carries sounds away.': 'Le vent ici emporte les sons.',
+      'The water under the sand tells me where I am.': 'L\'eau sous le sable me dit où je suis.',
+      'These desert stones were old houses.': 'Ces pierres du désert étaient de vieilles maisons.',
+      'I give the nights to the stars.': 'Je confie les nuits aux étoiles.',
+      'The desert road shows me something new every day.': 'La route du désert me montre du nouveau chaque jour.',
+      'Every stone of this road is one camp.': 'Chaque pierre de cette route est un campement.',
+      'The nights are the pillars of our road.': 'Les nuits sont les piliers de notre route.',
+      'The drum is the heartbeat of this island.': 'Le tambour est le battement de cœur de cette île.',
+      'The stars tell stories older than me.': 'Les étoiles racontent des histoires plus vieilles que moi.',
+      'This island forgets nothing.': 'Cette île n\'oublie rien.',
+      'In spring the island smells of wet soil.': 'Au printemps, l\'île sent la terre mouillée.',
+      'In summer the light stays late.': 'En été, la lumière reste tard.',
+      'In autumn the leaves come down to the ground.': 'En automne, les feuilles descendent vers le sol.',
+      'In winter the island keeps its voice low.': 'En hiver, l\'île garde la voix basse.',
+      'It is a good day.': 'C\'est un beau jour.',
+      'It is a good night.': 'Passe une bonne nuit.',
+      'I have nothing more to say; but this is enough for one day.': 'Je n\'ai plus rien à dire; mais cela suffit pour un jour.',
+      'Go on; the garden is waiting for you.': 'Va; le jardin t\'attend.',
+      'I will let you be.': 'Je te laisse tranquille.',
+      'There is nothing more to ask.': 'Il n\'y a plus rien à demander.',
+
     },
     es: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -12888,7 +13130,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'La tapa está puesta. Baba la puso la semana que volvimos.',
       'Donya': 'Donya',
       'I went down first. You came after me. Now I find them and you write them down.': 'Bajé primero. Tú viniste detrás. Ahora yo los encuentro y tú los escribes.',
-      'Mâmânbozorg': 'Mâmânbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'Lo cuidó antes que yo. Salió al agua y el agua se la quedó.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'Pasado el bajío el agua se volvió oscura, y era el mismo mar que se llevó Eranshahr: el resto del mundo.',
       'go back to the well and close the book': 'volver al pozo y cerrar el libro',
@@ -12951,8 +13193,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'pescar en el estanque',
       'fill the can': 'llenar la lata',
       'Tabl': 'Tabl',
-      'greet Mâmânbozorg': 'saludar a Mâmânbozorg',
-      'greet Bâbâbozorg': 'saludar a Bâbâbozorg',
+      'greet Mámánbozorg': 'saludar a Mámánbozorg',
+      'greet Bábábozorg': 'saludar a Bábábozorg',
       'greet your brother': 'saludar a tu hermano',
       'greet Khále': 'saludar a Khále',
       'greet Amme': 'saludar a Amme',
@@ -12963,9 +13205,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'mi abuelo',
       'my father': 'mi padre',
       'my brother': 'mi hermano',
-      'my aunt, Mâmân’s sister': 'mi tía, la hermana de Maman',
+      'my aunt, Mámán’s sister': 'mi tía, la hermana de Maman',
       'my aunt, Baba’s sister': 'mi tía, la hermana de Baba',
-      'my uncle, Mâmân’s brother': 'mi tío, el hermano de Maman',
+      'my uncle, Mámán’s brother': 'mi tío, el hermano de Maman',
       'my uncle, Baba’s brother': 'mi tío, el hermano de Baba',
       'The tabl': 'El tabl',
       'take up the tabl': 'tomar el tabl',
@@ -13371,7 +13613,41 @@ props: islandProps.map(function (p) {
       'draw water': 'sacar agua',
       'greet Donya': 'saludar a Donya',
       'hear storyteller out': 'escuchar al narrador',
-      'read the stone': 'leer la piedra',
+      'read the stone': 'leer la piedra',      'The pond keeps its own counsel. Ask it at dusk.': 'El estanque guarda sus secretos. Pregúntale al atardecer.',
+      'Every row is a decision. You cannot take one back.': 'Cada hilera es una decisión. No puedes deshacerla.',
+      'Up here the flock knows the ground better than I do.': 'Aquí arriba, el rebaño conoce el suelo mejor que yo.',
+      'The sand remembers every path. I only follow the cool ones.': 'La arena recuerda todos los caminos. Yo solo sigo los frescos.',
+      'Forty days to the sea, and every one of them a story.': 'Cuarenta días hasta el mar, y cada uno una historia.',
+      'Sit. The island has been waiting to tell you something.': 'Siéntate. La isla lleva tiempo esperando contarte algo.',
+      'The water here is cold, but it likes your hands.': 'El agua de aquí es fría, pero le gustan tus manos.',
+      'The sea changes its colour every day.': 'El mar cambia de color cada día.',
+      'When the wind comes, the fish come to me.': 'Cuando llega el viento, los peces vienen hacia mí.',
+      'The plants in this garden grew up with me.': 'Las plantas de este jardín crecieron conmigo.',
+      'I keep the yellow leaf; I use its colour.': 'Guardo la hoja amarilla; uso su color.',
+      'The sun of this island likes green.': 'Al sol de esta isla le gusta el verde.',
+      'The grass of this plain grows taller after rain.': 'La hierba de esta llanura crece más alta tras la lluvia.',
+      'The sky over this plain is bigger than anything else.': 'El cielo sobre esta llanura es más grande que todo.',
+      'The wind here carries sounds away.': 'El viento de aquí se lleva los sonidos.',
+      'The water under the sand tells me where I am.': 'El agua bajo la arena me dice dónde estoy.',
+      'These desert stones were old houses.': 'Estas piedras del desierto fueron casas antiguas.',
+      'I give the nights to the stars.': 'Le doy las noches a las estrellas.',
+      'The desert road shows me something new every day.': 'El camino del desierto me muestra algo nuevo cada día.',
+      'Every stone of this road is one camp.': 'Cada piedra de este camino es un campamento.',
+      'The nights are the pillars of our road.': 'Las noches son los pilares de nuestro camino.',
+      'The drum is the heartbeat of this island.': 'El tambor es el latido de esta isla.',
+      'The stars tell stories older than me.': 'Las estrellas cuentan historias más viejas que yo.',
+      'This island forgets nothing.': 'Esta isla no olvida nada.',
+      'In spring the island smells of wet soil.': 'En primavera la isla huele a tierra mojada.',
+      'In summer the light stays late.': 'En verano la luz se queda hasta tarde.',
+      'In autumn the leaves come down to the ground.': 'En otoño las hojas bajan al suelo.',
+      'In winter the island keeps its voice low.': 'En invierno la isla habla bajo.',
+      'It is a good day.': 'Es un buen día.',
+      'It is a good night.': 'Que tengas buena noche.',
+      'I have nothing more to say; but this is enough for one day.': 'No tengo nada más que decir; pero basta para un día.',
+      'Go on; the garden is waiting for you.': 'Sigue; el jardín te espera.',
+      'I will let you be.': 'Te dejo en paz.',
+      'There is nothing more to ask.': 'No hay nada más que preguntar.',
+
     },
     tr: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -13440,7 +13716,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'Kapak üstünde. Baba onu döndüğümüz hafta koydu.',
       'Donya': 'Donya',
       'I went down first. You came after me. Now I find them and you write them down.': 'Önce ben indim. Sen arkamdan geldin. Şimdi ben bulurum, sen yazarsın.',
-      'Mâmânbozorg': 'Mâmânbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'Benden önce o bekledi. Suya açıldı, su onu tuttu.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'Sığlığın ötesinde su karardı ve dünyanın geri kalanını, Eranshahr’ı alan aynı denizdi.',
       'go back to the well and close the book': 'kuyuya dön ve defteri kapat',
@@ -13503,8 +13779,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'gölette balık tut',
       'fill the can': 'bidonu doldur',
       'Tabl': 'Tabl',
-      'greet Mâmânbozorg': 'Mâmânbozorg ile selamlaş',
-      'greet Bâbâbozorg': 'Bâbâbozorg ile selamlaş',
+      'greet Mámánbozorg': 'Mámánbozorg ile selamlaş',
+      'greet Bábábozorg': 'Bábábozorg ile selamlaş',
       'greet your brother': 'kardeşinle selamlaş',
       'greet Khále': 'Khále ile selamlaş',
       'greet Amme': 'Amme ile selamlaş',
@@ -13515,9 +13791,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'büyükbabam',
       'my father': 'babam',
       'my brother': 'kardeşim',
-      'my aunt, Mâmân’s sister': 'teyzem, Maman’ın kız kardeşi',
+      'my aunt, Mámán’s sister': 'teyzem, Maman’ın kız kardeşi',
       'my aunt, Baba’s sister': 'halam, Baba’nın kız kardeşi',
-      'my uncle, Mâmân’s brother': 'dayım, Maman’ın erkek kardeşi',
+      'my uncle, Mámán’s brother': 'dayım, Maman’ın erkek kardeşi',
       'my uncle, Baba’s brother': 'amcam, Baba’nın erkek kardeşi',
       'The tabl': 'Tabl',
       'take up the tabl': 'tablı eline al',
@@ -13923,7 +14199,41 @@ props: islandProps.map(function (p) {
       'draw water': 'su çek',
       'greet Donya': 'Donya\'yı selamla',
       'hear storyteller out': 'hikâyeciyi dinle',
-      'read the stone': 'taşı oku',
+      'read the stone': 'taşı oku',      'The pond keeps its own counsel. Ask it at dusk.': 'Gölet kendi hâline bakar. Ona akşamüstü sor.',
+      'Every row is a decision. You cannot take one back.': 'Her sıra bir karardır. Hiçbirini geri alamazsın.',
+      'Up here the flock knows the ground better than I do.': 'Burada sürü toprağı benden iyi bilir.',
+      'The sand remembers every path. I only follow the cool ones.': 'Kum her yolu hatırlar. Ben yalnızca serin olanları izlerim.',
+      'Forty days to the sea, and every one of them a story.': 'Denize kırk gün, her biri bir hikâye.',
+      'Sit. The island has been waiting to tell you something.': 'Otur. Ada sana bir şey söylemeyi bekliyordu.',
+      'The water here is cold, but it likes your hands.': 'Buradaki su soğuk, ama senin ellerini seviyor.',
+      'The sea changes its colour every day.': 'Deniz her gün rengini değiştirir.',
+      'When the wind comes, the fish come to me.': 'Rüzgâr gelince balıklar bana gelir.',
+      'The plants in this garden grew up with me.': 'Bu bahçedeki bitkiler benimle büyüdü.',
+      'I keep the yellow leaf; I use its colour.': 'Sarı yaprağı saklarım; rengini kullanırım.',
+      'The sun of this island likes green.': 'Bu adanın güneşi yeşili sever.',
+      'The grass of this plain grows taller after rain.': 'Bu ovanın otu yağmurdan sonra daha uzun biter.',
+      'The sky over this plain is bigger than anything else.': 'Bu ovanın üstündeki gök her şeyden büyük.',
+      'The wind here carries sounds away.': 'Buradaki rüzgâr sesleri alıp götürür.',
+      'The water under the sand tells me where I am.': 'Kumun altındaki su bana nerede olduğumu söyler.',
+      'These desert stones were old houses.': 'Bu çölün taşları eski evlerdi.',
+      'I give the nights to the stars.': 'Geceleri yıldızlara bırakırım.',
+      'The desert road shows me something new every day.': 'Çöl yolu bana her gün yeni bir şey gösterir.',
+      'Every stone of this road is one camp.': 'Bu yolun her taşı bir konak.',
+      'The nights are the pillars of our road.': 'Geceler yolumuzun sütunlarıdır.',
+      'The drum is the heartbeat of this island.': 'Davul bu adanın kalp atışıdır.',
+      'The stars tell stories older than me.': 'Yıldızlar benden eski hikâyeler anlatır.',
+      'This island forgets nothing.': 'Bu ada hiçbir şeyi unutmaz.',
+      'In spring the island smells of wet soil.': 'İlkbaharda ada ıslak toprak kokar.',
+      'In summer the light stays late.': 'Yazın ışık geç saate kadar kalır.',
+      'In autumn the leaves come down to the ground.': 'Sonbaharda yapraklar yere iner.',
+      'In winter the island keeps its voice low.': 'Kışın ada sesini alçak tutar.',
+      'It is a good day.': 'Güzel bir gün.',
+      'It is a good night.': 'İyi geceler.',
+      'I have nothing more to say; but this is enough for one day.': 'Söyleyecek başka sözüm yok; ama bir güne bu yeter.',
+      'Go on; the garden is waiting for you.': 'Git; bahçe seni bekliyor.',
+      'I will let you be.': 'Seni kendi hâline bırakıyorum.',
+      'There is nothing more to ask.': 'Soracak başka bir şey yok.',
+
     },
     ar: {
       'Daryá va Donyá': 'دريا و دنيا',
@@ -13992,7 +14302,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'الغطاء عليه. وضعه بابا في الأسبوع الذي عدنا فيه.',
       'Donya': 'دنيا',
       'I went down first. You came after me. Now I find them and you write them down.': 'نزلت أولاً. جئتِ بعدي. الآن أنا أجدها وأنتِ تكتبينها.',
-      'Mâmânbozorg': 'مادربزرغ',
+      'Mámánbozorg': 'مادربزرغ',
       'She kept it before me. She went out to the water and the water kept her.': 'حفظته قبلي. خرجت إلى الماء فحفظها الماء.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'بعد الضحضاح صار الماء داكناً، وكان البحر نفسه الذي أخذ إيرانشهر: بقية العالم.',
       'go back to the well and close the book': 'عُد إلى البئر وأغلق الدفتر',
@@ -14055,8 +14365,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'اصطد في البركة',
       'fill the can': 'املأ العلبة',
       'Tabl': 'الطبل',
-      'greet Mâmânbozorg': 'سلّم على الجدة',
-      'greet Bâbâbozorg': 'سلّم على الجد',
+      'greet Mámánbozorg': 'سلّم على الجدة',
+      'greet Bábábozorg': 'سلّم على الجد',
       'greet your brother': 'سلّم على أخيك',
       'greet Khále': 'سلّم على الخالة',
       'greet Amme': 'سلّم على العمة',
@@ -14067,9 +14377,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'جدي',
       'my father': 'أبي',
       'my brother': 'أخي',
-      'my aunt, Mâmân’s sister': 'خالتي، أخت أمي',
+      'my aunt, Mámán’s sister': 'خالتي، أخت أمي',
       'my aunt, Baba’s sister': 'عمتي، أخت أبي',
-      'my uncle, Mâmân’s brother': 'خالي، أخو أمي',
+      'my uncle, Mámán’s brother': 'خالي، أخو أمي',
       'my uncle, Baba’s brother': 'عمي، أخو أبي',
       'The tabl': 'الطبل',
       'take up the tabl': 'خذ الطبل',
@@ -14475,7 +14785,41 @@ props: islandProps.map(function (p) {
       'draw water': 'اسحب الماء',
       'greet Donya': 'سلّم على دنيا',
       'hear storyteller out': 'استمع إلى الحكواتي',
-      'read the stone': 'اقرأ الحجر',
+      'read the stone': 'اقرأ الحجر',      'The pond keeps its own counsel. Ask it at dusk.': 'البركة تحتفظ بسرّها. اسألها عند الغروب.',
+      'Every row is a decision. You cannot take one back.': 'كل صفّ قرار. لا يمكنك أن تتراجع عنه.',
+      'Up here the flock knows the ground better than I do.': 'هنا في الأعلى، القطيع يعرف الأرض أكثر منّي.',
+      'The sand remembers every path. I only follow the cool ones.': 'الرمل يتذكّر كل طريق. أنا أتبع الطرق الباردة فقط.',
+      'Forty days to the sea, and every one of them a story.': 'أربعون يوماً إلى البحر، وكل يوم منها حكاية.',
+      'Sit. The island has been waiting to tell you something.': 'اجلس. الجزيرة كانت تنتظر أن تخبرك بشيء.',
+      'The water here is cold, but it likes your hands.': 'الماء هنا بارد، لكنه يحبّ يديك.',
+      'The sea changes its colour every day.': 'البحر يغيّر لونه كل يوم.',
+      'When the wind comes, the fish come to me.': 'حين تأتي الريح، تأتي الأسماك إليّ.',
+      'The plants in this garden grew up with me.': 'نباتات هذا البستان كبرت معي.',
+      'I keep the yellow leaf; I use its colour.': 'أحتفظ بالورقة الصفراء؛ أستخدم لونها.',
+      'The sun of this island likes green.': 'شمس هذه الجزيرة تحبّ اللون الأخضر.',
+      'The grass of this plain grows taller after rain.': 'عشب هذا السهل يطول بعد المطر.',
+      'The sky over this plain is bigger than anything else.': 'سماء هذا السهل أكبر من كل شيء.',
+      'The wind here carries sounds away.': 'الريح هنا تحمل الأصوات بعيداً.',
+      'The water under the sand tells me where I am.': 'الماء تحت الرمل يقول لي أين أنا.',
+      'These desert stones were old houses.': 'حجارة هذا الصحراء كانت بيوتاً قديمة.',
+      'I give the nights to the stars.': 'أترك الليالي للنجوم.',
+      'The desert road shows me something new every day.': 'طريق الصحراء يريني شيئاً جديداً كل يوم.',
+      'Every stone of this road is one camp.': 'كل حجر في هذا الطريق منزل.',
+      'The nights are the pillars of our road.': 'الليالي أعمدة طريقنا.',
+      'The drum is the heartbeat of this island.': 'الطبل دقّة قلب هذه الجزيرة.',
+      'The stars tell stories older than me.': 'النجوم تحكي حكايات أقدم منّي.',
+      'This island forgets nothing.': 'هذه الجزيرة لا تنسى شيئاً.',
+      'In spring the island smells of wet soil.': 'في الربيع، تفوح من الجزيرة رائحة التراب المبلّل.',
+      'In summer the light stays late.': 'في الصيف، يبقى الضوء حتى وقت متأخر.',
+      'In autumn the leaves come down to the ground.': 'في الخريف، تنزل الأوراق إلى الأرض.',
+      'In winter the island keeps its voice low.': 'في الشتاء، تخفض الجزيرة صوتها.',
+      'It is a good day.': 'إنه يوم طيب.',
+      'It is a good night.': 'ليلة طيبة لك.',
+      'I have nothing more to say; but this is enough for one day.': 'ليس عندي ما أقول أكثر؛ لكن هذا يكفي ليوم.',
+      'Go on; the garden is waiting for you.': 'اذهب؛ البستان ينتظرك.',
+      'I will let you be.': 'أتركك في حالك.',
+      'There is nothing more to ask.': 'لا شيء آخر للسؤال.',
+
     },
     zh: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -14544,7 +14888,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': '盖子盖上了。爸爸在我们回来的那个星期盖上的。',
       'Donya': '多妮娅',
       'I went down first. You came after me. Now I find them and you write them down.': '我先下去的。你跟着来了。现在我找，你写。',
-      'Mâmânbozorg': '奶奶',
+      'Mámánbozorg': '奶奶',
       'She kept it before me. She went out to the water and the water kept her.': '她在我之前守着这里。她去了水上，水留下了她。',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': '过了浅滩水就变暗了，那正是带走埃兰沙赫尔——世界其余部分——的那片海。',
       'go back to the well and close the book': '回到井边，合上书',
@@ -14607,8 +14951,8 @@ props: islandProps.map(function (p) {
       'fish the pond': '在池塘钓鱼',
       'fill the can': '把罐子装满',
       'Tabl': '大鼓',
-      'greet Mâmânbozorg': '向奶奶问好',
-      'greet Bâbâbozorg': '向爷爷问好',
+      'greet Mámánbozorg': '向奶奶问好',
+      'greet Bábábozorg': '向爷爷问好',
       'greet your brother': '向哥哥问好',
       'greet Khále': '向婶婶问好',
       'greet Amme': '向姑姑问好',
@@ -14619,9 +14963,9 @@ props: islandProps.map(function (p) {
       'my grandfather': '我的爷爷',
       'my father': '我的父亲',
       'my brother': '我的哥哥',
-      'my aunt, Mâmân’s sister': '我的婶婶，妈妈的姐妹',
+      'my aunt, Mámán’s sister': '我的婶婶，妈妈的姐妹',
       'my aunt, Baba’s sister': '我的姑姑，爸爸的姐妹',
-      'my uncle, Mâmân’s brother': '我的舅舅，妈妈的兄弟',
+      'my uncle, Mámán’s brother': '我的舅舅，妈妈的兄弟',
       'my uncle, Baba’s brother': '我的叔叔，爸爸的兄弟',
       'The tabl': '大鼓',
       'take up the tabl': '拿起大鼓',
@@ -15027,7 +15371,41 @@ props: islandProps.map(function (p) {
       'draw water': '打水',
       'greet Donya': '和多妮娅打招呼',
       'hear storyteller out': '听完说书人的话',
-      'read the stone': '读那块石头',
+      'read the stone': '读那块石头',      'The pond keeps its own counsel. Ask it at dusk.': '池塘自有主张。黄昏时去问它。',
+      'Every row is a decision. You cannot take one back.': '每一行都是一个决定。做过就撤不回来。',
+      'Up here the flock knows the ground better than I do.': '在这上面，羊群比我更熟悉这片地。',
+      'The sand remembers every path. I only follow the cool ones.': '沙子记得每一条路。我只走凉的那几条。',
+      'Forty days to the sea, and every one of them a story.': '到海边要走四十天，每一天都是一个故事。',
+      'Sit. The island has been waiting to tell you something.': '坐下。这座岛一直在等机会告诉你一件事。',
+      'The water here is cold, but it likes your hands.': '这里的水很凉，可它喜欢你的手。',
+      'The sea changes its colour every day.': '海每天换一种颜色。',
+      'When the wind comes, the fish come to me.': '风一来，鱼就朝我这边来。',
+      'The plants in this garden grew up with me.': '这座园子里的植物是和我一起长大的。',
+      'I keep the yellow leaf; I use its colour.': '黄叶子我留着，用它的颜色。',
+      'The sun of this island likes green.': '这座岛的太阳喜欢绿色。',
+      'The grass of this plain grows taller after rain.': '雨后，这片平地的草会长得更高。',
+      'The sky over this plain is bigger than anything else.': '这片平地上的天空，比什么都大。',
+      'The wind here carries sounds away.': '这里的风会把声音带走。',
+      'The water under the sand tells me where I am.': '沙子下面的水会告诉我我在哪里。',
+      'These desert stones were old houses.': '沙漠里这些石头，是从前的房子。',
+      'I give the nights to the stars.': '我把夜晚交给星星。',
+      'The desert road shows me something new every day.': '沙漠的路每天都会给我看点新东西。',
+      'Every stone of this road is one camp.': '这条路上的每块石头，都是一个营地。',
+      'The nights are the pillars of our road.': '夜晚是我们这条路上一根根立柱。',
+      'The drum is the heartbeat of this island.': '鼓，是这座岛的心跳。',
+      'The stars tell stories older than me.': '星星讲的故事，比我老。',
+      'This island forgets nothing.': '这座岛什么都不忘。',
+      'In spring the island smells of wet soil.': '春天，岛上有湿土的气味。',
+      'In summer the light stays late.': '夏天，天光很晚才走。',
+      'In autumn the leaves come down to the ground.': '秋天，叶子落回地面。',
+      'In winter the island keeps its voice low.': '冬天，这座岛把声音放低。',
+      'It is a good day.': '今天是个好日子。',
+      'It is a good night.': '愿你今夜安好。',
+      'I have nothing more to say; but this is enough for one day.': '我没有别的要说了；不过一天里，这也够了。',
+      'Go on; the garden is waiting for you.': '去吧，园子在等你。',
+      'I will let you be.': '那我不打扰你了。',
+      'There is nothing more to ask.': '没有别的可问了。',
+
     },
     fi: {
       'Daryá va Donyá': 'Daryá va Donyá',
@@ -15096,7 +15474,7 @@ props: islandProps.map(function (p) {
       'The lid is on. Baba put it there the week we came back.': 'Sarpush ruye án ast. Bábá hafte-i ke bargashtim án-rá gozásht.',
       'Donya': 'Donyá',
       'I went down first. You came after me. Now I find them and you write them down.': 'Man avval páyin raftam. To donbálam ámadi. Hálá man peydá mikonam va to minevisi.',
-      'Mâmânbozorg': 'Mámánbozorg',
+      'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'U pish az man in-já-rá negah dásht. Be áb raft va áb u-rá negah dásht.',
             'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'án-su-ye kam-omghi áb tárik shod, va hamán daryá-i bud ke Eránshahr rá gereft: bághi-ye jahán.',
       'go back to the well and close the book': 'be cháh bargard va daftar-rá beband',
@@ -15159,8 +15537,8 @@ props: islandProps.map(function (p) {
       'fish the pond': 'dar ábgir máhi begir',
       'fill the can': 'ghuti rá por kon',
       'Tabl': 'tabl',
-      'greet Mâmânbozorg': 'be Mámánbozorg salám kon',
-      'greet Bâbâbozorg': 'be Bábábozorg salám kon',
+      'greet Mámánbozorg': 'be Mámánbozorg salám kon',
+      'greet Bábábozorg': 'be Bábábozorg salám kon',
       'greet your brother': 'be barádarat salám kon',
       'greet Khále': 'be Khále salám kon',
       'greet Amme': 'be Amme salám kon',
@@ -15171,9 +15549,9 @@ props: islandProps.map(function (p) {
       'my grandfather': 'pedarbozorgam',
       'my father': 'pedaram',
       'my brother': 'barádaram',
-      'my aunt, Mâmân’s sister': 'khále-am, kháhar-e Mámán',
+      'my aunt, Mámán’s sister': 'khále-am, kháhar-e Mámán',
       'my aunt, Baba’s sister': 'amme-am, kháhar-e Bábá',
-      'my uncle, Mâmân’s brother': 'dái-am, barádar-e Mámán',
+      'my uncle, Mámán’s brother': 'dái-am, barádar-e Mámán',
       'my uncle, Baba’s brother': 'amu-am, barádar-e Bábá',
       'The tabl': 'tabl',
       'take up the tabl': 'tabl-rá bar dár',
@@ -15579,7 +15957,40 @@ props: islandProps.map(function (p) {
       'draw water': 'áb bekesh',
       'greet Donya': 'be Donyá salám kon',
       'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
-      'read the stone': 'sang rá bekhán',
+      'read the stone': 'sang rá bekhán',      'The pond keeps its own counsel. Ask it at dusk.': 'hozd be hal-e khodash ast; vaght-e ghurub az u bepors.',
+      'Every row is a decision. You cannot take one back.': 'har khat yek tasmim ast; hich khat-i rá nemitaváni bargardani.',
+      'Up here the flock knows the ground better than I do.': 'in bálá, galle zamin rá behtar az man mishenásad.',
+      'The sand remembers every path. I only follow the cool ones.': 'shen hame ráh-há rá be yád dáshte ast; man faghat ráh-há-ye khonak rá mi-ravam.',
+      'Forty days to the sea, and every one of them a story.': 'chehel ruz tá daryá, va har ruz yek ghesse.',
+      'Sit. The island has been waiting to tell you something.': 'beneshin; in jazire chiz-i baray-e goftan dáshte ast.',
+      'The water here is cold, but it likes your hands.': 'áb-e injá sard-e, vali dast-há-ye to rá dust dárad.',
+      'The sea changes its colour every day.': 'daryá har ruz rang-e khodash rá avaz mikonad.',
+      'When the wind comes, the fish come to me.': 'vaght-i bád mi-ayad, máhi-há be samte man mi-ayand.',
+      'The plants in this garden grew up with me.': 'giáh-há-ye in bágh bá man bozorg shodand.',
+      'I keep the yellow leaf; I use its colour.': 'barg-e zard rá negah midaram; rang-e u rá be kár mi-baram.',
+      'The sun of this island likes green.': 'áftáb-e in jazire rang-e sabz rá dust dárad.',
+      'The grass of this plain grows taller after rain.': 'sabze-ye in dásht ba\'d az bárán boland-tar mi-shavad.',
+      'The sky over this plain is bigger than anything else.': 'ásemán-e in dásht bozorg-tar az har chiz-e digar ast.',
+      'The wind here carries sounds away.': 'bád-e injá sedá-há rá mi-borad.',
+      'The water under the sand tells me where I am.': 'áb-e zir-e shen be man miguyad koja hastam.',
+      'These desert stones were old houses.': 'sang-há-ye in biyaban kháne-há-ye kohan budand.',
+      'I give the nights to the stars.': 'man shab-há rá be setáre-há mi-separam.',
+      'The desert road shows me something new every day.': 'ráh-e in biyaban har ruz chiz-e táze-i be man neshán midahad.',
+      'Every stone of this road is one camp.': 'har sang-e in ráh yek manzel ast.',
+      'The nights are the pillars of our road.': 'shab-há sotun-há-ye ráh-e man-and.',
+      'The drum is the heartbeat of this island.': 'tabl sedá-ye del-e in jazire ast.',
+      'The stars tell stories older than me.': 'setáre-há ghesse-há-ye kohan-tar az man mi-guyand.',
+      'This island forgets nothing.': 'in jazire hich chiz rá farámush nemikonad.',
+      'In spring the island smells of wet soil.': 'dar bahár, bu-ye khák-e tar az jazire mi-ayad.',
+      'In summer the light stays late.': 'dar tábestán, ruz tá dir-vaght mimánad.',
+      'In autumn the leaves come down to the ground.': 'dar páyiz, barg-há be zamin mi-ayand.',
+      'In winter the island keeps its voice low.': 'dar zemestán, in jazire sedá-ásh rá árám negah midárad.',
+      'It is a good day.': 'ruz-e khubi-e!',
+      'It is a good night.': 'shab-e khub-i dáshte bashi!',
+      'I have nothing more to say; but this is enough for one day.': 'harf-e digar-i na-daram; vali in baray-e yek ruz káfi ast.',
+      'Go on; the garden is waiting for you.': 'beru; bágh montazer-e tost.',
+      'I will let you be.': 'man tora be hál-e khodat migozáram.',
+      'There is nothing more to ask.': 'chiz-e digar-i baray-e porsidan nist.',
     },
   };
 
@@ -26646,14 +27057,32 @@ var ANIMAL_SIZES = {
      said. Scaling in one place is what makes one measure for every living thing
      actually hold. */
   /* The drawers with no scale and no offset, for measuring. */
+  /* A pet cat or dog is an animal like the rest: the same painter, the same shape the
+     wild ones use, the same cached blit. They were the last species still drawn by
+     hand, which is why the yard's cat stayed an ellipse after everything else changed.
+
+     They face LEFT: the sketch faces +x, and a pet standing by the house faces the
+     room rather than the wall. */
+  var PET_STILL = {
+    moving: false, walk: 0, facing: -1, seed: 3, gait: 'still', view: 'side',
+    grazing: false, grazeK: 0, drinking: 0
+  };
+
+  function drawPetAnimal(e, x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(-1, 1);
+    paintAnimalCached(ctx, e, PET_STILL, beastHeight(e));
+    ctx.restore();
+  }
+
   function drawSpeciesRaw(e, x, y, t, s) {
     if (e.sh === 'plant') return drawPlant(e, x, y, t, s || 1);
     if (e.sh === 'fungus') return drawFungus(e, x, y, t);
     if (e.sh === 'bird') return drawBird(e, x, y, t);
     if (e.sh === 'fish') return drawFish(e, x, y, t);
     if (e.sh === 'hen') return drawHen(e, x, y, t);
-    if (e.sh === 'cat') return drawCat(e, x, y, t);
-    if (e.sh === 'dog') return drawDog(e, x, y, t);
+    if (e.sh === 'cat' || e.sh === 'dog') return drawPetAnimal(e, x, y);
     if (e.sh === 'being') return drawBeing(e, x, y, t, e.id === 'being-sister');
     if (e.sh === 'find') return drawFind(e, x, y, t);
     if (e.sh === 'insect') return drawInsect(e, x, y, t);
@@ -26672,8 +27101,7 @@ var ANIMAL_SIZES = {
     else if (e.sh === 'bird') drawBird(e, 0, 0, t);
     else if (e.sh === 'fish') drawFish(e, 0, 0, t);
     else if (e.sh === 'hen') drawHen(e, 0, 0, t);
-    else if (e.sh === 'cat') drawCat(e, 0, 0, t);
-    else if (e.sh === 'dog') drawDog(e, 0, 0, t);
+    else if (e.sh === 'cat' || e.sh === 'dog') drawPetAnimal(e, 0, 0);
     else if (e.sh === 'being') drawBeing(e, 0, 0, t, e.id === 'being-sister');
     else if (e.sh === 'find') drawFind(e, 0, 0, t);
     else if (e.sh === 'insect') drawInsect(e, 0, 0, t);
@@ -29205,12 +29633,12 @@ var ANIMAL_SIZES = {
     {
       who: 'grandmother', sex: 'f', old: true, places: ['room', 'garden'], x: 0.30, y: 0.86,
       coat: '#6E4A6A', lit: '#825A7E', scarf: '#E9DCC4', skin: '#EFC9A4',
-      verb: 'greet M\u00e2m\u00e2nbozorg', word: 'm\u00e1darbozorg', line: 'my grandmother'
+      verb: 'greet M\u00e1m\u00e1nbozorg', word: 'm\u00e1darbozorg', line: 'my grandmother'
     },
     {
       who: 'grandfather', sex: 'm', old: true, places: ['room', 'apiary'], x: 0.14, y: 0.56,
       coat: '#5E6B4A', lit: '#71805A', scarf: '#71805A', skin: '#E6BB90',
-      verb: 'greet B\u00e2b\u00e2bozorg', word: 'pedarbozorg', line: 'my grandfather'
+      verb: 'greet B\u00e1b\u00e1bozorg', word: 'pedarbozorg', line: 'my grandfather'
     },
     {
       who: 'father', sex: 'm', places: ['yard', 'meadow'], x: 0.34, y: 0.62,
@@ -29224,7 +29652,7 @@ var ANIMAL_SIZES = {
     {
       who: 'khale', sex: 'f', places: ['garden', 'yard'], x: 0.15, y: 0.40,
       coat: '#4E7B5E', lit: '#5F8E6E', scarf: '#B98A32', skin: '#F0C49B',
-      verb: 'greet Kh\u00e1le', word: 'kh\u00e1le', line: 'my aunt, Mâmân\u2019s sister'
+      verb: 'greet Kh\u00e1le', word: 'kh\u00e1le', line: 'my aunt, Mámán\u2019s sister'
     },
     {
       who: 'amme', sex: 'f', places: ['yard', 'room'], x: 0.84, y: 0.34,
@@ -29234,7 +29662,7 @@ var ANIMAL_SIZES = {
     {
       who: 'dai', sex: 'm', places: ['yard', 'pond'], x: 0.10, y: 0.86,
       coat: '#8A5A3C', lit: '#9C6C4A', scarf: '#9C6C4A', skin: '#E4B489',
-      verb: 'greet D\u00e1i', word: 'd\u00e1i', line: 'my uncle, Mâmân\u2019s brother'
+      verb: 'greet D\u00e1i', word: 'd\u00e1i', line: 'my uncle, Mámán\u2019s brother'
     },
     {
       who: 'amu', sex: 'm', places: ['yard', 'steppe'], x: 0.78, y: 0.78,
@@ -29426,6 +29854,18 @@ var ANIMAL_SIZES = {
             k: 'species', sp: e2,
             x: W * (0.14 + i * 0.36), y: H * 0.92,
             verb: propVerbFor(e2), act: 'species', name: ''
+          });
+        }
+        // A person in a garden still stands. The beds took the ground and the
+        // loop above keeps only plants, so the one person who lives in a garden
+        // had no prop anywhere on the island and could never be met - and the
+        // errand that sends her to the weaver could never be done.
+        for (i = 0; i < list.length; i++) {
+          if (list[i].sh !== 'being') continue;
+          out.push({
+            k: 'species', sp: list[i],
+            x: W * 0.78, y: H * 0.32,
+            verb: propVerbFor(list[i]), act: 'species', name: ''
           });
         }
       } else if (d.kind === 'openwater') {
@@ -30020,7 +30460,7 @@ var ANIMAL_SIZES = {
       if (p.who === 'grandmother' && !grandmotherSaid) {
         grandmotherSaid = true;
         beingSaid = {
-          at: clock, who: T('Mâmânbozorg'),
+          at: clock, who: T('Mámánbozorg'),
           line: T('She kept it before me. She went out to the water and the water kept her.')
         };
       }
@@ -30124,13 +30564,11 @@ var ANIMAL_SIZES = {
       }
       teachWord(p.sp.f);
       if (p.sp.sh === 'being') {
-        // A person answers in their own words on a slip, and that is the whole
-        // of the meeting.
+        // A person answers in their own words on a slip, and the keeper answers
+        // back: the slip stays open for as long as she wants it.
         sibLine = clock;
-        metBeing[p.sp.id] = 1;
-        beingSaid = { at: clock, who: shortName(p.sp), line: beingLineFor(p.sp.id) };
+        startTalk(p);
         addParticles(p.x, p.y - 16, '#FFF3D0', 8, 70);
-        checkErrand();
         return;
       }
       // Everything else she can look at properly: its own page, drawn large.
@@ -31767,9 +32205,278 @@ var ANIMAL_SIZES = {
   /* The last thing a person said to her, and when. */
   var beingSaid = { at: -99, who: '', line: '' };
 
+  /* ---- The talk, while it is open ----------------------------------------
+
+     `answer` is what she was answered and `world` the island's remark under it;
+     `asked` is what this person has already told her, so no question is offered
+     twice. Two sentences per slip and never a third: the slip is a slip. */
+  var talk = { on: false, id: '', who: '', sp: null, asked: {}, answer: '', world: '', turns: 0 };
+
+  function nightNow() { return day.t < day.sunRise || day.t > day.sunSet; }
+
+  function talkWords() {
+    var all = TALK_OF[talk.id] || [], out = [];
+    for (var i = 0; i < all.length; i++) if (!talk.asked[all[i]]) out.push(all[i]);
+    return out;
+  }
+
+  function startTalk(p) {
+    if (!p || !p.sp) return;
+    talk.on = true;
+    talk.id = p.sp.id;
+    talk.sp = p.sp;
+    talk.who = shortName(p.sp);
+    talk.asked = {};
+    talk.answer = beingLineFor(talk.id);
+    talk.world = '';
+    talk.turns = 0;
+    beingSaid = { at: -99, who: '', line: '' };
+    // Meeting a person is the same act in the world and from a probe, so it is
+    // counted here, not at the tap that happened to reach it.
+    metBeing[talk.id] = 1;
+    teachWord(p.sp.f);
+    sfx.pick();
+    checkErrand();
+  }
+
+  /* One question, one answer, one remark. The remark takes the season on one
+     turn and the hour on the next, so the same question asked twice in an
+     evening does not answer twice the same way; the three questions spent, the
+     person says goodbye instead. */
+  function askAbout(word) {
+    if (!talk.on || talk.asked[word]) return;
+    talk.asked[word] = 1;
+    talk.turns++;
+    teachWord(word);
+    talk.answer = TALK_ANSWER[talk.id + '|' + word] || '';
+    if (talkWords().length) {
+      talk.world = (talk.turns % 2)
+        ? (TALK_HOUR[nightNow() ? 'night' : 'day'] || '')
+        : (TALK_SEASON[seasonOf()] || '');
+    } else {
+      talk.world = TALK_CLOSE[(talk.turns + yearDay()) % TALK_CLOSE.length] || '';
+    }
+    sfx.pick();
+    checkErrand();
+  }
+
+  function endTalk() {
+    talk.on = false;
+    talk.answer = '';
+    talk.world = '';
+  }
+
+  /* The talk from outside, for the owner's browser console and for a test: the
+     island's props are the only place a person really stands, so the hook finds
+     the one that is on this ground rather than inventing a stand-in. */
+  window.__talkTo = function (id) {
+    var list = buildProps();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].sp && list[i].sp.id === id) { startTalk(list[i]); return true; }
+    }
+    return false;
+  };
+  /* Who is standing on this ground, so a talk can be found without a guess. */
+  window.__beingsHere = function () {
+    var list = buildProps(), out = [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].sp && list[i].sp.sh === 'being') out.push(list[i].sp.id);
+    }
+    return out;
+  };
+  window.__talkAsk = function (word) { askAbout(String(word)); return window.__talkState(); };
+  window.__talkLeave = function () { endTalk(); return true; };
+  window.__talkState = function () {
+    var left = talkWords(), chips = [];
+    for (var i = 0; i < left.length; i++) {
+      var row = wordRowBy(left[i]);
+      chips.push({ word: left[i], finglish: row ? row.f : left[i], gloss: glossOf(row) });
+    }
+    return {
+      on: talk.on, being: talk.id, who: talk.who, asked: Object.keys(talk.asked), turns: talk.turns,
+      line: talk.on ? talkLine(talk.answer, talk.world) : null,
+      chips: chips, leave: T(TALK_LEAVE), none: T(TALK_NONE),
+      season: seasonOf(), night: nightNow(), lang: LANG
+    };
+  };
+
+  /* One slip, three writings: the Finglish she hears, the Persian script the
+     island writes it in, and its meaning in her own language. Two sentences are
+     joined per layer rather than joined once and translated, so the answer and
+     the remark stay two whole sentences in every language. */
+  function talkLine(key, second) {
+    var fi = TRANSLATIONS.fi || {}, fa = TRANSLATIONS.fa || {};
+    var pair = second ? [key, second] : [key];
+    var out = { f: '', p: '', e: '' };
+    for (var i = 0; i < pair.length; i++) {
+      if (!pair[i]) continue;
+      out.f += (out.f ? ' ' : '') + (fi[pair[i]] || pair[i]);
+      out.p += (out.p ? ' ' : '') + (fa[pair[i]] || '');
+      out.e += (out.e ? ' ' : '') + T(pair[i]);
+    }
+    return out;
+  }
+
   /* A slip of paper with what a person just said, so a conversation reads as a
      conversation and not as a word card. */
   function drawBeingNote() {
+    if (talk.on) { drawTalkSlip(); return; }
+    drawSaidNote();
+  }
+
+  /* The talk: the person's slip, and under it the three questions that are left
+     plus the way out. The chips are drawn here and nowhere else, so the slip and
+     its questions cannot drift apart. */
+  function drawTalkSlip() {
+    var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
+    var s = clamp(Math.min(cssW, cssH) / 520, 0.82, 1.4);
+    var w = Math.min(cssW - 40 * s, 336 * s);
+    var x = cssW / 2 - w / 2, y = cssH * 0.1;
+    var pad = 14 * s;
+    var inner = w - pad * 2;
+    var isRtl = rtl();
+
+    var fFont = 'italic ' + Math.round(13.5 * s) + 'px ' + FONT_SERIF;
+    var pFont = '400 ' + Math.round(12.5 * s) + 'px ' + FONT_SERIF;
+    var eFont = '400 ' + Math.round(10.5 * s) + 'px ' + FONT_UI;
+
+    var said = talkLine(talk.answer, talk.world);
+    var fLines = said.f ? wrapText(said.f, inner, fFont) : [];
+    var pLines = said.p ? wrapText(said.p, inner, pFont) : [];
+    // The gloss is the meaning; when the reader's language IS the script or the
+    // Finglish, the line is already there and printing it twice reads as a fault.
+    var eLines = (said.e && said.e !== said.f && said.e !== said.p)
+      ? wrapText(said.e, inner, eFont) : [];
+
+    var h = 30 * s + fLines.length * 18 * s + pLines.length * 17 * s + eLines.length * 14 * s + 12 * s;
+
+    ctx.save();
+    // The Finglish and the name are Latin even in a right-to-left interface:
+    // alignText() flips 'left' to 'right' for the reader's script, which ran the
+    // Finglish line off the left edge of the slip. Set the alignment outright.
+    ctx.textAlign = 'left';
+    ctx.fillStyle = C.paper;
+    roundRect(x, y, w, h, 10 * s);
+    ctx.fill();
+    ctx.strokeStyle = C.rule;
+    ctx.lineWidth = Math.max(1, s);
+    ctx.stroke();
+
+    ctx.fillStyle = C.inkFaint;
+    ctx.font = '600 ' + Math.round(9.5 * s) + 'px ' + FONT_UI;
+    ctx.fillText(String(talk.who || '').toUpperCase(), x + pad, y + 19 * s);
+
+    var ty = y + 38 * s;
+    ctx.fillStyle = C.ink;
+    ctx.font = fFont;
+    for (var i = 0; i < fLines.length; i++) { ctx.fillText(fLines[i], x + pad, ty + i * 18 * s); }
+    ty += fLines.length * 18 * s;
+
+    ctx.fillStyle = C.turquoiseDeep;
+    ctx.font = pFont;
+    ctx.textAlign = 'right';
+    for (var j = 0; j < pLines.length; j++) {
+      ctx.fillText(pLines[j], x + w - pad, ty + j * 17 * s);
+    }
+    ty += pLines.length * 17 * s;
+
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = eFont;
+    ctx.textAlign = isRtl ? 'right' : 'left';
+    for (var k = 0; k < eLines.length; k++) {
+      ctx.fillText(eLines[k], isRtl ? x + w - pad : x + pad, ty + k * 14 * s);
+    }
+    ctx.restore();
+    ctx.textAlign = 'left';
+
+    // Her side: one chip per word this person has not spoken of yet, then the
+    // way out. The chip names the word the way the book does - Finglish over its
+    // meaning - because the keeper is naming a thing, not writing a sentence,
+    // and a sentence would have to bend to the grammar of ten languages. Each
+    // chip is as wide as what it says, so a list of three does not become three
+    // empty boxes over the island.
+    var left = talkWords();
+    var chipH = 46 * s, gap = 7 * s;
+    var edge = isRtl ? x + w : x;
+    var cy = y + h + 9 * s;
+    for (var c = 0; c < left.length; c++) {
+      var row = wordRowBy(left[c]);
+      var word = row ? row.f : left[c];
+      var gl = glossOf(row);
+      // In Finglish the gloss IS the word; printing it twice reads as a fault.
+      if (gl.toLowerCase() === word.toLowerCase()) gl = '';
+      var cw = talkChipWidth(word, gl, s, w);
+      drawTalkChip(isRtl ? edge - cw : edge, cy, cw, chipH, word, gl, 'talkask', left[c], s);
+      cy += chipH + gap;
+    }
+    if (!left.length) {
+      ctx.save();
+      ctx.fillStyle = C.inkFaint;
+      ctx.font = 'italic ' + Math.round(11 * s) + 'px ' + FONT_SERIF;
+      ctx.textAlign = isRtl ? 'right' : 'left';
+      ctx.fillText(T(TALK_NONE), edge, cy + 6 * s);
+      ctx.restore();
+      cy += 20 * s;
+    }
+    var leave = T(TALK_LEAVE);
+    var lw = talkChipWidth(leave, '', s, w);
+    drawTalkChip(isRtl ? edge - lw : edge, cy, lw, 36 * s, leave, '', 'talkleave', '', s);
+  }
+
+  /* As wide as the wider of its two lines, and never wider than the slip. */
+  function talkChipWidth(label, under, s, max) {
+    ctx.save();
+    ctx.font = 'italic 600 ' + Math.round(13.5 * s) + 'px ' + FONT_SERIF;
+    var w = ctx.measureText(label).width;
+    if (under) {
+      ctx.font = '400 ' + Math.round(10 * s) + 'px ' + FONT_UI;
+      w = Math.max(w, ctx.measureText(under).width);
+    }
+    ctx.restore();
+    if (!under) {
+      ctx.save();
+      ctx.font = '600 ' + Math.round(12 * s) + 'px ' + FONT_UI;
+      w = ctx.measureText(label).width;
+      ctx.restore();
+    }
+    return Math.min(max, Math.max(132 * s, w + 26 * s));
+  }
+
+  /* A chip that names a word: the Finglish, and under it the meaning in the
+     reader's language. One line when the two would be the same string. */
+  function drawTalkChip(x, y, w, h, label, under, act, arg, s) {
+    ctx.save();
+    ctx.fillStyle = C.paper;
+    roundRect(x, y, w, h, 8 * s);
+    ctx.fill();
+    ctx.strokeStyle = C.rule;
+    ctx.lineWidth = Math.max(1, s);
+    ctx.stroke();
+    var centred = !under;
+    if (centred) {
+      ctx.fillStyle = C.ink;
+      ctx.font = '600 ' + Math.round(12 * s) + 'px ' + FONT_UI;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, x + w / 2, y + h / 2 + 0.5 * s);
+    } else {
+      ctx.fillStyle = C.ink;
+      ctx.font = 'italic 600 ' + Math.round(13.5 * s) + 'px ' + FONT_SERIF;
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = rtl() ? 'right' : 'left';
+      var tx = rtl() ? x + w - 12 * s : x + 12 * s;
+      ctx.fillText(label, tx, y + 20 * s);
+      ctx.fillStyle = C.inkSoft;
+      ctx.font = '400 ' + Math.round(10 * s) + 'px ' + FONT_UI;
+      ctx.fillText(under, tx, y + 36 * s);
+    }
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    addHit(x, y, w, h, act, arg);
+  }
+
+  function drawSaidNote() {
     if (clock - beingSaid.at > 5.5) return;
     var cssW = canvas.width / dpr, cssH = canvas.height / dpr;
     var s = clamp(Math.min(cssW, cssH) / 520, 0.82, 1.4);
@@ -32797,6 +33504,10 @@ var ANIMAL_SIZES = {
       if (bh0 && bh0.act === 'bag') { enterBagPlace(); e.preventDefault(); return; }
       if (bh0 && bh0.act === 'map') { enterMapPlace(); e.preventDefault(); return; }
       if (bh0 && bh0.act === 'sky') { enterPlace('sky'); e.preventDefault(); return; }
+      // The talk is open on a slip: its questions answer before anything in the
+      // world does, because the slip is on top of the world.
+      if (bh0 && bh0.act === 'talkask') { askAbout(bh0.arg); e.preventDefault(); return; }
+      if (bh0 && bh0.act === 'talkleave') { endTalk(); e.preventDefault(); return; }
       var pp = cssPoint(e);
       if (chipTapped(pp)) {
         useProp(islandVerb);
