@@ -1495,8 +1495,8 @@
 })(typeof window !== 'undefined' ? window : this);
 </script>
 <script>/* Darya - the keeper's island.
- * A small, cosy remake: walk the meadow, gather nectar, carry it home to the
- * hive, and learn a Finglish word every time you deliver. Nothing is harmed:
+ * A small, cosy remake: tend the island, store honey jars from the hive,
+ * and learn a Finglish word with each task. Nothing is harmed:
  * the dust devils only scatter the bees, and the bees walk back home.
  *
  * Vanilla JS, one classic script. The page defines
@@ -1828,13 +1828,13 @@
   var phase = 'title';
   var time = 0;
   var elapsed = 0;
-  var nectar = 0;         // delivered to the hive
+  var nectar = 0;         // honey jars stored
   var carry = 0;          // in Darya's basket
   var bees = R.hearts;    // a gust scatters one bee; all three gone ends the day
   var beeReturn = 24;     // a scattered bee walks back after a while
 
-  /* A day is three small tasks, in order: gather, water, catch. */
-  var stage = 'gather';   // gather | water | fireflies
+  /* A day is three small tasks, in order: store honey, water, catch. */
+  var stage = 'gather';   // gather (store honey) | water | fireflies
   var dayMode = 'gather';  // the one stage this round plays
   var watered = 0;
   var caught = 0;
@@ -2350,7 +2350,7 @@ function sightSp(sg) {
     propCache = {};
     if (dayMode === 'gather') {
       for (var i = 0; i < R.maxPickups; i++) spawnPickup();
-      showNotice(T('Gather nectar'), T('carry it home to the hive'));
+      showNotice(T('Store the honey'), T('carry each jar to the pantry shelf'));
     } else if (dayMode === 'water') {
       spawnSprouts();
       showNotice(T('The sprouts are thirsty'), T('fill the can, give each sprout its scoops'));
@@ -4985,6 +4985,23 @@ function sightSp(sg) {
         },
         c1: { say: 'On the ninth night a man traded his camel for a song. He had the better bargain.', end: true },
         c2: { say: 'Salt, wool, and letters nobody paid me to carry.', end: true }
+      }
+    },
+
+    /* Donyá (or Daryá, whose day it is not) at the well. The one tree whose
+       reply reaches past the talk: say yes and she goes to the pond, and the
+       island is a different island until you meet her there. */
+    'being-sister': {
+      nodes: {
+        root: {
+          say: 'Come. There is something at the pond I want you to see.',
+          replies: [
+            { say: 'I am coming.', to: 'go', do: 'follow' },
+            { say: 'Not now.', to: 'stay' }
+          ]
+        },
+        go: { say: 'Then walk behind me. I will be by the water.', end: true },
+        stay: { say: 'Then I will go alone. The water keeps till you come.', end: true }
       }
     }
   };
@@ -10579,6 +10596,10 @@ function sightSp(sg) {
           for (i = 0; i < nd.replies.length; i++) {
             if (!nd.replies[i].say) fail("talk " + tid + "/" + nid, "offers an empty reply");
             else talkKeys.push(nd.replies[i].say);
+            // A reply that changes the world must name an effect that exists.
+            if (nd.replies[i].do && !TALK_DO[nd.replies[i].do]) {
+              fail("talk " + tid + "/" + nid, "reply asks for effect " + nd.replies[i].do + ", which does not exist");
+            }
             queue.push(nd.replies[i].to);
           }
         }
@@ -10590,7 +10611,11 @@ function sightSp(sg) {
         }
       }
     }
-    if (beingCount !== 6) fail("talk", beingCount + " people, expected 6");
+    // Every person of the island has a tree, and the sister is one more voice
+    // than the six who are met in the wild.
+    var treeCount = 0;
+    for (var tc in TALK_TREES) if (TALK_TREES.hasOwnProperty(tc)) treeCount++;
+    if (treeCount !== beingCount + 1) fail("talk", treeCount + " trees for " + beingCount + " people");
     for (i = 0; i < LANGS.length; i++) {
       if (LANGS[i].id === "en") continue;
       var ttab = TRANSLATIONS[LANGS[i].id] || {};
@@ -10807,7 +10832,7 @@ props: islandProps.map(function (p) {
       wagon: { found: wagon.found, parts: wagon.parts.slice(), fitted: wagon.fitted.slice(), done: wagon.done },
       stream: { fill: Math.round(stream.fill * 100) / 100, held: stream.held, done: stream.done },
       lanterns: { walker: Math.round(lanterns.walker * 100) / 100, lit: lanterns.lamps.filter(function (l) { return l.lit > 0; }).length, passed: lanterns.litPassed, done: lanterns.done },
-      beeline: { needle: Math.round(beeline.needle), recorded: beeline.recorded, done: beeline.done, trees: beeline.trees.map(function (t) { return Math.round(t.a); }) },
+      beeline: { needle: Math.round(beeline.needle), recorded: beeline.recorded, calm: Math.round(beeline.calm), read: beeline.read ? beeline.read.slice() : [], records: beeline.records || 0, done: beeline.done, trees: beeline.trees.map(function (t) { return Math.round(t.a); }) },
       removal: { step: removal.step, agitation: Math.round(removal.agitation), cuts: removal.cuts, knife: Math.round(removal.knife * 100) / 100, scattered: removal.scattered, done: removal.done },
       story: { pages: storyPages(), total: STORY.length, done: Object.keys(storyDone), complete: storyComplete(), chapter: storyChapter() },
       shrine: { blanks: shrine.blanks.slice(), done: shrine.done },
@@ -12007,6 +12032,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'På den nionde natten bytte en man sin kamel mot en visa. Han gjorde det bättre bytet.',
       'Salt, wool, and letters nobody paid me to carry.': 'Salt, ull och brev som ingen betalat mig för att bära.',
       'I will leave you to it.': 'Jag låter dig vara.',
+      'Come. There is something at the pond I want you to see.': 'Kom. Det finns något vid dammen jag vill att du ser.',
+      'I am coming.': 'Jag kommer.',
+      'Not now.': 'Inte nu.',
+      'Then walk behind me. I will be by the water.': 'Gå då bakom mig. Jag väntar vid vattnet.',
+      'Then I will go alone. The water keeps till you come.': 'Då går jag ensam. Vattnet väntar tills du kommer.',
+      'Here you are. Sit; the water is doing all the work.': 'Där är du. Sitt; vattnet gör hela arbetet.',
+      'meet {0} by the pond': 'möt {0} vid dammen',
+      'You found her by the water': 'Du hittade henne vid vattnet',
+      'she goes ahead and waits by the water': 'hon går före och väntar vid vattnet',
+      'she goes back to the well': 'hon går tillbaka till brunnen',
 
     },
     fa: {
@@ -12710,6 +12745,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'شب نهم یه مرد شترش رو با یه آواز عوض کرد. اون معامله‌ی بهتری کرد.',
       'Salt, wool, and letters nobody paid me to carry.': 'نمک، پشم، و نامه‌هایی که هیچ‌کس پولش رو به من نداد.',
       'I will leave you to it.': 'تو را به حال خودت می‌گذارم.',
+      'Come. There is something at the pond I want you to see.': 'بیا. یه چیزی دم حوض هست که می‌خوام ببینیش.',
+      'I am coming.': 'میام.',
+      'Not now.': 'حالا نه.',
+      'Then walk behind me. I will be by the water.': 'پس دنبالم بیا. کنار آب منتظرتم.',
+      'Then I will go alone. The water keeps till you come.': 'پس تنها میرم. آب تا تو بیای می‌مونه.',
+      'Here you are. Sit; the water is doing all the work.': 'رسیدی. بنشین؛ همه‌ی کار رو آب می‌کنه.',
+      'meet {0} by the pond': 'کنار حوض به {0} برس.',
+      'You found her by the water': 'اون رو کنار آب پیدا کردی.',
+      'she goes ahead and waits by the water': 'اون جلو میره و کنار آب منتظر می‌مونه.',
+      'she goes back to the well': 'اون به سر چاه برگشت.',
 
     },
     de: {
@@ -13413,6 +13458,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'In der neunten Nacht tauschte ein Mann sein Kamel gegen ein Lied. Er machte das bessere Geschäft.',
       'Salt, wool, and letters nobody paid me to carry.': 'Salz, Wolle und Briefe, für die mich niemand bezahlt hat.',
       'I will leave you to it.': 'Ich lasse dich in Ruhe.',
+      'Come. There is something at the pond I want you to see.': 'Komm. Am Teich ist etwas, das du sehen sollst.',
+      'I am coming.': 'Ich komme.',
+      'Not now.': 'Jetzt nicht.',
+      'Then walk behind me. I will be by the water.': 'Dann geh hinter mir. Ich warte am Wasser.',
+      'Then I will go alone. The water keeps till you come.': 'Dann gehe ich allein. Das Wasser wartet, bis du kommst.',
+      'Here you are. Sit; the water is doing all the work.': 'Da bist du. Setz dich; das Wasser macht die ganze Arbeit.',
+      'meet {0} by the pond': '{0} am Teich treffen',
+      'You found her by the water': 'Du hast sie am Wasser gefunden',
+      'she goes ahead and waits by the water': 'sie geht voraus und wartet am Wasser',
+      'she goes back to the well': 'sie geht zurück zum Brunnen',
 
     },
     fr: {
@@ -14115,6 +14170,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'La neuvième nuit, un homme a échangé son chameau contre une chanson. Il a fait la meilleure affaire.',
       'Salt, wool, and letters nobody paid me to carry.': 'Du sel, de la laine, et des lettres que personne ne m\'a payé pour porter.',
       'I will leave you to it.': 'Je te laisse.',
+      'Come. There is something at the pond I want you to see.': 'Viens. Il y a quelque chose à l\'étang que je veux te montrer.',
+      'I am coming.': 'J\'arrive.',
+      'Not now.': 'Pas maintenant.',
+      'Then walk behind me. I will be by the water.': 'Alors marche derrière moi. Je t\'attends près de l\'eau.',
+      'Then I will go alone. The water keeps till you come.': 'Alors j\'irai seule. L\'eau attendra que tu viennes.',
+      'Here you are. Sit; the water is doing all the work.': 'Te voilà. Assieds-toi ; l\'eau fait tout le travail.',
+      'meet {0} by the pond': 'rejoins {0} à l\'étang',
+      'You found her by the water': 'Tu l\'as trouvée près de l\'eau',
+      'she goes ahead and waits by the water': 'elle passe devant et attend près de l\'eau',
+      'she goes back to the well': 'elle retourne au puits',
 
     },
     es: {
@@ -14818,6 +14883,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'La novena noche un hombre cambió su camello por una canción. Hizo el mejor negocio.',
       'Salt, wool, and letters nobody paid me to carry.': 'Sal, lana y cartas que nadie me pagó por llevar.',
       'I will leave you to it.': 'Te dejo.',
+      'Come. There is something at the pond I want you to see.': 'Ven. Hay algo en el estanque que quiero que veas.',
+      'I am coming.': 'Voy.',
+      'Not now.': 'Ahora no.',
+      'Then walk behind me. I will be by the water.': 'Entonces camina detrás de mí. Te espero junto al agua.',
+      'Then I will go alone. The water keeps till you come.': 'Entonces iré sola. El agua espera hasta que vengas.',
+      'Here you are. Sit; the water is doing all the work.': 'Aquí estás. Siéntate; el agua hace todo el trabajo.',
+      'meet {0} by the pond': 'encuentra a {0} junto al estanque',
+      'You found her by the water': 'La encontraste junto al agua',
+      'she goes ahead and waits by the water': 'ella va delante y espera junto al agua',
+      'she goes back to the well': 'ella vuelve al pozo',
 
     },
     tr: {
@@ -15521,6 +15596,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'Dokuzuncu gece bir adam devesini bir türküye değişti. Daha iyi bir alışveriş yaptı.',
       'Salt, wool, and letters nobody paid me to carry.': 'Tuz, yün ve taşımam için kimsenin para vermediği mektuplar.',
       'I will leave you to it.': 'Seni kendi hâline bırakıyorum.',
+      'Come. There is something at the pond I want you to see.': 'Gel. Gölette görmeni istediğim bir şey var.',
+      'I am coming.': 'Geliyorum.',
+      'Not now.': 'Şimdi olmaz.',
+      'Then walk behind me. I will be by the water.': 'O zaman arkamdan gel. Suyun başında beklerim.',
+      'Then I will go alone. The water keeps till you come.': 'O zaman yalnız giderim. Su sen gelene kadar bekler.',
+      'Here you are. Sit; the water is doing all the work.': 'Geldin. Otur; bütün işi su yapıyor.',
+      'meet {0} by the pond': '{0} ile gölet kenarında buluş',
+      'You found her by the water': 'Onu suyun başında buldun',
+      'she goes ahead and waits by the water': 'o önden gider ve suyun başında bekler',
+      'she goes back to the well': 'o kuyunun başına döner',
 
     },
     ar: {
@@ -16224,6 +16309,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'في الليلة التاسعة قايض رجل جمله بأغنية. لقد عقد الصفقة الأفضل.',
       'Salt, wool, and letters nobody paid me to carry.': 'ملح وصوف ورسائل لم يدفع لي أحد ثمن حملها.',
       'I will leave you to it.': 'أتركك في حالك.',
+      'Come. There is something at the pond I want you to see.': 'تعالي. في البركة شيء أريدك أن تراه.',
+      'I am coming.': 'آتية.',
+      'Not now.': 'ليس الآن.',
+      'Then walk behind me. I will be by the water.': 'إذن امشي خلفي. أنتظرك عند الماء.',
+      'Then I will go alone. The water keeps till you come.': 'إذن أذهب وحدي. الماء ينتظر حتى تجيء.',
+      'Here you are. Sit; the water is doing all the work.': 'ها أنت. اجلس؛ الماء يقوم بكل العمل.',
+      'meet {0} by the pond': 'قابل {0} عند البركة',
+      'You found her by the water': 'وجدتها عند الماء',
+      'she goes ahead and waits by the water': 'تسبقك وتنتظر عند الماء',
+      'she goes back to the well': 'تعود إلى البئر',
 
     },
     zh: {
@@ -16927,6 +17022,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': '第九天夜里，有人用他的骆驼换了一支歌。他这笔买卖划算。',
       'Salt, wool, and letters nobody paid me to carry.': '盐、羊毛，还有些没人付钱让我带的信。',
       'I will leave you to it.': '那我不打扰你了。',
+      'Come. There is something at the pond I want you to see.': '来。池塘那儿有样东西要给你看。',
+      'I am coming.': '我来了。',
+      'Not now.': '现在不行。',
+      'Then walk behind me. I will be by the water.': '那你跟在我后面走。我在水边等你。',
+      'Then I will go alone. The water keeps till you come.': '那我一个人去。水会等你来。',
+      'Here you are. Sit; the water is doing all the work.': '你来了。坐下吧，活儿全让水干了。',
+      'meet {0} by the pond': '到池塘边见{0}',
+      'You found her by the water': '你在水边找到了她',
+      'she goes ahead and waits by the water': '她先走一步，在水边等你',
+      'she goes back to the well': '她回到井边',
 
     },
     fi: {
@@ -17630,6 +17735,16 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'shab-e nohom ye mard shotor-ásh ro bá ye avaz avaz kard. un moamele-ye behtari kard.',
       'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va nâme-há-i ke hich kas poolesh ro be man nadád.',
       'I will leave you to it.': 'to rá be hál-e khodat migozaram.',
+      'Come. There is something at the pond I want you to see.': 'biá. ye chiz-i dam-e hozd hast ke mikhám bebinish.',
+      'I am coming.': 'miám.',
+      'Not now.': 'hálá na.',
+      'Then walk behind me. I will be by the water.': 'pas donbál-am biá. kenár-e áb montazeret-am.',
+      'Then I will go alone. The water keeps till you come.': 'pas tanhá miram. áb tá to biái mimune.',
+      'Here you are. Sit; the water is doing all the work.': 'residi. beneshin; hame-ye kár ro áb mikone.',
+      'meet {0} by the pond': 'be {0} kenár-e hozd beres.',
+      'You found her by the water': 'u rá kenár-e áb peydá kardi.',
+      'she goes ahead and waits by the water': 'u jolo miravad va kenár-e áb montazer mimunad.',
+      'she goes back to the well': 'u be sar-e cháh bargasht.',
     },
   };
 
@@ -21400,7 +21515,7 @@ props: islandProps.map(function (p) {
     spots: [], parts: [], found: 0, fitted: [], msg: '', msgAge: 9,
     done: false, doneAt: 0, lift: -9, liftSpot: -1
   };
-  var WAGON_PARTS = ['wheel', 'handle'];
+  var WAGON_PARTS = ['pin', 'wheel', 'handle'];
 
   function enterWagon() {
     wagon.parts = [];
@@ -21412,7 +21527,7 @@ props: islandProps.map(function (p) {
     wagon.doneAt = 0;
     wagon.lift = -9;
     wagon.liftSpot = -1;
-    // Seven places to look, and two of them hold a part.
+    // Seven places to look, and three of them hold a part.
     var rnd = seeded(4242);
     wagon.spots = [];
     var kinds = ['hay', 'crate', 'hay', 'barrel', 'bush', 'hay', 'crate'];
@@ -21426,8 +21541,9 @@ props: islandProps.map(function (p) {
       var j = Math.floor(rnd() * (h + 1));
       var t = holes[h]; holes[h] = holes[j]; holes[j] = t;
     }
-    wagon.spots[holes[0]].part = 'wheel';
-    wagon.spots[holes[1]].part = 'handle';
+    wagon.spots[holes[0]].part = 'pin';
+    wagon.spots[holes[1]].part = 'wheel';
+    wagon.spots[holes[2]].part = 'handle';
   }
 
   function wagonTap(p) {
@@ -21446,28 +21562,50 @@ props: islandProps.map(function (p) {
         wagon.parts.push(s.part);
         wagon.found++;
         sfx.deliver();
-        wagon.msg = s.part === 'wheel' ? 'The cart wheel, under the hay.' : 'The handle, behind the crate.';
+        if (s.part === 'pin') wagon.msg = 'The axle pin, under the hay.';
+        else if (s.part === 'wheel') wagon.msg = 'The cart wheel, behind the crate.';
+        else wagon.msg = 'The handle, by the barrel.';
         wagon.msgAge = 0;
       }
       return;
     }
     if (h.act === 'fit') {
-      var want = h.arg;                 // 'wheel' then 'handle'
+      var want = h.arg;
+      if (wagon.fitted.indexOf(want) >= 0) return;
       if (wagon.parts.indexOf(want) < 0) {
-        wagon.msg = want === 'wheel' ? 'The cart needs its wheel first.' : 'The handle bolts to the wheel.';
+        if (want === 'pin') wagon.msg = 'Find the axle pin first.';
+        else if (want === 'wheel') wagon.msg = 'Find the wheel first.';
+        else wagon.msg = 'Find the handle first.';
         wagon.msgAge = 0;
         sfx.bee();
         return;
       }
-      if (wagon.fitted.indexOf(want) >= 0) return;
+      if (want === 'wheel' && wagon.fitted.indexOf('pin') < 0) {
+        wagon.msg = 'Seat the pin before the wheel.';
+        wagon.msgAge = 0;
+        sfx.bee();
+        return;
+      }
+      if (want === 'handle' && wagon.fitted.indexOf('wheel') < 0) {
+        wagon.msg = 'Fit the wheel before the handle.';
+        wagon.msgAge = 0;
+        sfx.bee();
+        return;
+      }
       wagon.fitted.push(want);
       wagon.parts.splice(wagon.parts.indexOf(want), 1);
       sfx.pick();
-      if (wagon.fitted.length === 2) {
+      if (wagon.fitted.length === 3) {
         wagon.done = true;
         wagon.doneAt = clock;
         teachWord('charkh');
         sfx.win();
+      } else if (want === 'pin') {
+        wagon.msg = 'The pin is seated. The wheel can turn on it.';
+        wagon.msgAge = 0;
+      } else if (want === 'wheel') {
+        wagon.msg = 'The wheel is on. Now bolt the handle.';
+        wagon.msgAge = 0;
       }
     }
   }
@@ -21478,7 +21616,7 @@ props: islandProps.map(function (p) {
 
   function autoWagon() {
     if (wagon.done) { if (clock - wagon.doneAt > 3.6) backToIsland(); return; }
-    if (wagon.found < 2) {
+    if (wagon.found < 3) {
       for (var i = 0; i < wagon.spots.length; i++) {
         if (wagon.spots[i].open) continue;
         wagonTap({ x: wagon.spots[i].x, y: wagon.spots[i].y });
@@ -21486,7 +21624,8 @@ props: islandProps.map(function (p) {
       }
       return;
     }
-    if (wagon.fitted.indexOf('wheel') < 0) { wagonTap({ x: 120, y: 700 }); return; }
+    if (wagon.fitted.indexOf('pin') < 0) { wagonTap({ x: 125, y: 708 }); return; }
+    if (wagon.fitted.indexOf('wheel') < 0) { wagonTap({ x: 125, y: 708 }); return; }
     if (wagon.fitted.indexOf('handle') < 0) { wagonTap({ x: 240, y: 700 }); return; }
   }
 
@@ -21516,7 +21655,11 @@ props: islandProps.map(function (p) {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = C.ink;
     ctx.font = '600 12.5px ' + FONT_UI;
-    ctx.fillText(wagon.found < 2 ? T('a wheel and a handle, somewhere here') : T('fit the parts to the cart'), 195, 120);
+    ctx.fillText(wagon.found < 3 ? T('a pin, a wheel, and a handle, somewhere here') : T('fit the parts in the right order'), 195, 120);
+
+    ctx.fillStyle = C.inkSoft;
+    ctx.font = '500 10.5px ' + FONT_UI;
+    ctx.fillText(T('found: {0}/3   fitted: {1}/3', wagon.found, wagon.fitted.length), 195, 140);
 
     for (var i = 0; i < wagon.spots.length; i++) {
       var s = wagon.spots[i];
@@ -21531,7 +21674,7 @@ props: islandProps.map(function (p) {
       addHit(s.x - 40, s.y - 46, 80, 84, 'spot', i);
     }
 
-    // The cart frame, and its two empty sockets.
+    // The cart frame, and its three sockets: pin, wheel, handle.
     var cx = 195, cy = 690;
     ctx.strokeStyle = '#6B4A2F';
     ctx.lineWidth = 4;
@@ -21545,11 +21688,13 @@ props: islandProps.map(function (p) {
     ctx.lineTo(cx - 96, cy + 2);
     ctx.stroke();
 
+    drawSocket(cx - 70, cy + 18, 'pin');
     drawSocket(cx - 70, cy + 18, 'wheel');
     drawSocket(cx + 40, cy + 12, 'handle');
 
     ctx.fillStyle = C.inkSoft;
     ctx.font = '500 10px ' + FONT_UI;
+    ctx.fillText(T('pin'), cx - 70, cy + 52);
     ctx.fillText(T('wheel'), cx - 70, cy + 62);
     ctx.fillText(T('handle'), cx + 44, cy + 56);
 
@@ -21561,7 +21706,7 @@ props: islandProps.map(function (p) {
     ctx.textAlign = 'left';
 
     if (wagon.done && clock - wagon.doneAt > 3.6) {
-      placeDoneCard(T('The cart rolls again'), T('A wheel and a handle, found in the yard.'), [
+      placeDoneCard(T('The cart rolls again'), T('Pin, wheel, and handle, fitted in order.'), [
         'charkh \u00b7 wheel'
       ]);
       pageEnd();
@@ -21574,7 +21719,17 @@ props: islandProps.map(function (p) {
     var fitted = wagon.fitted.indexOf(which) >= 0;
     var has = wagon.parts.indexOf(which) >= 0;
     if (fitted) {
-      if (which === 'wheel') {
+      if (which === 'pin') {
+        ctx.fillStyle = '#2A2320';
+        ctx.beginPath();
+        ctx.arc(x, y, 4.5, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = '#2A2320';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y);
+        ctx.stroke();
+      } else if (which === 'wheel') {
         ctx.strokeStyle = '#2A2320';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -21603,24 +21758,30 @@ props: islandProps.map(function (p) {
       }
       return;
     }
-    ctx.strokeStyle = has ? 'rgba(47,167,155,0.9)' : 'rgba(107,74,47,0.4)';
+    var ready = has && (which === 'pin' || (which === 'wheel' && wagon.fitted.indexOf('pin') >= 0) || (which === 'handle' && wagon.fitted.indexOf('wheel') >= 0));
+    var r = which === 'pin' ? 13 : (which === 'wheel' ? 22 : 20);
+    ctx.strokeStyle = ready ? 'rgba(47,167,155,0.9)' : (has ? 'rgba(47,167,155,0.45)' : 'rgba(107,74,47,0.4)');
     ctx.lineWidth = 2;
-    if (has) {
+    if (ready) {
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.arc(x, y, 22, 0, TAU);
+      ctx.arc(x, y, r, 0, TAU);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = 'rgba(47,167,155,0.18)';
       ctx.beginPath();
-      ctx.arc(x, y, 22, 0, TAU);
+      ctx.arc(x, y, r, 0, TAU);
       ctx.fill();
     } else {
       ctx.beginPath();
-      ctx.arc(x, y, 20, 0, TAU);
+      ctx.arc(x, y, r, 0, TAU);
       ctx.stroke();
     }
-    addHit(x - 26, y - 26, 52, 52, 'fit', which);
+    if (which === 'pin') {
+      addHit(x - 18, y - 18, 36, 36, 'fit', which);
+    } else {
+      addHit(x - 26, y - 26, 52, 52, 'fit', which);
+    }
   }
 
   function drawHaystack(open) {
@@ -22046,13 +22207,19 @@ props: islandProps.map(function (p) {
     pageEnd();
   }
 
-  /* ---- The bee-line: average three bearings, then pick the tree --------- */
+  /* ---- The bee-line: read bearings, steady a heading, then pick the tree -- */
   var BEARINGS = [41, 58, 47];
   var BEELINE_TRUE = 48.7;
   var beeline = {
     needle: 0, recorded: null, trees: [], picked: -1, done: false, doneAt: 0,
-    msg: '', msgAge: 9, drag: false, calm: 100, marks: 0
+    msg: '', msgAge: 9, drag: false, calm: 0, read: [], records: 0
   };
+
+  function beelineAvg() {
+    var sum = 0;
+    for (var i = 0; i < BEARINGS.length; i++) sum += BEARINGS[i];
+    return sum / BEARINGS.length;
+  }
 
   function enterBeeline() {
     beeline.needle = 0;
@@ -22063,8 +22230,9 @@ props: islandProps.map(function (p) {
     beeline.msg = '';
     beeline.msgAge = 9;
     beeline.drag = false;
-    beeline.calm = 100;
-    beeline.marks = 3;
+    beeline.calm = 0;
+    beeline.read = [false, false, false];
+    beeline.records = 0;
     var rnd = seeded(8080);
     beeline.trees = [];
     var offsets = [-48, -26, 0, 26];
@@ -22081,10 +22249,24 @@ props: islandProps.map(function (p) {
     return (deg + 360) % 360;
   }
 
+  function beelineRead(i) {
+    if (beeline.read[i]) return;
+    beeline.read[i] = true;
+    sfx.pick();
+    beeline.msg = T('bee {0}: {1}°', i + 1, BEARINGS[i]);
+    beeline.msgAge = 0;
+  }
+
+  function beelineAllRead() {
+    for (var i = 0; i < beeline.read.length; i++) if (!beeline.read[i]) return false;
+    return true;
+  }
+
   function beelineDown(p) {
     if (chromeTap(p)) return;
     if (beeline.done) return;
     var h = hitAt(p);
+    if (h && h.act === 'bearing') { beelineRead(h.arg); return; }
     if (h && h.act === 'record') { beelineRecord(); return; }
     if (h && h.act === 'tree') { beelinePick(h.arg); return; }
     if (dist(p.x, p.y, 195, 380) < 190 && dist(p.x, p.y, 195, 380) > 8) {
@@ -22101,18 +22283,33 @@ props: islandProps.map(function (p) {
   function beelineUp() { beeline.drag = false; }
 
   function beelineRecord() {
-    if (beeline.recorded !== null) return;
-    beeline.recorded = beeline.needle;
+    if (beeline.done) return;
+    if (!beelineAllRead()) {
+      beeline.msg = 'Read all three bearings first.';
+      beeline.msgAge = 0;
+      sfx.bee();
+      return;
+    }
+    var want = beelineAvg();
+    var off = Math.abs(((beeline.needle - want + 540) % 360) - 180);
     sfx.pick();
-    var off = Math.abs(((beeline.needle - BEELINE_TRUE + 540) % 360) - 180);
-    if (off <= 12) {
-      beeline.msg = 'The bearings agree. The colony is that way.';
+    if (off <= 10) {
+      beeline.records++;
+      beeline.calm = Math.min(100, beeline.calm + 55);
+      if (beeline.calm >= 100) {
+        beeline.recorded = beeline.needle;
+        beeline.msg = 'The bearings agree. The colony is that way.';
+      } else {
+        beeline.msg = T('Reading {0}/2 agrees. Record once more.', beeline.records);
+      }
       beeline.msgAge = 0;
     } else {
+      beeline.calm = Math.max(0, beeline.calm - 30);
+      beeline.records = Math.max(0, beeline.records - 1);
+      beeline.recorded = null;
       beeline.msg = 'That line wanders. Read the three again.';
       beeline.msgAge = 0;
-      beeline.calm = Math.max(0, beeline.calm - 6);
-      beeline.recorded = null;
+      sfx.bee();
     }
   }
 
@@ -22134,7 +22331,8 @@ props: islandProps.map(function (p) {
     } else {
       beeline.msg = 'No colony here. Look back at the line.';
       beeline.msgAge = 0;
-      beeline.calm = Math.max(0, beeline.calm - 8);
+      beeline.calm = Math.max(0, beeline.calm - 20);
+      beeline.recorded = null;
       sfx.bee();
     }
   }
@@ -22145,15 +22343,18 @@ props: islandProps.map(function (p) {
 
   function autoBeeline() {
     if (beeline.done) { if (clock - beeline.doneAt > 3.8) backToIsland(); return; }
+    for (var i = 0; i < beeline.read.length; i++) {
+      if (!beeline.read[i]) { beelineRead(i); return; }
+    }
     if (beeline.recorded === null) {
-      beeline.needle = BEELINE_TRUE;
+      beeline.needle = beelineAvg();
       beelineRecord();
       return;
     }
-    for (var i = 0; i < beeline.trees.length; i++) {
-      var tree = beeline.trees[i];
+    for (var j = 0; j < beeline.trees.length; j++) {
+      var tree = beeline.trees[j];
       var want = beeline.recorded;
-      if (Math.abs(((tree.a - want + 540) % 360) - 180) <= 12) { beelinePick(i); return; }
+      if (Math.abs(((tree.a - want + 540) % 360) - 180) <= 12) { beelinePick(j); return; }
     }
   }
 
@@ -22181,7 +22382,7 @@ props: islandProps.map(function (p) {
 
     placeHeader(T('The bee-line'));
 
-    // The three readings.
+    // The three readings: tap each bee to read its bearing.
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(240,246,226,0.85)';
@@ -22189,16 +22390,31 @@ props: islandProps.map(function (p) {
     ctx.fillText(T('three bees, three bearings'), 195, 96);
     for (var i = 0; i < BEARINGS.length; i++) {
       var bx = 105 + i * 90;
-      ctx.fillStyle = 'rgba(247,244,238,0.9)';
+      var read = beeline.read && beeline.read[i];
+      ctx.fillStyle = read ? 'rgba(247,244,238,0.95)' : 'rgba(247,244,238,0.55)';
       roundRect(bx - 40, 110, 80, 46, 9);
       ctx.fill();
-      ctx.fillStyle = C.ink;
+      ctx.strokeStyle = read ? 'rgba(47,167,155,0.7)' : 'rgba(42,35,32,0.18)';
+      ctx.lineWidth = read ? 2 : 1;
+      ctx.strokeRect(bx - 40, 110, 80, 46);
+      ctx.fillStyle = read ? C.ink : C.inkFaint;
       ctx.font = '600 17px ' + FONT_UI;
-      ctx.fillText(BEARINGS[i] + '\u00b0', bx, 128);
-      ctx.fillStyle = C.inkFaint;
+      ctx.fillText(read ? (BEARINGS[i] + '\u00b0') : '?', bx, 128);
+      ctx.fillStyle = read ? C.inkSoft : C.inkFaint;
       ctx.font = '400 9.5px ' + FONT_UI;
       ctx.fillText(T('bee {0}', i + 1), bx, 146);
+      addHit(bx - 40, 110, 80, 46, 'bearing', i);
     }
+
+    // Calm/consistency meter.
+    var barX = 80, barY = 164, barW = 230, barH = 8;
+    ctx.fillStyle = 'rgba(240,246,226,0.25)';
+    roundRect(barX, barY, barW, barH, 4); ctx.fill();
+    ctx.fillStyle = beeline.calm >= 100 ? '#9FD7A0' : 'rgba(247,216,138,0.9)';
+    roundRect(barX, barY, barW * clamp((beeline.calm || 0) / 100, 0, 1), barH, 4); ctx.fill();
+    ctx.fillStyle = 'rgba(240,246,226,0.7)';
+    ctx.font = '400 10px ' + FONT_UI;
+    ctx.fillText(T('line steadiness'), 195, 182);
 
     // The compass: a ring, the needle, the recorded line.
     var cx = 195, cy = 380, R = 120;
@@ -22273,7 +22489,8 @@ props: islandProps.map(function (p) {
     }
 
     // Record.
-    ctx.fillStyle = beeline.recorded === null ? C.terracotta : 'rgba(247,244,238,0.2)';
+    var canRecord = beeline.recorded === null;
+    ctx.fillStyle = canRecord ? C.terracotta : 'rgba(247,244,238,0.2)';
     roundRect(195 - 74, 560, 148, 44, 22);
     ctx.fill();
     ctx.fillStyle = '#F7F4EE';
@@ -22283,7 +22500,10 @@ props: islandProps.map(function (p) {
 
     ctx.fillStyle = 'rgba(240,246,226,0.6)';
     ctx.font = '400 11px ' + FONT_UI;
-    ctx.fillText(beeline.recorded === null ? T('drag the needle to the average') : T('tap the tree on the line'), 195, 630);
+    var hint = T('tap each bee, then drag the needle to the average');
+    if (beeline.recorded !== null) hint = T('tap the tree on the line');
+    else if (beelineAllRead()) hint = T('drag the needle to the average');
+    ctx.fillText(hint, 195, 630);
 
     if (beeline.msgAge < 3 && beeline.msg && !beeline.done) {
       ctx.fillStyle = '#F3C89A';
@@ -25072,7 +25292,7 @@ props: islandProps.map(function (p) {
     leopard: 0.54, pig: 0.51, jackal: 0.38, seal: 0.38, fox: 0.31,
     hare: 0.29, rabbit: 0.19, hedgehog: 0.13, dormouse: 0.07, mouse: 0.06,
     shepherd: 0.94, retriever: 0.44, terrier: 0.30,
-    tabby: 0.21, ginger: 0.21, blackcat: 0.21
+    tabby: 0.30, ginger: 0.30, blackcat: 0.30
   };
 
   /* The scale for one living thing: its own target height in pixels over how
@@ -31577,7 +31797,9 @@ var ANIMAL_SIZES = {
 
       // The doors and doors-of-the-yard.
       if (d.kind === 'yard') {
-        out.push({ k: 'house', x: W * 0.29, y: H * 0.19, verb: 'go in', act: 'inside', to: 'house', name: '' });
+        // Low enough in the frame that a house at her real height (2.7 of her) keeps
+        // its roof on the page: a house cut off at the top reads as a broken one.
+        out.push({ k: 'house', x: W * 0.29, y: H * 0.30, verb: 'go in', act: 'inside', to: 'house', name: '' });
         // The yard's own tree: one plane tree, the height of four and a half of
         // her, standing where the house's shadow does not reach. It is a species
         // like any other, so the wind finds its leaves.
@@ -31587,7 +31809,10 @@ var ANIMAL_SIZES = {
         }
         if (yardTree) out.push({ k: 'species', sp: yardTree, x: W * 0.79, y: H * 0.33, name: '' });
         out.push({ k: 'well', x: W * 0.24, y: H * 0.72, verb: 'look at the well', act: 'well', name: '' });
-        out.push({ k: 'sister', x: W * 0.24 + 96, y: H * 0.72 - 6, verb: who === 'darya' ? 'greet Donya' : 'greet Daryá', act: 'sister', name: '' });
+        // The sister stands at the well unless a talk has sent her somewhere.
+        if (!sisterGone()) {
+          out.push({ k: 'sister', x: W * 0.24 + 96, y: H * 0.72 - 6, verb: who === 'darya' ? 'greet Donya' : 'greet Daryá', act: 'sister', talkId: 'being-sister', label: otherSister().name, name: '' });
+        }
       } else if (d.kind === 'henhouse') {
         out.push({ k: 'coopdoor', x: W * 0.5, y: H * 0.22, verb: 'go into the henhouse', act: 'enter', to: 'hens', name: '' });
       } else if (d.kind === 'apiary') {
@@ -31620,6 +31845,14 @@ var ANIMAL_SIZES = {
           k: 'pondwater', x: psb.cx, y: psb.cy + psb.ry + 26,
           verb: 'fish the pond', act: 'enter', to: 'lake', from: 'pond', name: ''
         });
+        // A sister sent ahead by a talk waits here, on the water's edge.
+        if (sisterWaitingHere()) {
+          out.push({
+            k: 'sister', x: W * 0.30, y: H * 0.70,
+            verb: who === 'darya' ? 'greet Donya' : 'greet Daryá',
+            act: 'sister', talkId: 'being-sister', label: otherSister().name, name: ''
+          });
+        }
       } else if (d.kind === 'stream') {
         // On the bank, at the water's edge, so she can reach it from the grass.
         var scb = streamCentre(0.46) * W, shb = streamHalf(0.46) * W;
@@ -32252,13 +32485,22 @@ var ANIMAL_SIZES = {
     if (p.act === 'sister') {
       donyaMet = true;
       teachWord('khahar');
-      // One sister is always at the well, and it is always the other one: she says
-      // the handoff in her own voice, and which voice it is depends on whose day
-      // this is.
-      beingSaid = {
-        at: clock, who: T(otherSister().name),
-        line: T(otherSister().greets)
-      };
+      // Sent ahead by a talk, she is standing by the water: reaching her there is
+      // the whole errand, and the island is back to its old shape afterwards.
+      if (missionOn('donya-pond') && section.cx === 0 && section.cy === 1) {
+        endMission();
+        beingSaid = {
+          at: clock, who: T(otherSister().name),
+          line: T('Here you are. Sit; the water is doing all the work.')
+        };
+        addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
+        showNotice(T('You found her by the water'), T('she goes back to the well'));
+        sfx.pick();
+        checkErrand();
+        return;
+      }
+      // Otherwise the well is the whole meeting, and it opens a conversation.
+      startTalk(p);
       addParticles(p.x, p.y - 20, '#FFF3D0', 10, 70);
       checkErrand();
       return;
@@ -33256,6 +33498,15 @@ var ANIMAL_SIZES = {
       return;
     }
     if (p.k === 'house') {
+      // A house is three of her, not one. At 158 units it read as a shed behind the
+      // grass, so the whole drawing is scaled about the ground point it stands on -
+      // walls, roof, door and windows keep their proportions because they scale
+      // together.
+      var HOUSE_SCALE = 2.2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(HOUSE_SCALE, HOUSE_SCALE);
+      ctx.translate(-x, -y);
       // A house seen from the front-right: a front wall, a side wall that recedes
       // up and away, a hipped roof with an eave, and the door turned toward the
       // path. Nothing here is a flat elevation any more.
@@ -33352,6 +33603,7 @@ var ANIMAL_SIZES = {
       ctx.closePath();
       ctx.fill();
       ctx.restore();
+      ctx.restore();   // HOUSE_SCALE
     } else if (p.k === 'coopdoor') {
       var isGlass = false;
       ctx.fillStyle = isGlass ? '#EAF1EE' : '#F2E7D4';
@@ -34127,6 +34379,54 @@ var ANIMAL_SIZES = {
   /* The last thing a person said to her, and when. */
   var beingSaid = { at: -99, who: '', line: '' };
 
+  /* ---- What a talk can do to the island ------------------------------------
+
+     A conversation is not only words. A reply may carry `do`, and that names an
+     effect: the person walks off and waits somewhere, a mission is written down,
+     a word is taught. This is how dialogue reaches the world: Donyá says follow
+     me, and then she is actually standing by the pond when you get there.
+
+     One record, saved, so a player who puts the phone down finds her still
+     waiting. `propCache` is cleared whenever it changes, because the props are
+     built from it and a stale cache would leave her in two places. */
+  var MISSION_KEY = 'darya.mission';
+  var mission = null;
+  try {
+    var savedMission = window.localStorage.getItem(MISSION_KEY);
+    if (savedMission) mission = JSON.parse(savedMission);
+  } catch (e) { mission = null; }
+
+  function saveMission() {
+    try {
+      if (mission) window.localStorage.setItem(MISSION_KEY, JSON.stringify(mission));
+      else window.localStorage.removeItem(MISSION_KEY);
+    } catch (e) { /* private */ }
+  }
+
+  function missionOn(id) { return !!(mission && mission.id === id); }
+
+  function startMission(id) { mission = { id: id }; saveMission(); propCache = {}; }
+
+  function endMission() { mission = null; saveMission(); propCache = {}; }
+
+  /* Is the sister somewhere other than the well? */
+  function sisterGone() { return missionOn('donya-pond'); }
+
+  /* Is she waiting on this ground? She waits by the pond, which is the yard's
+     southern neighbour. */
+  function sisterWaitingHere() {
+    return missionOn('donya-pond') && !interior && section.cx === 0 && section.cy === 1;
+  }
+
+  /* The effects a reply can name. A name that is not here is an audit failure,
+     so a tree cannot point at a thing that never happens. */
+  var TALK_DO = {
+    follow: function () {
+      startMission('donya-pond');
+      showNotice(T('meet {0} by the pond', T(otherSister().name)), T('she goes ahead and waits by the water'));
+    }
+  };
+
   /* ---- The talk, while it is open ----------------------------------------
 
      `node` is where in the person's tree she stands; `path` is how she got
@@ -34258,7 +34558,8 @@ var ANIMAL_SIZES = {
   }
 
   /* One of her lines, taken: the person answers it. `i` is the index of the
-     reply that is offered on the current node. */
+     reply that is offered on the current node. A reply may also carry `do`, and
+     that is the reply changing the world rather than only the talk. */
   function talkChoose(i) {
     if (!talk.on) return false;
     var n = talkNode();
@@ -34266,6 +34567,7 @@ var ANIMAL_SIZES = {
     var to = n.replies[i].to;
     talk.path.push({ at: talk.node, chose: n.replies[i].say });
     if (!talkGo(to)) return false;
+    if (n.replies[i].do && TALK_DO[n.replies[i].do]) TALK_DO[n.replies[i].do]();
     checkErrand();
     return true;
   }
@@ -34283,9 +34585,17 @@ var ANIMAL_SIZES = {
   window.__talkTo = function (id) {
     var list = buildProps();
     for (var i = 0; i < list.length; i++) {
-      if (list[i].sp && list[i].sp.id === id) { startTalk(list[i]); return true; }
+      var sp = list[i].sp;
+      if ((sp && sp.id === id) || list[i].talkId === id) { startTalk(list[i]); return true; }
     }
     return false;
+  };
+  window.__mission = function () {
+    return {
+      on: !!mission, id: mission ? mission.id : '',
+      sisterInYard: !sisterGone(), sisterAtPond: sisterWaitingHere(),
+      here: section.cx + ',' + section.cy
+    };
   };
   /* Who is standing on this ground, so a talk can be found without a guess. */
   window.__beingsHere = function () {
