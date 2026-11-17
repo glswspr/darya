@@ -1608,6 +1608,204 @@
     dust: '#D8BE8A'
   };
 
+  /* ---- Night is a palette, not a veil ------------------------------------
+
+     A wash laid over the finished frame lowers every edge it crosses, so night
+     used to read as the same drawing with the lamp turned down: the ink lines
+     went grey with the grass, and nothing in the picture kept its own light.
+
+     Night is a colour mapping instead, the way a pixel-art night palette works.
+     Every colour is resolved through a ramp - the dark end to blue, the pale end
+     keeping a little warmth - so the drawing keeps its edges and its materials
+     keep their names. A colour maps once per band of night and is cached, so a
+     frame pays a lookup per fill, not a pass over its pixels.
+
+     Two rules it must not break:
+
+     - Paper never receives light (ART_DIRECTION). The mapping is OFF by default
+       and is switched on only while the world is drawn, so every page, book,
+       errand, word card and hour chip is drawn in daylight ink without any of
+       them having to remember the rule.
+     - A baked drawing carries the hour it was baked in, so a band change marks
+       the bakes dirty and the next frame repaints them.
+   */
+  var Night = (function () {
+    // The numbers the night is drawn from. They are named here, in one object, so a
+    // tuner page can move them and the game shows the result without a rebuild.
+    var TUNE = {
+      // The ramp a colour's brightness is resolved through, darkest first. It is
+      // the island after sunset: shadows gone blue, the pale ends holding enough
+      // warmth that a lamp, a window and a sheet of paper stay themselves.
+      ramp: [
+        [12, 15, 26],
+        [20, 27, 45],
+        [28, 38, 64],
+        [44, 54, 82],
+        [80, 88, 106],
+        [158, 148, 126]
+      ],
+      keepCool: 0.06,   // how much of a cool colour survives the ramp
+      keepWarm: 0.62,   // ...and of a warm one: the lamps, the roofs, the skin
+      keepFloor: 0.16,  // nothing goes entirely to the ramp: a coat stays a coat
+      pale: 0.38,       // how much a very pale colour gives up (a goat is not a lamp)
+      heat: 0.30,       // share of the night the sky keeps a lit side
+      edge: 0.18        // share of the dark span the long dusk and dawn take
+    };
+    var k = 0,          // how much of the night the world is drawn in, 0 to 1
+      band = -1,        // k as a whole band, so a bake knows when to repaint
+      on = false,       // true only while the world is being drawn
+      cache = new Map(),// colour in, colour out, for the current band
+      made = new Set(); // strings this mapping produced, so nothing maps twice
+
+    var HEX = /^#([0-9a-fA-F]{3,8})$/,
+      FUNC = /^rgba?\(([^)]+)\)$/i;
+
+    function parse(s) {
+      var m = HEX.exec(s);
+      if (m) {
+        var h = m[1];
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length === 4) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+        if (h.length === 6) h += 'ff';
+        if (h.length !== 8) return null;
+        return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), parseInt(h.slice(6, 8), 16) / 255];
+      }
+      m = FUNC.exec(s);
+      if (m) {
+        var p = m[1].split(',');
+        if (p.length < 3) return null;
+        return [
+          clamp(Math.round(parseFloat(p[0])), 0, 255),
+          clamp(Math.round(parseFloat(p[1])), 0, 255),
+          clamp(Math.round(parseFloat(p[2])), 0, 255),
+          p.length > 3 ? clamp(parseFloat(p[3]), 0, 1) : 1
+        ];
+      }
+      return null;
+    }
+
+    // The ramp, read at one brightness.
+    function rampAt(t) {
+      var n = TUNE.ramp.length - 1,
+        u = clamp(t, 0, 1) * n,
+        i = Math.min(n - 1, Math.floor(u)),
+        f = u - i,
+        a = TUNE.ramp[i],
+        b = TUNE.ramp[i + 1];
+      return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+    }
+
+    function out(r, g, b, a) {
+      r = clamp(Math.round(r), 0, 255);
+      g = clamp(Math.round(g), 0, 255);
+      b = clamp(Math.round(b), 0, 255);
+      return a >= 0.999
+        ? 'rgb(' + r + ',' + g + ',' + b + ')'
+        : 'rgba(' + r + ',' + g + ',' + b + ',' + (Math.round(a * 1000) / 1000) + ')';
+    }
+
+    /* One colour, at the current band. Warmth is kept on purpose: saffron, honey
+       and terracotta are the island's lamps, and a night that blues them is a
+       night nobody lit. Everything cooler goes to the ramp. */
+    function shade(c) {
+      var l = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255,
+        rp = rampAt(l),
+        warm = clamp((c[0] - c[1]) / 60, 0, 1),
+        // A pale colour gives up more of itself than a mid one: cream, chalk wall
+        // and a pale animal are the brightest things on the page, and at night the
+        // brightest thing should be a lamp, not a goat.
+        pale = clamp((l - 0.7) / 0.3, 0, 1),
+        keep = Math.max(TUNE.keepFloor, (TUNE.keepCool + TUNE.keepWarm * warm) * (0.4 + 0.6 * l) * (1 - TUNE.pale * pale)),
+        // the ramp first, then the colour's own hue mixed back into it
+        r = rp[0] + (c[0] - rp[0]) * keep,
+        g = rp[1] + (c[1] - rp[1]) * keep,
+        b = rp[2] + (c[2] - rp[2]) * keep;
+      // ...and the whole of that mixed in by how far into the night the world is
+      return out(
+        c[0] + (r - c[0]) * k,
+        c[1] + (g - c[1]) * k,
+        c[2] + (b - c[2]) * k,
+        c[3]
+      );
+    }
+
+    function map(v) {
+      if (!on || k < 0.02 || typeof v !== 'string') return v;
+      if (made.has(v)) return v;
+      var hit = cache.get(v);
+      if (hit !== undefined) return hit;
+      var c = parse(v);
+      if (!c) return v;
+      var res = shade(c);
+      cache.set(v, res);
+      made.add(res);
+      return res;
+    }
+
+    /* How far into the night the hour is. The sun is down between sunset and
+       sunrise; the first and last fifth of that are the long dusk and the long
+       dawn, so the change arrives over minutes and not at a stroke. */
+    function ofHour(t) {
+      var set = day.sunSet,
+        rise = day.sunRise;
+      var dark = t > set ? t - set : (t < rise ? t + 1 - set : 0);
+      var span = 1 - set + rise;
+      if (dark <= 0) return 0;
+      var u = clamp(dark / span, 0, 1);
+      var edge = TUNE.edge;
+      return u < edge ? u / edge : (u > 1 - edge ? (1 - u) / edge : 1);
+    }
+
+    function set(v) {
+      v = clamp(v, 0, 1);
+      if (Math.abs(v - k) < 0.02) return false;
+      k = v;
+      cache.clear();
+      made.clear();
+      var nb = Math.round(k * 8);
+      var changed = nb !== band;
+      band = nb;
+      return changed;
+    }
+
+    return {
+      map: map,
+      set: set,
+      ofHour: ofHour,
+      band: function () { return band; },
+      k: function () { return k; },
+      field: function (v) { on = !!v; },
+      /* The numbers, so a tuner page can move them without a rebuild. */
+      tune: function () { return TUNE; },
+      redraw: function () { cache.clear(); made.clear(); },
+      /* The mapping itself, for a probe or the console: __nightMap('#9DAE79') */
+      probe: function (hex) { var c = parse(hex); return c ? shade(c) : null; }
+    };
+  })();
+
+  /* Every 2D context in the game draws through this mapping: the prototype is
+     wrapped once, so a fill, a stroke and a gradient stop all resolve the same
+     way and no call site has to know that night exists. */
+  (function wrapInk() {
+    try {
+      var proto = CanvasRenderingContext2D.prototype;
+      ['fillStyle', 'strokeStyle'].forEach(function (name) {
+        var d = Object.getOwnPropertyDescriptor(proto, name);
+        if (!d || !d.get || !d.set) return;
+        Object.defineProperty(proto, name, {
+          configurable: true,
+          enumerable: d.enumerable,
+          get: function () { return d.get.call(this); },
+          set: function (v) { d.set.call(this, typeof v === 'string' ? Night.map(v) : v); }
+        });
+      });
+      var add = CanvasGradient.prototype.addColorStop;
+      CanvasGradient.prototype.addColorStop = function (t, c) {
+        return add.call(this, t, typeof c === 'string' ? Night.map(c) : c);
+      };
+    } catch (e) { /* an old browser: day only, no night colours */ }
+  })();
+
   var FONT_UI = 'system-ui, -apple-system, "Segoe UI", sans-serif';
   var FONT_SERIF = 'Georgia, "Iowan Old Style", "Times New Roman", serif';
 
@@ -1810,6 +2008,12 @@ function sightSp(sg) {
   /* The original Darya's word table, whole: 125 words, each one carried by a
      plant, an animal, a person or a carved stone somewhere on the island. */
   var words = [
+    {"f":"setun","e":"column","p":"ستون"},
+    {"f":"átash","e":"fire","p":"آتش"},
+    {"f":"pol","e":"bridge","p":"پل"},
+    {"f":"gardane","e":"pass","p":"گردنه"},
+    {"f":"kárván","e":"caravan","p":"کاروان"},
+    {"f":"sekke","e":"coin","p":"سکه"},
     {"f":"zanbur","e":"bee","p":"زنبور"},
     {"f":"kandu","e":"hive","p":"کندو"},
     {"f":"sháne","e":"honeycomb","p":"شانه"},
@@ -2345,6 +2549,12 @@ function sightSp(sg) {
     river: { inset: 34, tone: 'rgba(54,80,44,0.18)' }
   };
 
+  /* Raw dressing scales are relative (a yard is shorter than a wood); this converts
+     them to shares of her height, so grass sits at her ankle the way
+     SPECIES_HEIGHT.tuft (0.11) says it should. Measured from the yard as drawn: the
+     lawn stood at 0.42 of her, which is nearly four times too tall. */
+  var GROUND_SCALE = 0.26;
+
   var DRESSING = {
     /* THE YARD. A kept lawn: short even grass, the verge let go, daisies where the
        mower misses, straw where feet stand, stones along the lane. */
@@ -2562,35 +2772,91 @@ function sightSp(sg) {
     function push(kind, x2, y2, extra) {
       var o = { k: kind, x: x2, y: y2 };
       if (extra) for (var kk in extra) o[kk] = extra[kk];
+      // One owner for how big ground cover is. A seedling inherits `sScaled` with the
+      // rest of its mother's look, so it is not scaled a second time.
+      if (o.s !== undefined && !o.sScaled) {
+        o.s *= GROUND_SCALE;
+        o.sScaled = true;
+      }
       scenery.pieces.push(o);
+      return o;
     }
 
+    /* One plant, rolled on its own. `opts.exact` is a look it INHERITED instead:
+       the shade, size and lean of the plant it fell from, already mutated. A
+       seedling must not roll its own look, or a patch is a bag of strangers again. */
     function place(kind, x2, y2, opts) {
       opts = opts || {};
+      var ex = opts.exact || null;
       if (kind === 'stone') {
-        push('stone', x2, y2, {
-          r: opts.r ? opts.r[0] + rnd() * (opts.r[1] - opts.r[0]) : 3 + rnd() * 7,
-          sq: 0.5 + rnd() * 0.4, a: rnd() * TAU, tone: rnd()
+        return push('stone', x2, y2, {
+          r: ex ? ex.r : (opts.r ? opts.r[0] + rnd() * (opts.r[1] - opts.r[0]) : 3 + rnd() * 7),
+          sq: ex ? ex.sq : 0.5 + rnd() * 0.4,
+          a: ex ? ex.a : rnd() * TAU,
+          tone: ex ? ex.tone : rnd()
         });
       } else if (kind === 'thatch') {
         var ts = opts.s || [1, 1.6];
-        push('thatch', x2, y2, { s: ts[0] + rnd() * (ts[1] - ts[0]), a: -0.4 + rnd() * 0.8, tone: rnd() });
+        return push('thatch', x2, y2, {
+          s: ex ? ex.s : ts[0] + rnd() * (ts[1] - ts[0]),
+          a: ex ? ex.a : -0.4 + rnd() * 0.8,
+          tone: ex ? ex.tone : rnd()
+        });
       } else if (kind === 'clover') {
-        push('clover', x2, y2, { s: 0.8 + rnd() * 0.7, a: rnd() * TAU, tone: rnd() });
+        return push('clover', x2, y2, {
+          s: ex ? ex.s : 0.8 + rnd() * 0.7,
+          a: ex ? ex.a : rnd() * TAU,
+          tone: ex ? ex.tone : rnd()
+        });
       } else if (kind === 'daisy') {
         var ds = opts.s || [0.9, 1.3];
-        push('daisy', x2, y2, {
+        return push('daisy', x2, y2, {
           // Small: a daisy is a mark, not a bloom. 4..9 px across at island size.
-          r: (1.5 + rnd() * 1.4) * (ds[0] + rnd() * (ds[1] - ds[0]) * 0.6),
-          a: rnd() * TAU, c: Math.floor(rnd() * 4)
+          r: ex ? ex.r : (1.5 + rnd() * 1.4) * (ds[0] + rnd() * (ds[1] - ds[0]) * 0.6),
+          a: ex ? ex.a : rnd() * TAU,
+          c: ex ? ex.c : Math.floor(rnd() * 4)
         });
-      } else {
-        var bs = opts.s || [0.5, 1.0];
-        push('blade', x2, y2, {
-          s: bs[0] + rnd() * (bs[1] - bs[0]),
-          a: -0.5 + rnd() * 1.0,
-          tone: clamp((opts.t === undefined ? 0.55 : opts.t) + (rnd() - 0.5) * 0.5, 0, 1)
-        });
+      }
+      var bs = opts.s || [0.5, 1.0];
+      return push('blade', x2, y2, {
+        s: ex ? ex.s : bs[0] + rnd() * (bs[1] - bs[0]),
+        a: ex ? ex.a : -0.5 + rnd() * 1.0,
+        tone: ex ? ex.tone : clamp((opts.t === undefined ? 0.55 : opts.t) + (rnd() - 0.5) * 0.5, 0, 1),
+        // How many blades a tuft opens and how wide it spreads them. A mother's
+        // count and spread pass to her seedlings untouched: a stand of thin, open
+        // tufts is a different plant from a stand of dense ones, and that is the
+        // difference a field of shapes has that a field of shades does not.
+        bl: ex ? ex.bl : 4 + Math.floor(rnd() * 5),
+        sp: ex ? ex.sp : 0.36 + rnd() * 0.38
+      });
+    }
+
+    /* A mother plant and the seedlings she drops. Her shade, size and lean pass
+       to her children with one small mutation each, so a patch reads as ONE
+       family and the next patch is a different one - which is how a field of
+       grass actually looks, and what a bag of independent plants never does.
+       The children land in a thinning ring around her: dense at the heart of the
+       patch, sparse at its edge, so the patch has no drawn border.
+       Her own piece is the drawing the seedlings inherit from, not a separate
+       plant standing apart from them. */
+    function seedPatch(kind, x2, y2, opts, n, spread, flat) {
+      var mother = place(kind, x2, y2, opts);
+      var squash2 = flat || 0.72;
+      for (var c = 1; c < n; c++) {
+        var look = {};
+        for (var kk in mother) if (kk !== 'k' && kk !== 'x' && kk !== 'y') look[kk] = mother[kk];
+        if (look.r !== undefined) look.r *= 0.82 + rnd() * 0.36;
+        if (look.s !== undefined) look.s *= 0.80 + rnd() * 0.40;
+        if (look.sq !== undefined) look.sq *= 0.90 + rnd() * 0.20;
+        if (look.tone !== undefined) look.tone = clamp(look.tone + (rnd() - 0.5) * 0.07, 0, 1);
+        if (look.a !== undefined) look.a += (rnd() - 0.5) * 0.40;
+        var ang = rnd() * TAU;
+        // The square root keeps her own patch evenly filled; the occasional
+        // squared roll throws a seedling well clear, so a patch has a thin tail
+        // instead of stopping on a circle.
+        var rr = Math.sqrt(rnd()) * spread * (rnd() < 0.14 ? 1.9 : 1.0);
+        place(kind, clamp(x2 + Math.cos(ang) * rr, 10, world.w - 10),
+          clamp(y2 + Math.sin(ang) * rr * squash2, 96, world.h - 12), { exact: look });
       }
     }
 
@@ -2638,7 +2904,10 @@ function sightSp(sg) {
     if (design.base) {
       var tiles = Math.max(1, Math.round(Math.sqrt(area)));
       var tileH = H / tiles;
-      for (i = 0; i < count(design.base.n); i++) {
+
+      // Where the ground is seeded: the same weighting the design was composed
+      // with, kept in one place so a patch and a stray both land by one rule.
+      function basePoint() {
         var u = rnd();
         var ti = Math.floor(rnd() * tiles);
         var ty0 = ti * tileH;
@@ -2664,6 +2933,26 @@ function sightSp(sg) {
           y = clamp(ty0 + tileH * 0.5 + Math.sin(ang0) * rr0 * 1.2, 104, H - 16);
         }
         y = clamp(y, 96, H - 14);
+      }
+
+      // The ground grows in PATCHES, not as an even carpet: a seed lands, its own
+      // seedlings come up around it, and the space between two patches is thinner
+      // ground rather than more of the same. A third of the field is left as
+      // strays, so no patch is drawn on an empty page.
+      //
+      // A family is of any size, from a lone seedling to a broad stand: `rnd()*rnd()`
+      // skews small, so most patches are a few plants and the rare wide one is what
+      // makes the ground read as grown rather than scattered.
+      var wanted = count(design.base.n);
+      var patches = Math.round(wanted * 0.62 / 4.5);
+      for (i = 0; i < patches; i++) {
+        basePoint();
+        seedPatch(design.base.k, x, y,
+          { s: design.base.s, t: 0.22 + rnd() * 0.58 },
+          2 + Math.floor(rnd() * rnd() * 12), 14 + rnd() * 46);
+      }
+      for (i = 0; i < Math.round(wanted * 0.3); i++) {
+        basePoint();
         place(design.base.k, x, y, design.base);
       }
     }
@@ -2686,23 +2975,23 @@ function sightSp(sg) {
         var cy = clamp(pg * pageH + b.ay * pageH, pageH * 0.2, H - pageH * 0.1);
 
         // The bed's own ground: longer and looser than the lawn, so the species has
-        // something to stand in.
+        // something to stand in. Two seeds fell here, not one, so the grass under
+        // the bed is two families with a colour between them.
         var fillerN = Math.round(b.n * 1.4);
-        for (var f = 0; f < fillerN; f++) {
-          var fa = rnd() * TAU, fr = Math.sqrt(rnd()) * rad * 1.12;
-          var bx2 = clamp(cx + Math.cos(fa) * fr, 12, W - 12);
-          var by2 = clamp(cy + Math.sin(fa) * fr * squash, 98, H - 14);
-          place('blade', bx2, by2, { s: [1.1, 2.3], t: 0.42 });
-        }
+        var fx2 = (rnd() - 0.5) * rad * 0.6, fy2 = (rnd() - 0.5) * rad * 0.5;
+        var fTone = 0.18 + rnd() * 0.58;
+        seedPatch('blade', clamp(cx + fx2, 12, W - 12), clamp(cy + fy2, 98, H - 14),
+          { s: [1.1, 2.3], t: fTone }, Math.round(fillerN * 0.6), rad * 0.85, squash);
+        seedPatch('blade', clamp(cx - fx2 * 1.5, 12, W - 12), clamp(cy - fy2 * 1.4, 98, H - 14),
+          { s: [1.1, 2.3], t: clamp(fTone + (rnd() < 0.5 ? -0.22 : 0.22), 0.05, 0.95) },
+          Math.round(fillerN * 0.4), rad * 0.7, squash);
 
-        // And the species itself, denser at the middle.
-        for (var j = 0; j < b.n; j++) {
-          var ang = rnd() * TAU;
-          var rr = Math.sqrt(rnd()) * rad;
-          var sx2 = clamp(cx + Math.cos(ang) * rr, 14, W - 14);
-          var sy2 = clamp(cy + Math.sin(ang) * rr * squash, 100, H - 16);
-          place(b.k, sx2, sy2, b);
-        }
+        // And the species itself: one mother at the bed's heart and her own
+        // seedlings around her, so a drift of daisies is one colour with a few
+        // mutations in it, rather than four colours dealt out evenly.
+        var mx = clamp(cx + (rnd() - 0.5) * rad * 0.35, 14, W - 14);
+        var my = clamp(cy + (rnd() - 0.5) * rad * 0.30, 100, H - 16);
+        seedPatch(b.k, mx, my, b, Math.max(2, b.n), rad * 1.05, squash);
       }
     }
 
@@ -3026,6 +3315,12 @@ function sightSp(sg) {
     // she walked away is a plant that flickers. That also removes the old trap
     // where the bake and the live pass had to agree about which pieces to leave
     // out, and a piece could be drawn twice or not at all.
+    // The bake carries the hour it was painted in, so a night band that moves
+    // means it must be painted again.
+    if (quietGround.band !== Night.band()) {
+      quietGround.band = Night.band();
+      quietGround.dirty = true;
+    }
     if (quietGround.dirty) {
       quietGround.bakes = (quietGround.bakes || 0) + 1;
       var qc = quietGroundCanvas();
@@ -3144,16 +3439,28 @@ function sightSp(sg) {
      blades paint before all lit ones - which shows only where two tufts of
      different tones overlap, and at these sizes one stroke of similar green over
      another is not an edge anybody can see. */
-  var BLADE_DARK = ['rgba(96,124,58,0.95)', 'rgba(74,102,46,0.95)',
-    'rgba(56,84,38,0.95)', 'rgba(40,64,30,0.95)'];
-  var BLADE_LITE = ['rgba(128,158,76,0.95)', 'rgba(102,132,60,0.95)',
-    'rgba(80,110,50,0.95)', 'rgba(58,86,40,0.95)'];
+  // Six shades of grass, light to dark, so two patches of the same species can
+  // stand side by side and be told apart. Four was one shade short of that: a
+  // family could only differ from its neighbour by its size.
+  var BLADE_DARK = ['rgba(112,140,68,0.95)', 'rgba(96,124,58,0.95)', 'rgba(74,102,46,0.95)',
+    'rgba(58,86,40,0.95)', 'rgba(48,74,34,0.95)', 'rgba(40,62,30,0.95)'];
+  var BLADE_LITE = ['rgba(146,176,88,0.95)', 'rgba(128,158,76,0.95)', 'rgba(102,132,60,0.95)',
+    'rgba(82,112,52,0.95)', 'rgba(66,96,44,0.95)', 'rgba(54,82,38,0.95)'];
   var BLADE_WIDTHS = [1.55, 1.9, 2.35];
   var DAISY_PETAL = ['#F6F1E2', '#EFD98A', '#D9A9BE', '#CFD9F0'];
 
-  // 24 blade buckets (tone 0-3 x shade/lit x thickness 0-2), then thatch, two
-  // clover tones, daisy stems, four petal colours, daisy centres, and the shadows.
-  var GROUND_BUCKETS = 34;
+  // The buckets are named, never counted by hand: a tone added here used to mean
+  // renumbering every index below it, which is a bug waiting for the next shade.
+  // Blade buckets first (tone x shade/lit x thickness), then the other kinds.
+  var BLADE_TONES = 6;
+  var BLADE_SIDES = 6;                    // two sides x three thicknesses
+  var BK_THATCH = BLADE_TONES * BLADE_SIDES;
+  var BK_CLOVER = BK_THATCH + 1;          // two: dark and light clover
+  var BK_DAISY_STEM = BK_CLOVER + 2;
+  var BK_PETAL = BK_DAISY_STEM + 1;       // one per petal colour
+  var BK_EYE = BK_PETAL + DAISY_PETAL.length;
+  var BK_ROOT = BK_EYE + 1;               // every standing plant's contact shadow
+  var GROUND_BUCKETS = BK_ROOT + 1;
   var groundBuckets = [];
   for (var gbi = 0; gbi < GROUND_BUCKETS; gbi++) groundBuckets.push([]);
 
@@ -3185,21 +3492,24 @@ function sightSp(sg) {
         : 0;
       live++;
       if (pc.k === 'blade') {
-        var tone = pc.tone > 0.72 ? 0 : pc.tone > 0.46 ? 1 : pc.tone > 0.22 ? 2 : 3;
+        // Six shades, so a patch's own shade and the next patch's have room to
+        // differ. The thresholds are even, so no shade swallows its neighbour.
+        var tone = pc.tone > 0.84 ? 0 : pc.tone > 0.68 ? 1 : pc.tone > 0.52 ? 2
+          : pc.tone > 0.36 ? 3 : pc.tone > 0.18 ? 4 : 5;
         var wb = pc.s < 0.9 ? 0 : (pc.s < 1.6 ? 1 : 2);
-        groundBuckets[tone * 6 + wb].push(pc);        // the shaded half
-        groundBuckets[tone * 6 + 3 + wb].push(pc);    // the lit half
+        groundBuckets[tone * BLADE_SIDES + wb].push(pc);              // the shaded half
+        groundBuckets[tone * BLADE_SIDES + 3 + wb].push(pc);          // the lit half
       } else if (pc.k === 'thatch') {
-        groundBuckets[24].push(pc);
-        groundBuckets[33].push(pc);
+        groundBuckets[BK_THATCH].push(pc);
+        groundBuckets[BK_ROOT].push(pc);
       } else if (pc.k === 'clover') {
-        groundBuckets[pc.tone > 0.5 ? 25 : 26].push(pc);
-        groundBuckets[33].push(pc);
+        groundBuckets[pc.tone > 0.5 ? BK_CLOVER : BK_CLOVER + 1].push(pc);
+        groundBuckets[BK_ROOT].push(pc);
       } else if (pc.k === 'daisy') {
-        groundBuckets[27].push(pc);
-        groundBuckets[28 + (pc.c || 0)].push(pc);
-        groundBuckets[32].push(pc);
-        groundBuckets[33].push(pc);
+        groundBuckets[BK_DAISY_STEM].push(pc);
+        groundBuckets[BK_PETAL + (pc.c || 0)].push(pc);
+        groundBuckets[BK_EYE].push(pc);
+        groundBuckets[BK_ROOT].push(pc);
       }
     }
     return live;
@@ -3224,7 +3534,7 @@ function sightSp(sg) {
     // The root shadows first: every standing plant sits in a tight dark contact
     // patch, and that patch is what makes it stand in the ground.
     if (!L0.night) {
-      arr = groundBuckets[33];
+      arr = groundBuckets[BK_ROOT];
       if (arr.length) {
         var ca = Math.atan2(L0.sy, L0.sx);
         var fall = clamp(L0.len, 0.7, 2.2);
@@ -3246,11 +3556,11 @@ function sightSp(sg) {
 
     // The tufts, by tone and thickness.
     ctx.lineCap = 'round';
-    for (sb = 0; sb < 24; sb++) {
+    for (sb = 0; sb < BLADE_TONES * BLADE_SIDES; sb++) {
       arr = groundBuckets[sb];
       if (!arr.length) continue;
-      var tone = (sb / 6) | 0;
-      var side = ((sb % 6) / 3) | 0;
+      var tone = (sb / BLADE_SIDES) | 0;
+      var side = ((sb % BLADE_SIDES) / 3) | 0;
       var wb = sb % 3;
       ctx.strokeStyle = side ? BLADE_LITE[tone] : BLADE_DARK[tone];
       ctx.lineWidth = BLADE_WIDTHS[wb];
@@ -3258,13 +3568,13 @@ function sightSp(sg) {
       for (i = 0; i < arr.length; i++) {
         var pc = arr[i];
         var h = groundHeight(pc);
-        var blades = 5 + Math.floor((pc.s * 7) % 5);
+        var blades = pc.bl || (5 + Math.floor((pc.s * 7) % 5));
         var wind = pc._bend, gust = pc._g, lean = pc._lean;
         for (var bi = 0; bi < blades; bi++) {
           var bt = (bi / (blades - 1 || 1)) - 0.5;
           if ((bt > 0 ? 1 : 0) !== side) continue;
           var bh = h * (0.72 + 0.5 * Math.cos(bt * 2.2));
-          var bx = pc.x + bt * h * 0.55;
+          var bx = pc.x + bt * h * (pc.sp || 0.55);
           ctx.moveTo(bx, pc.y);
           ctx.quadraticCurveTo(
             bx + bt * 6 + pc.a * 3 + lean * 5 + wind * 0.45,
@@ -3278,7 +3588,7 @@ function sightSp(sg) {
     }
 
     // Dry thatch: the stiffest thing on the ground and the last to take the wind.
-    arr = groundBuckets[24];
+    arr = groundBuckets[BK_THATCH];
     if (arr.length) {
       ctx.strokeStyle = 'rgba(158,142,98,0.55)';
       ctx.lineWidth = 1.4;
@@ -3299,10 +3609,10 @@ function sightSp(sg) {
     }
 
     // Clover: three round leaves, lifted and drifted by the line.
-    for (sb = 25; sb <= 26; sb++) {
+    for (sb = BK_CLOVER; sb <= BK_CLOVER + 1; sb++) {
       arr = groundBuckets[sb];
       if (!arr.length) continue;
-      ctx.fillStyle = sb === 25 ? 'rgba(96,130,66,0.80)' : 'rgba(74,108,52,0.80)';
+      ctx.fillStyle = sb === BK_CLOVER ? 'rgba(96,130,66,0.80)' : 'rgba(74,108,52,0.80)';
       for (i = 0; i < arr.length; i++) {
         var cl = arr[i];
         var cr = 2.0 + cl.s * 2.2;
@@ -3320,7 +3630,7 @@ function sightSp(sg) {
     }
 
     // Daisies: stem, then petals, then the golden eye over them.
-    arr = groundBuckets[27];
+    arr = groundBuckets[BK_DAISY_STEM];
     if (arr.length) {
       ctx.strokeStyle = 'rgba(90,120,62,0.75)';
       ctx.lineWidth = 1.2;
@@ -3335,10 +3645,10 @@ function sightSp(sg) {
       }
       ctx.stroke();
     }
-    for (sb = 28; sb <= 31; sb++) {
+    for (sb = BK_PETAL; sb < BK_PETAL + DAISY_PETAL.length; sb++) {
       arr = groundBuckets[sb];
       if (!arr.length) continue;
-      ctx.fillStyle = DAISY_PETAL[sb - 28];
+      ctx.fillStyle = DAISY_PETAL[sb - BK_PETAL];
       for (i = 0; i < arr.length; i++) {
         var dp = arr[i];
         var dh = daisyHead(dp, t);
@@ -3351,7 +3661,7 @@ function sightSp(sg) {
         ctx.fill();
       }
     }
-    arr = groundBuckets[32];
+    arr = groundBuckets[BK_EYE];
     if (arr.length) {
       ctx.fillStyle = '#E0A32A';
       for (i = 0; i < arr.length; i++) {
@@ -4042,6 +4352,10 @@ function sightSp(sg) {
 
     if (scene === 'island' && stage === 'island') { renderIsland(); return; }
 
+    // The stages are the world too: they take the night palette, and the stage's
+    // own dusk leans the same way rather than laying a separate wash over it.
+    Night.field(true);
+    Night.set(Math.max(Night.ofHour(day.t), duskK * 0.9));
     ctx.fillStyle = '#77875C';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -4063,6 +4377,7 @@ function sightSp(sg) {
     drawRipple();
     drawDuskVeil();
 
+    Night.field(false);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (phase === 'playing' || paused || phase === 'won' || phase === 'lost') drawHUD();
     if (stage === 'island' && phase === 'playing' && !paused) drawIslandVerb();
@@ -4396,7 +4711,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "There is bread on the board; sit down."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('mother')]; },
           replies: [
             { say: "Where is Baba?", to: 'a' },
             { say: "What are you making?", to: 'b' }
@@ -4410,7 +4725,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "You have her hands."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('grandmother')]; },
           replies: [
             { say: "Whose hands?", to: 'a' },
             { say: "What was she like?", to: 'b' }
@@ -4424,7 +4739,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "That wall was standing before my father."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('grandfather')]; },
           replies: [
             { say: "Who built it?", to: 'a' },
             { say: "Does it hold?", to: 'b' }
@@ -4438,7 +4753,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "The boat needs a new pin. I will cut one."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('father')]; },
           replies: [
             { say: "Can I come out on the water?", to: 'a' },
             { say: "Was she a good sailor?", to: 'b' }
@@ -4452,7 +4767,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "I found a beetle with a red back."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('brother')]; },
           replies: [
             { say: "Where?", to: 'a' },
             { say: "Will you show me?", to: 'b' }
@@ -4466,7 +4781,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "Pick the beans; the pods are full."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('khale')]; },
           replies: [
             { say: "What are you making with them?", to: 'a' },
             { say: "Why do you always cook?", to: 'b' }
@@ -4480,7 +4795,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "I have mended your coat again."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('amme')]; },
           replies: [
             { say: "How many times now?", to: 'a' },
             { say: "Why do you bother?", to: 'b' }
@@ -4494,7 +4809,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "The pond gave me three fish and a boot."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('dai')]; },
           replies: [
             { say: "Whose boot?", to: 'a' },
             { say: "Do you ever catch the big one?", to: 'b' }
@@ -4508,7 +4823,7 @@ function sightSp(sg) {
       voiced: true,
       nodes: {
         root: {
-          say: function () { return [talkGreet(), talkLight(), "I carry a stone in my pocket from the pass."]; },
+          say: function () { return [talkGreet(), talkLight(), talkOwn('amu')]; },
           replies: [
             { say: "Why carry it?", to: 'a' },
             { say: "What is over the pass?", to: 'b' }
@@ -5863,13 +6178,13 @@ function sightSp(sg) {
     if (phase === 'title') return;
     var k = clamp(duskK, 0, 1);
     if (k <= 0.01) return;
+    // The light of a low sun, and nothing else: how dark the hour is belongs to
+    // the palette (Night), so a wash here would darken twice and flatten the
+    // drawing a second time.
     var g = ctx.createRadialGradient(world.w * 0.5, world.h * 0.42, world.h * 0.15, world.w * 0.5, world.h * 0.5, world.h * 0.8);
     g.addColorStop(0, 'rgba(224,163,42,' + (0.02 + k * 0.10).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(46,54,80,' + (0.03 + k * 0.52).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(224,163,42,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, world.w, world.h);
-    // A cool cast over everything, so dusk reads as dusk.
-    ctx.fillStyle = 'rgba(38,48,72,' + (k * 0.30).toFixed(3) + ')';
     ctx.fillRect(0, 0, world.w, world.h);
   }
 
@@ -8566,15 +8881,21 @@ function sightSp(sg) {
 
   /* Sitting: the legs fold at the knee and the body settles onto the boards. It
      is the same skeleton, turned at the joints, so her own drawing sits down. */
-  function keeperSitting() {
+  function keeperSitting(view) {
+    var side = view === 'side';
+    // In PROFILE a seated leg swings forward - that is what sitting looks like from
+    // the side. From the front or the back the same turn splays the leg out sideways,
+    // so there the legs fold UNDER her: shortened, barely turned, and a little inward.
     return {
       Hips: { d: 0, dy: 34 },
-      Torso: { d: -6, dy: 2 },
-      ArmLeft: { d: -30, dy: 8 },
-      ArmRight: { d: -44, dy: 10 },
-      LegLeft: { d: 74, dy: 0, knee: -0.48 },
-      LegRight: { d: 64, dy: 0, knee: -0.44 },
-      Skirt: { d: 0, dy: 8, knee: -0.10 }
+      Torso: { d: side ? -6 : 0, dy: 2 },
+      ArmLeft: { d: side ? -30 : -16, dy: 8 },
+      ArmRight: { d: side ? -44 : -20, dy: 10 },
+      LegLeft: side ? { d: 74, dy: 0, knee: -0.48 }
+        : { d: 7, dy: 6, knee: -0.54 },
+      LegRight: side ? { d: 64, dy: 0, knee: -0.44 }
+        : { d: -7, dy: 6, knee: -0.50 },
+      Skirt: { d: 0, dy: 8, knee: side ? -0.10 : -0.32 }
     };
   }
 
@@ -8753,7 +9074,7 @@ function sightSp(sg) {
     var tint = keeperTint(o);
     var k = size / 158;
     var step = pose === 'sit'
-      ? keeperSitting()
+      ? keeperSitting(keeperView(view))
       : keeperStep(keeperView(view), keeperPhase, walking);
 
     g.save();
@@ -9463,8 +9784,11 @@ function sightSp(sg) {
     var g = a ? Math.round((a.grazeK || 0) * 2) : 0;
     var d = a && a.drinking > 0 ? 1 : 0;
     var m = a && a.moving ? 1 : 0;
+    // The band of night is part of the key: a sprite is a bake, and a bake carries
+    // the hour it was painted in. Without it every animal kept its daylight coat
+    // while the island round it went dark.
     return shape + '|' + view + '|' + hueOf(e.id) + '|' + Math.round(S) + '|' +
-      w + '|' + j + '|' + g + '|' + d + '|' + m + '|' + deviceScaleOf(ctx);
+      w + '|' + j + '|' + g + '|' + d + '|' + m + '|' + deviceScaleOf(ctx) + '|n' + Night.band();
   }
 
   /* The anim the sprite is drawn with: the bucket values, not the live ones, so the
@@ -9587,6 +9911,9 @@ function sightSp(sg) {
   function frame(now) {
     requestAnimationFrame(frame);
     noteFrame(now);
+    // A frame starts on paper. Only the world switches the night palette on, so a
+    // page that forgets the rule is still drawn in ink.
+    Night.field(false);
     if (!lastTime) lastTime = now;
     var dt = Math.min(0.05, Math.max(0, (now - lastTime) / 1000));
     lastTime = now;
@@ -10231,7 +10558,8 @@ function sightSp(sg) {
         reached[nid] = 1;
         if (!nd.say) fail("talk " + tid + "/" + nid, "says nothing");
         else {
-          // A voiced node builds its line from several keys on the day it opens.
+          // A voiced root builds its line from the bag; one pull at audit time is
+          // fine as long as the render loop never pulls again.
           var spoke = typeof nd.say === "function" ? nd.say() : nd.say;
           if (Array.isArray(spoke)) { for (i = 0; i < spoke.length; i++) if (spoke[i]) talkKeys.push(spoke[i]); }
           else talkKeys.push(spoke);
@@ -10968,8 +11296,56 @@ props: islandProps.map(function (p) {
      translator can put the number wherever that language puts it. */
   var TRANSLATIONS = {
     sv: {
+      'Sobh bekhayr.': 'God morgon.',
+      'Shab bekhayr.': 'God kväll.',
+      'The lamp oil is low; take the small jug.': 'Lampoljan är slut; ta den lilla kannan.',
+      'Your sister ate and went out. She will be back for the dark.': 'Din syster åt och gick ut. Hon kommer tillbaka före mörkret.',
+      'I have kept a bowl for the storyteller. He eats late.': 'Jag har sparat en skål till berättaren. Han äter sent.',
+      'Sit. The kettle is on the coals.': 'Sitt. Kitteln står på glöden.',
+      'She kept a book, not a treasure. Remember that.': 'Hon behöll en bok, inte en skatt. Minns det.',
+      'Do not hurry the dough or the day.': 'Skynda inte på degen eller dagen.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Sitt i skuggan; solen är inte snäll den här timmen.',
+      'When I was a boy the sea came closer than this.': 'När jag var pojke kom havet närmare än så här.',
+      'Take the long way by the shrine. The short way is for carts.': 'Ta den långa vägen förbi helgedomen. Den korta är för kärror.',
+      'I am mending the net; hand me the twine.': 'Jag lagar nätet; räck mig snöret.',
+      'The wind is off the land today. We stay in.': 'Vinden kommer från land i dag. Vi stannar inne.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Fråga din moster efter salt; jag har inget i båten.',
+      'Do not tell Mâmân I was at the water.': 'Säg inte till Mâmân att jag var vid vattnet.',
+      'I can hold my breath longer than you.': 'Jag kan hålla andan längre än du.',
+      'The cat follows me everywhere now.': 'Katten följer mig överallt nu.',
+      'The pot is heavy; take the other handle.': 'Grytan är tung; ta det andra handtaget.',
+      'Your mother cooked yesterday. Today it is mine.': 'Din mor lagade mat i går. I dag är det min tur.',
+      'There is mint by the channel. Bring a handful.': 'Det växer mynta vid kanalen. Ta en handfull.',
+      'The comb is on the shelf, not in your hand.': 'Kammen ligger på hyllan, inte i din hand.',
+      'You have grown again. Stand still.': 'Du har vuxit igen. Stå still.',
+      'I keep a needle for every season. This one is winter’s.': 'Jag har en nål för varje årstid. Den här är vintrens.',
+      'A fish has no hurry. That is why it is still here.': 'En fisk har ingen brådska. Därför är den kvar.',
+      'Hold the line and stop talking.': 'Håll linan och sluta prata.',
+      'The water is cold at the bottom. So is the sky at night.': 'Vattnet är kallt vid botten. Himlen är det om natten.',
+      'A good road is one you can find again in the dark.': 'En bra väg är en du hittar igen i mörkret.',
+      'The salt comes from the far side. So does the news.': 'Saltet kommer från andra sidan. Nyheterna också.',
+      'I have walked further for less. Sit and eat.': 'Jag har gått längre för mindre. Sitt och ät.',
+      'Daryá joon!': 'Daryá, raring!',
+      'column': 'kolonn',
+      'fire': 'eld',
+      'bridge': 'bro',
+      'pass': 'bergspass',
+      'caravan': 'karavan',
+      'coin': 'mynt',
+      'You are standing in {0}': 'Du står i {0}',
+      'You step back into your own day': 'Du kliver tillbaka till din egen dag',
+      'done': 'klart',
+      'Put your coat on the hook; the fire is lit.': 'Häng kappan på kroken; elden är tänd.',
+      'I have counted four winters since she left.': 'Jag har räknat fyra vintrar sedan hon gick.',
+      'My hands know this wall better than my eyes.': 'Mina händer känner den här muren bättre än mina ögon.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Sitt i fören och var still; båten gör resten.',
+      'There is a frog that thinks it owns the trough.': 'Det finns en groda som tror att den äger tråget.',
+      'Do not eat standing up; you will forget what you ate.': 'Ät inte stående; du glömmer vad du åt.',
+      'Sit by the lamp; your hair is still wet.': 'Sitt vid lampan; håret är fortfarande blött.',
+      'The wind is turning. The fish know before we do.': 'Vinden vänder. Fiskarna vet före oss.',
+      'A caravan is only people who agreed to walk together.': 'En karavan är bara människor som kommit överens om att gå tillsammans.',
       'Thank you.': 'Tack.',
-      'Salám, joon.': 'Salám, raring.',
+      'Salám, joonam.': 'Salám, raring.',
       'Khosh ámadi.': 'Välkommen.',
       'The morning is still cool.': 'Morgonen är fortfarande sval.',
       'The sun is high.': 'Solen står högt.',
@@ -11623,8 +11999,56 @@ props: islandProps.map(function (p) {
 
     },
     fa: {
+      'Sobh bekhayr.': 'صبح بخیر.',
+      'Shab bekhayr.': 'شب بخیر.',
+      'The lamp oil is low; take the small jug.': 'روغن چراغ کمه؛ سبوی کوچیکه رو بردار.',
+      'Your sister ate and went out. She will be back for the dark.': 'خواهرت غذا خورد و رفت بیرون. قبل تاریکی برمی‌گرده.',
+      'I have kept a bowl for the storyteller. He eats late.': 'یه کاسه برای قصه‌گو کنار گذاشتم. دیر غذا می‌خوره.',
+      'Sit. The kettle is on the coals.': 'بشین. کتری روی زغال‌هاست.',
+      'She kept a book, not a treasure. Remember that.': 'اون یه دفتر نگه داشت، نه یه گنج. یادت باشه.',
+      'Do not hurry the dough or the day.': 'نه خمیر رو عجله بده نه روز رو.',
+      'Sit in the shade; the sun is not kind at this hour.': 'سایه بشین؛ آفتاب این ساعت مهربون نیست.',
+      'When I was a boy the sea came closer than this.': 'وقتی بچه بودم دریا از این نزدیک‌تر بود.',
+      'Take the long way by the shrine. The short way is for carts.': 'راه بلند از کنار زیارتگاه برو. راه کوتاه مال گاری‌هاست.',
+      'I am mending the net; hand me the twine.': 'تور رو وصله می‌زنم؛ نخ رو بده.',
+      'The wind is off the land today. We stay in.': 'باد امروز از خشکی میاد. خونه می‌مونیم.',
+      'Ask your aunt for the salt; I have none in the boat.': 'نمک رو از خاله‌ت بگیر؛ توی قایق ندارم.',
+      'Do not tell Mâmân I was at the water.': 'به مامان نگو من لب آب بودم.',
+      'I can hold my breath longer than you.': 'من می‌تونم بیشتر از تو نفس نگه دارم.',
+      'The cat follows me everywhere now.': 'گربه حالا همه‌جا دنبالم میاد.',
+      'The pot is heavy; take the other handle.': 'قابلمه سنگینه؛ دسته‌ی دیگه‌ش رو بگیر.',
+      'Your mother cooked yesterday. Today it is mine.': 'مامانت دیروز پخت. امروز نوبت منه.',
+      'There is mint by the channel. Bring a handful.': 'کنار جوی نعنا هست. یه مشت بیار.',
+      'The comb is on the shelf, not in your hand.': 'شانه روی طاقچه‌ست، نه دست تو.',
+      'You have grown again. Stand still.': 'باز قد کشیدی. یک جا بایست.',
+      'I keep a needle for every season. This one is winter’s.': 'برای هر فصل یه سوزن دارم. این یکی مال زمستونه.',
+      'A fish has no hurry. That is why it is still here.': 'ماهی عجله نداره. برای همینه هنوز اینجاست.',
+      'Hold the line and stop talking.': 'نخ رو نگه دار و حرف نزن.',
+      'The water is cold at the bottom. So is the sky at night.': 'آب تهش سرده. آسمون شب هم همین‌طور.',
+      'A good road is one you can find again in the dark.': 'راه خوب راهیه که توی تاریکی هم پیدا بشه.',
+      'The salt comes from the far side. So does the news.': 'نمک از آن‌طرف میاد. خبر هم همین‌طور.',
+      'I have walked further for less. Sit and eat.': 'برای کمتر از این راه بیشتری رفتم. بشین و بخور.',
+      'Daryá joon!': 'دریا جون!',
+      'column': 'ستون',
+      'fire': 'آتش',
+      'bridge': 'پل',
+      'pass': 'گردنه',
+      'caravan': 'کاروان',
+      'coin': 'سکه',
+      'You are standing in {0}': 'در سال {0} ایستاده‌ای.',
+      'You step back into your own day': 'به روز خودت برمی‌گردی.',
+      'done': 'انجام شد',
+      'Put your coat on the hook; the fire is lit.': 'کُتت رو بذار رو قلاب؛ آتش روشنه.',
+      'I have counted four winters since she left.': 'چهار زمستون از وقتی رفت شمردم.',
+      'My hands know this wall better than my eyes.': 'دست‌هام این دیوار رو بهتر از چشم‌هام می‌شناسن.',
+      'Sit at the bow and keep still; the boat does the rest.': 'دماغه بشین و تکون نخور؛ بقیه‌ش کار قایقه.',
+      'There is a frog that thinks it owns the trough.': 'یه قورباغه هست که فکر می‌کنه آبشخور مال اونه.',
+      'Do not eat standing up; you will forget what you ate.': 'ایستاده غذا نخور؛ یادت می‌ره چی خوردی.',
+      'Sit by the lamp; your hair is still wet.': 'کنار چراغ بشین؛ موهات هنوز خیسه.',
+      'The wind is turning. The fish know before we do.': 'باد داره می‌چرخه. ماهی‌ها قبل از ما می‌فهمن.',
+      'A caravan is only people who agreed to walk together.': 'کاروان فقط آدم‌هایی‌ست که قبول کردن با هم راه برن.',
       'Thank you.': 'مرسی.',
-      'Salám, joon.': 'سلام، جون.',
+      'Salám, joonam.': 'سلام، جونم.',
       'Khosh ámadi.': 'خوش اومدی.',
       'The morning is still cool.': 'صبح هنوز خنکه.',
       'The sun is high.': 'آفتاب بالاست.',
@@ -12278,8 +12702,56 @@ props: islandProps.map(function (p) {
 
     },
     de: {
+      'Sobh bekhayr.': 'Guten Morgen.',
+      'Shab bekhayr.': 'Guten Abend.',
+      'The lamp oil is low; take the small jug.': 'Das Lampenöl ist fast leer; nimm den kleinen Krug.',
+      'Your sister ate and went out. She will be back for the dark.': 'Deine Schwester hat gegessen und ist hinaus. Vor der Dunkelheit ist sie zurück.',
+      'I have kept a bowl for the storyteller. He eats late.': 'Ich habe eine Schale für den Erzähler zurückgelegt. Er isst spät.',
+      'Sit. The kettle is on the coals.': 'Setz dich. Der Kessel steht auf der Glut.',
+      'She kept a book, not a treasure. Remember that.': 'Sie behielt ein Buch, keinen Schatz. Denk daran.',
+      'Do not hurry the dough or the day.': 'Beeil weder den Teig noch den Tag.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Setz dich in den Schatten; die Sonne ist um diese Stunde nicht freundlich.',
+      'When I was a boy the sea came closer than this.': 'Als ich ein Junge war, kam das Meer näher als jetzt.',
+      'Take the long way by the shrine. The short way is for carts.': 'Nimm den langen Weg am Schrein. Der kurze ist für Karren.',
+      'I am mending the net; hand me the twine.': 'Ich flicke das Netz; reich mir die Schnur.',
+      'The wind is off the land today. We stay in.': 'Der Wind kommt heute vom Land. Wir bleiben drinnen.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Frag deine Tante nach Salz; ich habe keins im Boot.',
+      'Do not tell Mâmân I was at the water.': 'Sag Mâmân nicht, dass ich am Wasser war.',
+      'I can hold my breath longer than you.': 'Ich kann länger die Luft anhalten als du.',
+      'The cat follows me everywhere now.': 'Die Katze folgt mir jetzt überallhin.',
+      'The pot is heavy; take the other handle.': 'Der Topf ist schwer; nimm den anderen Griff.',
+      'Your mother cooked yesterday. Today it is mine.': 'Deine Mutter hat gestern gekocht. Heute bin ich dran.',
+      'There is mint by the channel. Bring a handful.': 'An der Rinne wächst Minze. Bring eine Handvoll.',
+      'The comb is on the shelf, not in your hand.': 'Der Kamm liegt im Regal, nicht in deiner Hand.',
+      'You have grown again. Stand still.': 'Du bist schon wieder gewachsen. Halt still.',
+      'I keep a needle for every season. This one is winter’s.': 'Ich habe für jede Jahreszeit eine Nadel. Diese ist die des Winters.',
+      'A fish has no hurry. That is why it is still here.': 'Ein Fisch hat keine Eile. Darum ist er noch da.',
+      'Hold the line and stop talking.': 'Halt die Leine und hör auf zu reden.',
+      'The water is cold at the bottom. So is the sky at night.': 'Das Wasser ist am Grund kalt. Der Himmel nachts auch.',
+      'A good road is one you can find again in the dark.': 'Ein guter Weg ist einer, den du im Dunkeln wiederfindest.',
+      'The salt comes from the far side. So does the news.': 'Das Salz kommt von der anderen Seite. Die Nachrichten auch.',
+      'I have walked further for less. Sit and eat.': 'Ich bin weiter gegangen für weniger. Setz dich und iss.',
+      'Daryá joon!': 'Daryá, Liebes!',
+      'column': 'Säule',
+      'fire': 'Feuer',
+      'bridge': 'Brücke',
+      'pass': 'Pass',
+      'caravan': 'Karawane',
+      'coin': 'Münze',
+      'You are standing in {0}': 'Du stehst im Jahr {0}',
+      'You step back into your own day': 'Du trittst in deinen eigenen Tag zurück',
+      'done': 'getan',
+      'Put your coat on the hook; the fire is lit.': 'Häng den Mantel an den Haken; das Feuer brennt.',
+      'I have counted four winters since she left.': 'Ich habe vier Winter gezählt, seit sie ging.',
+      'My hands know this wall better than my eyes.': 'Meine Hände kennen diese Mauer besser als meine Augen.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Sitz vorn und halt still; das Boot tut den Rest.',
+      'There is a frog that thinks it owns the trough.': 'Es gibt einen Frosch, der glaubt, der Trog gehöre ihm.',
+      'Do not eat standing up; you will forget what you ate.': 'Iss nicht im Stehen; du vergisst, was du gegessen hast.',
+      'Sit by the lamp; your hair is still wet.': 'Setz dich zur Lampe; dein Haar ist noch nass.',
+      'The wind is turning. The fish know before we do.': 'Der Wind dreht. Die Fische wissen es vor uns.',
+      'A caravan is only people who agreed to walk together.': 'Eine Karawane ist nur eine Gruppe, die beschloss, zusammen zu gehen.',
       'Thank you.': 'Danke.',
-      'Salám, joon.': 'Salám, Liebes.',
+      'Salám, joonam.': 'Salám, Liebes.',
       'Khosh ámadi.': 'Willkommen.',
       'The morning is still cool.': 'Der Morgen ist noch kühl.',
       'The sun is high.': 'Die Sonne steht hoch.',
@@ -12933,8 +13405,56 @@ props: islandProps.map(function (p) {
 
     },
     fr: {
+      'Sobh bekhayr.': 'Bonjour.',
+      'Shab bekhayr.': 'Bonsoir.',
+      'The lamp oil is low; take the small jug.': 'L’huile de lampe est basse ; prends le petit pot.',
+      'Your sister ate and went out. She will be back for the dark.': 'Ta sœur a mangé et est sortie. Elle revient avant la nuit.',
+      'I have kept a bowl for the storyteller. He eats late.': 'J’ai gardé un bol pour le conteur. Il mange tard.',
+      'Sit. The kettle is on the coals.': 'Assieds-toi. La bouilloire est sur les braises.',
+      'She kept a book, not a treasure. Remember that.': 'Elle gardait un livre, pas un trésor. Souviens-t’en.',
+      'Do not hurry the dough or the day.': 'Ne presse ni la pâte ni la journée.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Assieds-toi à l’ombre ; le soleil n’est pas gentil à cette heure.',
+      'When I was a boy the sea came closer than this.': 'Quand j’étais enfant, la mer venait plus près que ça.',
+      'Take the long way by the shrine. The short way is for carts.': 'Prends le long chemin par le sanctuaire. Le court est pour les charrettes.',
+      'I am mending the net; hand me the twine.': 'Je répare le filet ; passe-moi la ficelle.',
+      'The wind is off the land today. We stay in.': 'Le vent vient de la terre aujourd’hui. On reste à l’intérieur.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Demande du sel à ta tante ; je n’en ai pas dans le bateau.',
+      'Do not tell Mâmân I was at the water.': 'Ne dis pas à Mâmân que j’étais à l’eau.',
+      'I can hold my breath longer than you.': 'Je peux retenir mon souffle plus longtemps que toi.',
+      'The cat follows me everywhere now.': 'Le chat me suit partout maintenant.',
+      'The pot is heavy; take the other handle.': 'La marmite est lourde ; prends l’autre poignée.',
+      'Your mother cooked yesterday. Today it is mine.': 'Ta mère a cuisiné hier. Aujourd’hui c’est moi.',
+      'There is mint by the channel. Bring a handful.': 'Il y a de la menthe près du canal. Apporte-en une poignée.',
+      'The comb is on the shelf, not in your hand.': 'Le peigne est sur l’étagère, pas dans ta main.',
+      'You have grown again. Stand still.': 'Tu as encore grandi. Reste tranquille.',
+      'I keep a needle for every season. This one is winter’s.': 'J’ai une aiguille pour chaque saison. Celle-ci est celle de l’hiver.',
+      'A fish has no hurry. That is why it is still here.': 'Un poisson n’est pas pressé. C’est pour ça qu’il est encore là.',
+      'Hold the line and stop talking.': 'Tiens la ligne et arrête de parler.',
+      'The water is cold at the bottom. So is the sky at night.': 'L’eau est froide au fond. Le ciel aussi la nuit.',
+      'A good road is one you can find again in the dark.': 'Une bonne route est celle qu’on retrouve dans le noir.',
+      'The salt comes from the far side. So does the news.': 'Le sel vient de l’autre côté. Les nouvelles aussi.',
+      'I have walked further for less. Sit and eat.': 'J’ai marché plus loin pour moins que ça. Assieds-toi et mange.',
+      'Daryá joon!': 'Daryá, mon cœur !',
+      'column': 'colonne',
+      'fire': 'feu',
+      'bridge': 'pont',
+      'pass': 'col',
+      'caravan': 'caravane',
+      'coin': 'pièce',
+      'You are standing in {0}': 'Tu te tiens en {0}',
+      'You step back into your own day': 'Tu reviens dans ton propre jour',
+      'done': 'fait',
+      'Put your coat on the hook; the fire is lit.': 'Mets ton manteau au crochet ; le feu est allumé.',
+      'I have counted four winters since she left.': 'J’ai compté quatre hivers depuis son départ.',
+      'My hands know this wall better than my eyes.': 'Mes mains connaissent ce mur mieux que mes yeux.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Assieds-toi à l’avant et ne bouge pas ; le bateau fait le reste.',
+      'There is a frog that thinks it owns the trough.': 'Il y a une grenouille qui croit que l’auge est à elle.',
+      'Do not eat standing up; you will forget what you ate.': 'Ne mange pas debout ; tu oublieras ce que tu as mangé.',
+      'Sit by the lamp; your hair is still wet.': 'Assieds-toi près de la lampe ; tes cheveux sont encore mouillés.',
+      'The wind is turning. The fish know before we do.': 'Le vent tourne. Les poissons le savent avant nous.',
+      'A caravan is only people who agreed to walk together.': 'Une caravane, ce n’est que des gens qui ont accepté de marcher ensemble.',
       'Thank you.': 'Merci.',
-      'Salám, joon.': 'Salám, mon cœur.',
+      'Salám, joonam.': 'Salám, mon cœur.',
       'Khosh ámadi.': 'Bienvenue.',
       'The morning is still cool.': 'Le matin est encore frais.',
       'The sun is high.': 'Le soleil est haut.',
@@ -13587,8 +14107,56 @@ props: islandProps.map(function (p) {
 
     },
     es: {
+      'Sobh bekhayr.': 'Buenos días.',
+      'Shab bekhayr.': 'Buenas noches.',
+      'The lamp oil is low; take the small jug.': 'El aceite de la lámpara está bajo; coge la jarra pequeña.',
+      'Your sister ate and went out. She will be back for the dark.': 'Tu hermana comió y salió. Volverá antes de la oscuridad.',
+      'I have kept a bowl for the storyteller. He eats late.': 'He guardado un cuenco para el narrador. Come tarde.',
+      'Sit. The kettle is on the coals.': 'Siéntate. La tetera está en las brasas.',
+      'She kept a book, not a treasure. Remember that.': 'Ella guardó un libro, no un tesoro. Recuérdalo.',
+      'Do not hurry the dough or the day.': 'No apresures la masa ni el día.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Siéntate a la sombra; el sol no es amable a esta hora.',
+      'When I was a boy the sea came closer than this.': 'Cuando era niño el mar llegaba más cerca que esto.',
+      'Take the long way by the shrine. The short way is for carts.': 'Toma el camino largo por el santuario. El corto es para carros.',
+      'I am mending the net; hand me the twine.': 'Estoy remendando la red; pásame el cordel.',
+      'The wind is off the land today. We stay in.': 'Hoy el viento viene de tierra. Nos quedamos.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Pídele sal a tu tía; no tengo en el bote.',
+      'Do not tell Mâmân I was at the water.': 'No le digas a Mâmân que estuve en el agua.',
+      'I can hold my breath longer than you.': 'Puedo aguantar la respiración más que tú.',
+      'The cat follows me everywhere now.': 'El gato me sigue a todas partes ahora.',
+      'The pot is heavy; take the other handle.': 'La olla pesa; coge el otro asa.',
+      'Your mother cooked yesterday. Today it is mine.': 'Tu madre cocinó ayer. Hoy me toca a mí.',
+      'There is mint by the channel. Bring a handful.': 'Hay menta junto al canal. Trae un puñado.',
+      'The comb is on the shelf, not in your hand.': 'El peine está en el estante, no en tu mano.',
+      'You have grown again. Stand still.': 'Has crecido otra vez. Quédate quieta.',
+      'I keep a needle for every season. This one is winter’s.': 'Tengo una aguja para cada estación. Esta es la del invierno.',
+      'A fish has no hurry. That is why it is still here.': 'Un pez no tiene prisa. Por eso sigue aquí.',
+      'Hold the line and stop talking.': 'Sujeta el sedal y deja de hablar.',
+      'The water is cold at the bottom. So is the sky at night.': 'El agua es fría en el fondo. El cielo también de noche.',
+      'A good road is one you can find again in the dark.': 'Un buen camino es el que se encuentra en la oscuridad.',
+      'The salt comes from the far side. So does the news.': 'La sal viene del otro lado. Las noticias también.',
+      'I have walked further for less. Sit and eat.': 'He caminado más lejos por menos. Siéntate y come.',
+      'Daryá joon!': '¡Daryá, cariño!',
+      'column': 'columna',
+      'fire': 'fuego',
+      'bridge': 'puente',
+      'pass': 'paso',
+      'caravan': 'caravana',
+      'coin': 'moneda',
+      'You are standing in {0}': 'Estás en {0}',
+      'You step back into your own day': 'Vuelves a tu propio día',
+      'done': 'hecho',
+      'Put your coat on the hook; the fire is lit.': 'Cuelga el abrigo; el fuego está encendido.',
+      'I have counted four winters since she left.': 'He contado cuatro inviernos desde que se fue.',
+      'My hands know this wall better than my eyes.': 'Mis manos conocen este muro mejor que mis ojos.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Siéntate en la proa y no te muevas; el bote hace el resto.',
+      'There is a frog that thinks it owns the trough.': 'Hay una rana que se cree dueña del pilón.',
+      'Do not eat standing up; you will forget what you ate.': 'No comas de pie; olvidarás lo que comiste.',
+      'Sit by the lamp; your hair is still wet.': 'Siéntate junto a la lámpara; aún tienes el pelo mojado.',
+      'The wind is turning. The fish know before we do.': 'El viento está girando. Los peces lo saben antes que nosotros.',
+      'A caravan is only people who agreed to walk together.': 'Una caravana es solo gente que aceptó caminar junta.',
       'Thank you.': 'Gracias.',
-      'Salám, joon.': 'Salám, cariño.',
+      'Salám, joonam.': 'Salám, cariño.',
       'Khosh ámadi.': 'Bienvenida.',
       'The morning is still cool.': 'La mañana está fresca todavía.',
       'The sun is high.': 'El sol está alto.',
@@ -14242,8 +14810,56 @@ props: islandProps.map(function (p) {
 
     },
     tr: {
+      'Sobh bekhayr.': 'Günaydın.',
+      'Shab bekhayr.': 'İyi akşamlar.',
+      'The lamp oil is low; take the small jug.': 'Lamba yağı azaldı; küçük testiyi al.',
+      'Your sister ate and went out. She will be back for the dark.': 'Kız kardeşin yedi ve çıktı. Karanlıktan önce döner.',
+      'I have kept a bowl for the storyteller. He eats late.': 'Anlatıcı için bir kâse ayırdım. Geç yer.',
+      'Sit. The kettle is on the coals.': 'Otur. Çaydanlık közde.',
+      'She kept a book, not a treasure. Remember that.': 'O bir kitap tuttu, hazine değil. Bunu hatırla.',
+      'Do not hurry the dough or the day.': 'Ne hamuru ne günü acele ettir.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Gölgeye otur; güneş bu saatte iyi değil.',
+      'When I was a boy the sea came closer than this.': 'Çocukken deniz buradan daha yakındı.',
+      'Take the long way by the shrine. The short way is for carts.': 'Uzun yolu türbeden geç. Kısa yol arabalar için.',
+      'I am mending the net; hand me the twine.': 'Ağı onarıyorum; ipi ver.',
+      'The wind is off the land today. We stay in.': 'Rüzgâr bugün karadan. Evde kalıyoruz.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Tuzu halandan iste; kayıkta yok.',
+      'Do not tell Mâmân I was at the water.': 'Mâmân’a suda olduğumu söyleme.',
+      'I can hold my breath longer than you.': 'Nefesimi senden uzun tutabilirim.',
+      'The cat follows me everywhere now.': 'Kedi artık her yerde peşimde.',
+      'The pot is heavy; take the other handle.': 'Tencere ağır; öbür kulpundan tut.',
+      'Your mother cooked yesterday. Today it is mine.': 'Annen dün yemek yaptı. Bugün benim sıram.',
+      'There is mint by the channel. Bring a handful.': 'Ark kenarında nane var. Bir avuç getir.',
+      'The comb is on the shelf, not in your hand.': 'Tarak rafta, elinde değil.',
+      'You have grown again. Stand still.': 'Yine büyümüşsün. Kıpırdama.',
+      'I keep a needle for every season. This one is winter’s.': 'Her mevsim için bir iğnem var. Bu kışın.',
+      'A fish has no hurry. That is why it is still here.': 'Balığın acelesi yok. Bu yüzden hâlâ burada.',
+      'Hold the line and stop talking.': 'İpi tut ve konuşmayı bırak.',
+      'The water is cold at the bottom. So is the sky at night.': 'Su dibinde soğuk. Gece gökyüzü de öyle.',
+      'A good road is one you can find again in the dark.': 'İyi yol, karanlıkta yine bulduğundur.',
+      'The salt comes from the far side. So does the news.': 'Tuz öbür taraftan gelir. Haber de öyle.',
+      'I have walked further for less. Sit and eat.': 'Daha azı için daha çok yürüdüm. Otur ve ye.',
+      'Daryá joon!': 'Daryá canım!',
+      'column': 'sütun',
+      'fire': 'ateş',
+      'bridge': 'köprü',
+      'pass': 'geçit',
+      'caravan': 'kervan',
+      'coin': 'sikke',
+      'You are standing in {0}': '{0} yılında duruyorsun',
+      'You step back into your own day': 'Kendi gününe dönüyorsun',
+      'done': 'tamam',
+      'Put your coat on the hook; the fire is lit.': 'Montunu askıya as; ateş yanıyor.',
+      'I have counted four winters since she left.': 'Gideli dört kış saydım.',
+      'My hands know this wall better than my eyes.': 'Ellerim bu duvarı gözlerimden iyi bilir.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Başta otur ve kıpırdama; gerisini kayık yapar.',
+      'There is a frog that thinks it owns the trough.': 'Yalağın kendisinin olduğunu sanan bir kurbağa var.',
+      'Do not eat standing up; you will forget what you ate.': 'Ayakta yeme; ne yediğini unutursun.',
+      'Sit by the lamp; your hair is still wet.': 'Lambanın yanına otur; saçın hâlâ ıslak.',
+      'The wind is turning. The fish know before we do.': 'Rüzgâr dönüyor. Balıklar bizden önce bilir.',
+      'A caravan is only people who agreed to walk together.': 'Kervan, birlikte yürümeyi kabul etmiş insanlardır.',
       'Thank you.': 'Sağ ol.',
-      'Salám, joon.': 'Salám, canım.',
+      'Salám, joonam.': 'Salám, canım.',
       'Khosh ámadi.': 'Hoş geldin.',
       'The morning is still cool.': 'Sabah hâlâ serin.',
       'The sun is high.': 'Güneş yüksekte.',
@@ -14897,8 +15513,56 @@ props: islandProps.map(function (p) {
 
     },
     ar: {
+      'Sobh bekhayr.': 'صباح الخير.',
+      'Shab bekhayr.': 'مساء الخير.',
+      'The lamp oil is low; take the small jug.': 'زيت المصباح قلّ؛ خذي الجرة الصغيرة.',
+      'Your sister ate and went out. She will be back for the dark.': 'أكلت أختك وخرجت. ستعود قبل العتمة.',
+      'I have kept a bowl for the storyteller. He eats late.': 'حفظت طاسة للحكّاء. يأكل متأخراً.',
+      'Sit. The kettle is on the coals.': 'اجلسي. الغلاية على الجمر.',
+      'She kept a book, not a treasure. Remember that.': 'حفظت كتاباً، لا كنزاً. تذكري ذلك.',
+      'Do not hurry the dough or the day.': 'لا تستعجلي العجين ولا النهار.',
+      'Sit in the shade; the sun is not kind at this hour.': 'اجلسي في الظل؛ الشمس ليست رحيمة هذه الساعة.',
+      'When I was a boy the sea came closer than this.': 'حين كنت صبياً كان البحر أقرب من هذا.',
+      'Take the long way by the shrine. The short way is for carts.': 'خذي الطريق الطويل عند المقام. القصير للعربات.',
+      'I am mending the net; hand me the twine.': 'أرمّم الشبكة؛ ناوليني الخيط.',
+      'The wind is off the land today. We stay in.': 'الريح من البر اليوم. نبقى في الداخل.',
+      'Ask your aunt for the salt; I have none in the boat.': 'اطلبي الملح من خالتك؛ ليس عندي في القارب.',
+      'Do not tell Mâmân I was at the water.': 'لا تخبري مامان أنني كنت عند الماء.',
+      'I can hold my breath longer than you.': 'أستطيع كتم نفسي أكثر منك.',
+      'The cat follows me everywhere now.': 'القطة تتبعني في كل مكان الآن.',
+      'The pot is heavy; take the other handle.': 'القدر ثقيل؛ خذي المقبض الآخر.',
+      'Your mother cooked yesterday. Today it is mine.': 'أمك طبخت أمس. اليوم دوري.',
+      'There is mint by the channel. Bring a handful.': 'هناك نعناع عند القناة. أحضري حفنة.',
+      'The comb is on the shelf, not in your hand.': 'المشط على الرف، لا في يدك.',
+      'You have grown again. Stand still.': 'لقد كبرتِ من جديد. قفي ساكنة.',
+      'I keep a needle for every season. This one is winter’s.': 'لي إبرة لكل فصل. هذه إبرة الشتاء.',
+      'A fish has no hurry. That is why it is still here.': 'السمكة لا تستعجل. لهذا ما زالت هنا.',
+      'Hold the line and stop talking.': 'أمسكي الخيط ولا تتكلمي.',
+      'The water is cold at the bottom. So is the sky at night.': 'الماء بارد في القاع. والسماء ليلاً كذلك.',
+      'A good road is one you can find again in the dark.': 'الطريق الجيد هو ما تجده ثانية في العتمة.',
+      'The salt comes from the far side. So does the news.': 'الملح يأتي من الجهة الأخرى. والأخبار كذلك.',
+      'I have walked further for less. Sit and eat.': 'مشيت أبعد من أجل أقل. اجلس وكُل.',
+      'Daryá joon!': 'دريا عزيزتي!',
+      'column': 'عمود',
+      'fire': 'نار',
+      'bridge': 'جسر',
+      'pass': 'ممر',
+      'caravan': 'قافلة',
+      'coin': 'عملة',
+      'You are standing in {0}': 'أنت واقف في {0}',
+      'You step back into your own day': 'تعود إلى يومك',
+      'done': 'تم',
+      'Put your coat on the hook; the fire is lit.': 'علّقي معطفك على المشجب؛ النار موقدة.',
+      'I have counted four winters since she left.': 'عددت أربعة شتاءات منذ رحيلها.',
+      'My hands know this wall better than my eyes.': 'يداي تعرفان هذا الجدار أكثر من عينيّ.',
+      'Sit at the bow and keep still; the boat does the rest.': 'اجلس في المقدمة ولا تتحرك؛ القارب يفعل الباقي.',
+      'There is a frog that thinks it owns the trough.': 'هناك ضفدع يظن أن الحوض له.',
+      'Do not eat standing up; you will forget what you ate.': 'لا تأكلي واقفة؛ ستنسين ما أكلتِ.',
+      'Sit by the lamp; your hair is still wet.': 'اجلسي عند المصباح؛ شعرك ما زال مبلولاً.',
+      'The wind is turning. The fish know before we do.': 'الريح تتحول. الأسماك تعرف قبلنا.',
+      'A caravan is only people who agreed to walk together.': 'القافلة ليست إلا أناساً اتفقوا على السير معاً.',
       'Thank you.': 'شكراً.',
-      'Salám, joon.': 'سلام يا حبيبي.',
+      'Salám, joonam.': 'سلام يا عزيزتي.',
       'Khosh ámadi.': 'أهلاً بك.',
       'The morning is still cool.': 'الصباح ما زال بارداً.',
       'The sun is high.': 'الشمس عالية.',
@@ -15552,8 +16216,56 @@ props: islandProps.map(function (p) {
 
     },
     zh: {
+      'Sobh bekhayr.': '早上好。',
+      'Shab bekhayr.': '晚上好。',
+      'The lamp oil is low; take the small jug.': '灯油不多了，拿小罐子。',
+      'Your sister ate and went out. She will be back for the dark.': '你妹妹吃了就出去了，天黑前回来。',
+      'I have kept a bowl for the storyteller. He eats late.': '我给说书人留了一只碗。他吃得晚。',
+      'Sit. The kettle is on the coals.': '坐下吧，水壶在炭火上。',
+      'She kept a book, not a treasure. Remember that.': '她留下的是一本书，不是财宝。记住。',
+      'Do not hurry the dough or the day.': '别催面团，也别催日子。',
+      'Sit in the shade; the sun is not kind at this hour.': '坐到阴凉处，这个时辰的太阳不客气。',
+      'When I was a boy the sea came closer than this.': '我小的时候，海比现在近。',
+      'Take the long way by the shrine. The short way is for carts.': '走绕祠堂的长路。近路是给大车的。',
+      'I am mending the net; hand me the twine.': '我在补网，把线递给我。',
+      'The wind is off the land today. We stay in.': '今天风从岸上来，我们不出海。',
+      'Ask your aunt for the salt; I have none in the boat.': '去问姑姑要盐，船上没有。',
+      'Do not tell Mâmân I was at the water.': '别告诉妈妈我去水边了。',
+      'I can hold my breath longer than you.': '我憋气比你久。',
+      'The cat follows me everywhere now.': '那只猫现在到哪儿都跟着我。',
+      'The pot is heavy; take the other handle.': '锅很重，抓住另一个把手。',
+      'Your mother cooked yesterday. Today it is mine.': '你妈妈昨天做的，今天轮到我。',
+      'There is mint by the channel. Bring a handful.': '渠边有薄荷，摘一把来。',
+      'The comb is on the shelf, not in your hand.': '梳子在架子上，不在你手里。',
+      'You have grown again. Stand still.': '你又长高了，站好别动。',
+      'I keep a needle for every season. This one is winter’s.': '每个季节我有根针。这根是冬天的。',
+      'A fish has no hurry. That is why it is still here.': '鱼不着急。所以它还在。',
+      'Hold the line and stop talking.': '抓住线，别说话。',
+      'The water is cold at the bottom. So is the sky at night.': '水底是冷的，夜里的天也是。',
+      'A good road is one you can find again in the dark.': '好路是黑夜里也找得到的那条。',
+      'The salt comes from the far side. So does the news.': '盐从那一边来，消息也是。',
+      'I have walked further for less. Sit and eat.': '为了更少的事我走过更远的路。坐下吃吧。',
+      'Daryá joon!': '达丽娅，亲爱的！',
+      'column': '柱子',
+      'fire': '火',
+      'bridge': '桥',
+      'pass': '山口',
+      'caravan': '商队',
+      'coin': '硬币',
+      'You are standing in {0}': '你站在{0}年间。',
+      'You step back into your own day': '你回到自己的日子。',
+      'done': '完成',
+      'Put your coat on the hook; the fire is lit.': '把外套挂在钩子上，火已经点着了。',
+      'I have counted four winters since she left.': '她走后，我数了四个冬天。',
+      'My hands know this wall better than my eyes.': '我的手比眼睛更认得这堵墙。',
+      'Sit at the bow and keep still; the boat does the rest.': '坐在船头别动，剩下的交给船。',
+      'There is a frog that thinks it owns the trough.': '有只青蛙以为水槽是它的。',
+      'Do not eat standing up; you will forget what you ate.': '别站着吃，你会忘了吃了什么。',
+      'Sit by the lamp; your hair is still wet.': '坐到灯边来，头发还湿着。',
+      'The wind is turning. The fish know before we do.': '风在转。鱼比我们先知道。',
+      'A caravan is only people who agreed to walk together.': '商队不过是一群说好一起走的人。',
       'Thank you.': '谢谢。',
-      'Salám, joon.': '你好呀，亲爱的。',
+      'Salám, joonam.': '你好呀，亲爱的。',
       'Khosh ámadi.': '你来啦。',
       'The morning is still cool.': '早晨还凉着。',
       'The sun is high.': '太阳很高了。',
@@ -16207,8 +16919,56 @@ props: islandProps.map(function (p) {
 
     },
     fi: {
+      'Sobh bekhayr.': 'Sobh bekhayr.',
+      'Shab bekhayr.': 'Shab bekhayr.',
+      'The lamp oil is low; take the small jug.': 'Roughan-e cherágh kame; sabuye kuchike-ro bardár.',
+      'Your sister ate and went out. She will be back for the dark.': 'Kháharat ghazá khord va raft birun. Ghabl-e tárikí barmigarde.',
+      'I have kept a bowl for the storyteller. He eats late.': 'Ye káse baráye ghesse-gu kenár gozáshtam. Dir ghazá mikhore.',
+      'Sit. The kettle is on the coals.': 'Beshin. Ketri ruye zoghálhá-st.',
+      'She kept a book, not a treasure. Remember that.': 'Un ye daftar negah dásht, na ye ganj. Yádat báshad.',
+      'Do not hurry the dough or the day.': 'Na khamir-ro ajale bede na ruz-ro.',
+      'Sit in the shade; the sun is not kind at this hour.': 'Sáye beshin; áftáb in sáat mehrabun nist.',
+      'When I was a boy the sea came closer than this.': 'Vaghti bache budam daryá az in nazdiktar bud.',
+      'Take the long way by the shrine. The short way is for carts.': 'Ráh-e boland az kenár-e ziáratgáh borow. Ráh-e kutáh mál-e gárihá-st.',
+      'I am mending the net; hand me the twine.': 'Tur-ro vasle mizanam; nakh-ro bede.',
+      'The wind is off the land today. We stay in.': 'Bád emruz az khoshki miád. Khune mimunim.',
+      'Ask your aunt for the salt; I have none in the boat.': 'Namak-ro az kháleat begir; tuye gháyegh nadáram.',
+      'Do not tell Mâmân I was at the water.': 'Be mámán nagu man lab-e áb budam.',
+      'I can hold my breath longer than you.': 'Man mitunam bishtar az to nafas negah dáram.',
+      'The cat follows me everywhere now.': 'Gorbe hálá hamme-já donbálam miád.',
+      'The pot is heavy; take the other handle.': 'Ghábalambe sangine; dasteye digash-ro begir.',
+      'Your mother cooked yesterday. Today it is mine.': 'Mámánat diruz pokht. Emruz nobat-e mane.',
+      'There is mint by the channel. Bring a handful.': 'Kenár-e juy na\'ná hast. Ye mosht biár.',
+      'The comb is on the shelf, not in your hand.': 'Sháne ruye tághche-st, na dast-e to.',
+      'You have grown again. Stand still.': 'Báz ghad keshidi. Yek já báyest.',
+      'I keep a needle for every season. This one is winter’s.': 'Baráye har fasl ye suzan dáram. In yeki mál-e zemestune.',
+      'A fish has no hurry. That is why it is still here.': 'Máhi ajale nadáre. Baráye hamune hanooz injá-st.',
+      'Hold the line and stop talking.': 'Nakh-ro negah dár va harf nazan.',
+      'The water is cold at the bottom. So is the sky at night.': 'Áb tahesh sarde. Ásemun-e shab ham hamin-tur.',
+      'A good road is one you can find again in the dark.': 'Ráh-e khub ráhi-st ke tuye tárikí ham peydá beshe.',
+      'The salt comes from the far side. So does the news.': 'Namak az án-taraf miád. Khabar ham hamin-tur.',
+      'I have walked further for less. Sit and eat.': 'Baráye kamtar az in ráh-e bishtari raftam. Beshin va bokhor.',
+      'Daryá joon!': 'Daryá joon!',
+      'column': 'setun',
+      'fire': 'átash',
+      'bridge': 'pol',
+      'pass': 'gardane',
+      'caravan': 'kárván',
+      'coin': 'sekke',
+      'You are standing in {0}': 'To dar sál-e {0} istáde-i.',
+      'You step back into your own day': 'Be ruz-e khodat barmigardi.',
+      'done': 'anjám shod',
+      'Put your coat on the hook; the fire is lit.': 'Kotat-ro begozár ru ghalláb; átash roshane.',
+      'I have counted four winters since she left.': 'Chahár zemestun az vaghti raft shemordam.',
+      'My hands know this wall better than my eyes.': 'Dasthám in divár-ro behtar az cheshmhám mishenásan.',
+      'Sit at the bow and keep still; the boat does the rest.': 'Damághe beshin va tekun nakhor; baghiyash kár-e gháyegh-e.',
+      'There is a frog that thinks it owns the trough.': 'Ye ghorbegháhe ke fekr mikone ábshakhur mál-e une.',
+      'Do not eat standing up; you will forget what you ate.': 'Istáde ghazá nakhor; yádet mire chi khordi.',
+      'Sit by the lamp; your hair is still wet.': 'Kenár-e cherágh beshin; muhát hanooz khise.',
+      'The wind is turning. The fish know before we do.': 'Bád dáre micharkhe. Máhihá ghabl az má mifahman.',
+      'A caravan is only people who agreed to walk together.': 'Kárván faghat ádamhái-st ke ghabul kardan bá ham ráh beran.',
       'Thank you.': 'Mersi.',
-      'Salám, joon.': 'Salám, joon.',
+      'Salám, joonam.': 'Salám, joonam.',
       'Khosh ámadi.': 'Khosh ámadi.',
       'The morning is still cool.': 'Sobh hanooz khonok-e.',
       'The sun is high.': 'Áftáb bálá-st.',
@@ -16867,7 +17627,8 @@ props: islandProps.map(function (p) {
      island teaches, and this is only the gloss. */
   var GLOSS = {
     sv: [
-      'bi', 'kupa', 'vaxkaka', 'drottning',
+      'kolonn',       'eld',       'bro',       'bergspass',       'karavan',       'mynt', 
+            'bi', 'kupa', 'vaxkaka', 'drottning',
       'honung', 'kvalster', 'vax', 'pollen',
       'nektar', 'flykt', 'arbetsbi', 'vårdbi',
       'vaktbi', 'larv', 'puppa', 'träd',
@@ -16903,7 +17664,8 @@ props: islandProps.map(function (p) {
       'trumma'
     ],
     fa: [
-      'زنبور', 'کندو', 'شهدانه', 'ملکه',
+      'ستون',       'آتش',       'پل',       'گردنه',       'کاروان',       'سکه', 
+            'زنبور', 'کندو', 'شهدانه', 'ملکه',
       'عسل', 'کنه', 'موم', 'گرده',
       'شهد', 'پرواز', 'زنبور کارگر', 'زنبور پرستار',
       'زنبور نگهبان', 'لارو', 'شفیره', 'درخت',
@@ -16940,7 +17702,8 @@ props: islandProps.map(function (p) {
       'طبل'
     ],
     de: [
-      'Biene', 'Bienenstock', 'Wabe', 'Königin',
+      'Säule',       'Feuer',       'Brücke',       'Pass',       'Karawane',       'Münze', 
+            'Biene', 'Bienenstock', 'Wabe', 'Königin',
       'Honig', 'Milbe', 'Wachs', 'Pollen',
       'Nektar', 'Flug', 'Arbeitsbiene', 'Ammenbiene',
       'Wächterbiene', 'Larve', 'Puppe', 'Baum',
@@ -16977,7 +17740,8 @@ props: islandProps.map(function (p) {
       'Trommel'
     ],
     fr: [
-      'abeille', 'ruche', 'rayon de miel', 'reine',
+      'colonne',       'feu',       'pont',       'col',       'caravane',       'pièce', 
+            'abeille', 'ruche', 'rayon de miel', 'reine',
       'miel', 'acarien', 'cire', 'pollen',
       'nectar', 'vol', 'ouvrière', 'nourrice',
       'gardienne', 'larve', 'nymphe', 'arbre',
@@ -17014,7 +17778,8 @@ props: islandProps.map(function (p) {
       'tambour'
     ],
     es: [
-      'abeja', 'colmena', 'panal', 'reina',
+      'columna',       'fuego',       'puente',       'paso',       'caravana',       'moneda', 
+            'abeja', 'colmena', 'panal', 'reina',
       'miel', 'ácaro', 'cera', 'polen',
       'néctar', 'vuelo', 'obrera', 'nodriza',
       'guardiana', 'larva', 'pupa', 'árbol',
@@ -17051,7 +17816,8 @@ props: islandProps.map(function (p) {
       'tambor'
     ],
     tr: [
-      'arı', 'kovan', 'petek', 'kraliçe',
+      'sütun',       'ateş',       'köprü',       'geçit',       'kervan',       'sikke', 
+            'arı', 'kovan', 'petek', 'kraliçe',
       'bal', 'akar', 'mum', 'polen',
       'nektar', 'uçuş', 'işçi arı', 'bakıcı arı',
       'bekçi arı', 'larva', 'pupa', 'ağaç',
@@ -17087,7 +17853,8 @@ props: islandProps.map(function (p) {
       'davul'
     ],
     ar: [
-      'نحلة', 'خلية', 'شهد', 'ملكة',
+      'عمود',       'نار',       'جسر',       'ممر',       'قافلة',       'عملة', 
+            'نحلة', 'خلية', 'شهد', 'ملكة',
       'عسل', 'قرّاد', 'شمع', 'لقاح',
       'رحيق', 'طيران', 'نحلة عاملة', 'نحلة حاضنة',
       'نحلة حارسة', 'يرقة', 'عذراء', 'شجرة',
@@ -17123,7 +17890,8 @@ props: islandProps.map(function (p) {
       'طبل'
     ],
     zh: [
-      '蜂', '蜂巢', '蜂脾', '蜂王',
+      '柱子',       '火',       '桥',       '山口',       '商队',       '硬币', 
+            '蜂', '蜂巢', '蜂脾', '蜂王',
       '蜜', '螨', '蜡', '花粉',
       '花蜜', '飞行', '工蜂', '哺育蜂',
       '守卫蜂', '幼虫', '蛹', '树',
@@ -17159,7 +17927,8 @@ props: islandProps.map(function (p) {
       '鼓'
     ],
     fi: [
-      'zanbur', 'kandu', 'sháne', 'malake',
+      'setun',       'átash',       'pol',       'gardane',       'kárván',       'sekke', 
+            'zanbur', 'kandu', 'sháne', 'malake',
       'asal', 'kane', 'mum', 'garde',
       'shahd', 'parváz', 'zanbur-e kárgar', 'zanbur-e parastár',
       'zanbur-e negahbán', 'lárv', 'shafire', 'derakht',
@@ -17280,9 +18049,22 @@ props: islandProps.map(function (p) {
        watch.sit   how far down she has settled (0..1)
        watch.panel how far the panel has opened (0..1)
      They ease, so nothing snaps, and they are the only state the camera reads. */
-  var watch = { on: false, sp: null, prop: null, at: -9, z: 1, sit: 0, panel: 0 };
+  var watch = { on: false, sp: null, prop: null, at: -9, z: 1, sit: 0, panel: 0, zTarget: 2 };
   var baseScale = 1;   // fitScale before the watch pushes in
-  var WATCH_ZOOM = 2.15;   // how far the camera closes in on a watched animal
+  var WATCH_FILL = 0.26;   // the share of the screen the watched animal fills
+  var WATCH_MIN = 1.6, WATCH_MAX = 6.5;
+
+  /* How far to push in so THIS animal fills about a quarter of the screen. A fixed
+     2.15x left a cat a smudge and would put a bear's nose against the glass. */
+  function watchZoomFor(e) {
+    if (!e) return 2;
+    var h = speciesDrawnHeight(e);
+    var onScreen = h * (baseScale || 1);
+    if (!(onScreen > 0)) return 2;
+    var cssH = ctx.canvas && ctx.canvas.clientHeight ? ctx.canvas.clientHeight : 800;
+    return Math.max(WATCH_MIN, Math.min(WATCH_MAX, (cssH * WATCH_FILL) / onScreen));
+  }
+
 
   function startWatch(p) {
     if (!p || !p.sp) return;
@@ -17290,6 +18072,14 @@ props: islandProps.map(function (p) {
     watch.sp = p.sp;
     watch.prop = p;
     watch.at = clock;
+    // Chosen from the animal, at the moment the watch starts: it needs the camera's
+    // own fit scale, which is only settled once she is standing where she is.
+    // Capped so she stays in frame too - a watch is her sitting and looking, and a
+    // camera that pushes past her has lost the scene it was framing.
+    var fill = watchZoomFor(p.sp);
+    var sep = dist(hero.x, hero.y, p.x || hero.x, p.y || hero.y);
+    var cap = sep > 1 ? (world.h * 0.55) / sep : 99;
+    watch.zTarget = Math.max(1.4, Math.min(fill, cap));
     walkTarget = null;
     hero.vx = 0; hero.vy = 0;
     islandVerb = null;
@@ -17309,10 +18099,10 @@ props: islandProps.map(function (p) {
   function updateWatch(dt) {
     var target = watch.on ? 1 : 0;
     var ease = 1 - Math.exp(-dt * (watch.on ? 3.4 : 5.6));
-    watch.z += ((watch.on ? WATCH_ZOOM : 1) - watch.z) * ease;
+    watch.z += ((watch.on ? (watch.zTarget || 2) : 1) - watch.z) * ease;
     watch.sit += (target - watch.sit) * ease;
     // The panel opens once the camera has arrived, not while it is still moving.
-    var open = watch.on && watch.z > WATCH_ZOOM * 0.92 ? 1 : 0;
+    var open = watch.on && watch.z > (watch.zTarget || 2) * 0.92 ? 1 : 0;
     watch.panel += (open - watch.panel) * (1 - Math.exp(-dt * 4.2));
     if (!watch.on && watch.panel < 0.01) {
       watch.panel = 0;
@@ -23305,8 +24095,26 @@ props: islandProps.map(function (p) {
     var h = hueOf(e.id);
     var body = ['#8C9BB2', '#A98A5E', '#7E93A8', '#B4762E', '#6E8B90'][h % 5];
     var hop = Math.abs(Math.sin(t * 2.4 + x * 0.03)) * 6;
+    // The legs stand the body off the ground: the whole drawing is raised by their
+    // length, so the feet land where the bird is placed and the hop lifts it clear.
+    var LEG = 11;
     ctx.save();
-    ctx.translate(x, y - hop);
+    ctx.translate(x, y - hop - LEG);
+
+    // Legs first, so the body covers where they meet it - a leg joins a bird, it is
+    // not stuck on the front of one. A toe forward makes the end a foot.
+    ctx.strokeStyle = '#C08B3E';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (var lg = -1; lg <= 1; lg += 2) {
+      ctx.beginPath();
+      ctx.moveTo(lg * 3.0, 1);
+      ctx.lineTo(lg * 4.2, LEG - 2);
+      ctx.lineTo(lg * 4.2 + 3.4, LEG);
+      ctx.stroke();
+    }
+
     ctx.fillStyle = body;
     ctx.beginPath();
     ctx.ellipse(0, 0, 16, 11, 0, 0, TAU);
@@ -28303,6 +29111,38 @@ var ANIMAL_SIZES = {
   };
 
   window.__setDay = function (t) { day.t = ((t % 1) + 1) % 1; return dayClock() + ' · ' + dayName(); };
+  /* The night palette, for a probe: __night(1) is full night, __night(0) is day,
+     and the numbers come back so a picture can be taken at a known band. */
+  window.__night = function (v) {
+    if (v !== undefined) Night.set(v);
+    return {
+      k: Night.k(),
+      band: Night.band(),
+      hour: Night.ofHour(day.t),
+      lawn: Night.probe('#9DAE79'),
+      ink: Night.probe('#2A2320')
+    };
+  };
+  /* The night's own numbers, for the tuner page: __nightTune() reads them,
+     __nightTune({ keepCool: 0.14 }) sets them and the next frame is drawn with
+     the new ones. Everything baked is repainted on the next frame. */
+  window.__nightTune = function (v) {
+    if (v) {
+      var T = Night.tune();
+      if (v.ramp) {
+        T.ramp = v.ramp.map(function (c) { return [c[0] | 0, c[1] | 0, c[2] | 0]; });
+      }
+      ['keepCool', 'keepWarm', 'keepFloor', 'pale', 'heat', 'edge'].forEach(function (key) {
+        if (v[key] !== undefined && isFinite(v[key])) T[key] = Number(v[key]);
+      });
+      Night.redraw();
+      try {
+        quietGround.dirty = true;
+        SPRITE.cache.clear();
+      } catch (e) { /* before those exist */ }
+    }
+    return JSON.parse(JSON.stringify(Night.tune()));
+  };
   window.__day = function () { return JSON.stringify({ t: day.t, clock: dayClock(), part: dayName(), light: dayLight() }); };
 
   /* What part of the day it is, in the island's voice. */
@@ -30543,7 +31383,31 @@ var ANIMAL_SIZES = {
      the same place all day and somewhere else tomorrow. */
   function kinPlace(k, i) {
     if (!k.places) return k.place;
-    return k.places[(yearDay() * 7 + i * 5 + k.who.length) % k.places.length];
+    return kinRoundNow()[k.who] || k.places[0];
+  }
+
+  /* Today's round. Two people never stand in one place, and the yard - the one
+     place everyone walks through - holds three at most. The pick is a function
+     of the island's day, so the round holds all day and changes tomorrow. */
+  var kinRound = { day: -1, map: null };
+
+  function kinRoundNow() {
+    if (kinRound.day === yearDay() && kinRound.map) return kinRound.map;
+    var used = {}, map = {};
+    for (var i = 0; i < KIN.length; i++) {
+      var k = KIN[i];
+      var list = k.places || [k.place];
+      var at = (yearDay() * 7 + i * 5 + k.who.length) % list.length;
+      for (var tries = 0; tries < list.length; tries++) {
+        var want = list[(at + tries) % list.length];
+        if ((used[want] || 0) < (want === 'yard' ? 3 : 1)) { at = (at + tries) % list.length; break; }
+      }
+      var pick = list[at];
+      used[pick] = (used[pick] || 0) + 1;
+      map[k.who] = pick;
+    }
+    kinRound = { day: yearDay(), map: map };
+    return map;
   }
 
   function kinAt(place) {
@@ -30571,6 +31435,89 @@ var ANIMAL_SIZES = {
         talkId: 'family-' + k.who, label: String(k.verb).replace(/^greet /, '')
       });
     }
+  }
+
+  /* The eras. Each house left one mark on one piece of ground, and the mark is
+     the door: touch it and the island stands in that century, on the same ground
+     it is standing on now. The well is not involved and stays capped. */
+  var ERAS = [
+    { id: 'achaemenes', name: 'Achaemenes', years: '550–330 BCE', kind: 'yard',
+      verb: 'touch the plinth of Achaemenes', word: 'setun',
+      task: 'raise a column drum', dress: 'columns', tint: 'rgba(214,190,140,0.22)' },
+    { id: 'arsaces', name: 'Arsaces', years: '247 BCE – 224 CE', kind: 'beach',
+      verb: 'touch the harbour stone of Arsaces', word: 'daryá',
+      task: 'warp the boat out', dress: 'boats', tint: 'rgba(150,186,190,0.22)' },
+    { id: 'sasan', name: 'Sāsān', years: '224–651 CE', kind: 'desert',
+      verb: 'touch the fire seal of Sāsān', word: 'átash',
+      task: 'keep the fire', dress: 'fire', tint: 'rgba(216,150,90,0.24)' },
+    { id: 'karin', name: 'Kārin', years: 'Nahavand, Media', kind: 'meadow',
+      verb: 'touch the bridge stone of Kārin', word: 'pol',
+      task: 'set the channel head', dress: 'bridge', tint: 'rgba(160,190,150,0.20)' },
+    { id: 'mihran', name: 'Mihrān', years: 'Ray, the Alborz foot', kind: 'heights',
+      verb: 'touch the pass marker of Mihrān', word: 'gardane',
+      task: 'mark the pass', dress: 'marker', tint: 'rgba(190,190,205,0.22)' },
+    { id: 'suren', name: 'Surēn', years: 'Sakastan', kind: 'steppe',
+      verb: 'touch the well ring of Surēn', word: 'kárván',
+      task: 'load the caravan', dress: 'tents', tint: 'rgba(216,196,150,0.22)' }
+  ];
+
+  /* Which century she is standing in, and how much of its work is done. */
+  var era = null, eraTask = 0;
+
+  function eraNow() {
+    for (var i = 0; i < ERAS.length; i++) if (ERAS[i].id === era) return ERAS[i];
+    return null;
+  }
+
+  function drawEraGround() {
+    var e = eraNow();
+    if (!e) return;
+    // The wash: this is the same meadow, in another year.
+    ctx.save();
+    ctx.fillStyle = e.tint;
+    ctx.fillRect(0, 0, world.w, world.h);
+    // What stands on it, in silhouette, so the dressing reads as the century and
+    // not as furniture.
+    ctx.fillStyle = 'rgba(58,48,40,0.30)';
+    var W = world.w, H = world.h;
+    if (e.dress === 'columns') {
+      for (var c = 0; c < 5; c++) {
+        var cx = W * (0.18 + c * 0.16), ch = 120 + (c % 2) * 40;
+        ctx.fillRect(cx - 7, H * 0.30, 14, ch);
+        ctx.fillRect(cx - 16, H * 0.30 - 10, 32, 10);
+      }
+    } else if (e.dress === 'boats') {
+      for (var b = 0; b < 4; b++) {
+        ctx.beginPath();
+        ctx.ellipse(W * (0.22 + b * 0.18), H * 0.82, 44, 12, 0, 0, TAU);
+        ctx.fill();
+      }
+    } else if (e.dress === 'fire') {
+      ctx.beginPath();
+      ctx.moveTo(W * 0.5, H * 0.34);
+      ctx.lineTo(W * 0.44, H * 0.44);
+      ctx.lineTo(W * 0.56, H * 0.44);
+      ctx.closePath();
+      ctx.fill();
+    } else if (e.dress === 'bridge') {
+      ctx.fillRect(W * 0.10, H * 0.52, W * 0.8, 12);
+      ctx.fillRect(W * 0.24, H * 0.52, 16, H * 0.14);
+      ctx.fillRect(W * 0.66, H * 0.52, 16, H * 0.14);
+    } else if (e.dress === 'marker') {
+      ctx.fillRect(W * 0.46, H * 0.30, 18, 120);
+      ctx.fillRect(W * 0.44, H * 0.30 - 12, 22, 12);
+    } else if (e.dress === 'tents') {
+      for (var t = 0; t < 3; t++) {
+        var tx = W * (0.28 + t * 0.22);
+        ctx.beginPath();
+        ctx.moveTo(tx - 52, H * 0.60);
+        ctx.lineTo(tx, H * 0.42);
+        ctx.lineTo(tx + 52, H * 0.60);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   }
 
   function buildProps() {
@@ -30822,6 +31769,22 @@ var ANIMAL_SIZES = {
           k: 'carved', w: st, x: W * stoneX[i],
           y: clamp(H * (0.30 + band * 0.58), 200, H - 80),
           verb: 'read the stone', act: 'stone', name: ''
+        });
+      }
+    }
+
+    // The era marks: one piece of old ground each, and the work of that century
+    // offered when she is standing in it.
+    for (i = 0; i < ERAS.length; i++) {
+      if (ERAS[i].kind !== d.kind) continue;
+      out.push({
+        k: 'mark', era: ERAS[i].id, x: W * 0.62, y: H * 0.44,
+        verb: ERAS[i].verb, act: 'era', name: ''
+      });
+      if (era === ERAS[i].id) {
+        out.push({
+          k: 'eratask', era: ERAS[i].id, x: W * 0.36, y: H * 0.62,
+          verb: ERAS[i].task, act: 'eratask', name: ''
         });
       }
     }
@@ -31315,6 +32278,35 @@ var ANIMAL_SIZES = {
       }
       return;
     }
+    if (p.act === 'era') {
+      var pick = null;
+      for (var ee = 0; ee < ERAS.length; ee++) if (ERAS[ee].id === p.era) pick = ERAS[ee];
+      if (!pick) return;
+      if (era === pick.id) {
+        era = null; eraTask = 0;
+        showNotice(T('You step back into your own day'), T(pick.name));
+      } else {
+        era = pick.id; eraTask = 0;
+        showNotice(T('You are standing in {0}', T(pick.years)), T(pick.name));
+      }
+      propCache = {};
+      sfx.pick();
+      return;
+    }
+    if (p.act === 'eratask') {
+      var cur = eraNow();
+      if (!cur) return;
+      eraTask++;
+      addParticles(p.x, p.y - 8, '#F2E3C0', 8, 60);
+      if (eraTask >= 3) {
+        teachWord(cur.word);
+        showNotice(T(cur.task) + ' · ' + T('done'), T(cur.name));
+        era = null; eraTask = 0;
+        propCache = {};
+      }
+      sfx.pick();
+      return;
+    }
     if (p.act === 'family') {
       // The family. Greeting one teaches that name; greeting four of them teaches
       // the word for what the whole house is. A relative answers like every other
@@ -31594,6 +32586,9 @@ var ANIMAL_SIZES = {
   function speciesDrawnHeight(e) {
     if (!e) return 40;
     if (e.sh === 'beast') return beastHeight(e);
+    // A pet is an animal drawn by the same painter, so it measures the same way. It
+    // used to fall through to a flat 34% of her, where a cat is 21%.
+    if (e.sh === 'cat' || e.sh === 'dog') return beastHeight(e);
     if (e.sh === 'plant') return (SPECIES_HEIGHT[e.ps || 'stem'] || 0.3) * KEEPER_PX;
     if (e.sh === 'bird') return KEEPER_PX * 0.12;
     if (e.sh === 'insect') return 18;
@@ -32062,6 +33057,34 @@ var ANIMAL_SIZES = {
       ctx.fill();
     }
     if (p.k === 'sight') { drawSight(p); return; }
+    if (p.k === 'mark') {
+      castShadow(x, y + 8, 34, 0.22, 16);
+      ctx.fillStyle = 'rgba(120,104,80,0.9)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, 16, 9, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#E7D9AE';
+      ctx.beginPath();
+      ctx.arc(x, y - 3, 5, 0, TAU);
+      ctx.fill();
+      return;
+    }
+    if (p.k === 'eratask') {
+      var ce = eraNow();
+      castShadow(x, y + 10, 40, 0.2, 18);
+      ctx.fillStyle = ce && ce.dress === 'fire' ? '#D9762E' : '#C8A96A';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 34);
+      ctx.lineTo(x - 15, y + 4);
+      ctx.lineTo(x + 15, y + 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,240,200,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 6, 18, 6, 0, 0, TAU);
+      ctx.fill();
+      return;
+    }
     if (p.k === 'species') {
       var e = p.sp;
       if (p.drawX != null) x = p.drawX;
@@ -32854,7 +33877,26 @@ var ANIMAL_SIZES = {
   function drawDayWash(W, H) {
     var L = dayLight();
     if (L.night) {
-      ctx.fillStyle = 'rgba(28,42,72,0.46)';
+      // The sun has gone under, but the sky keeps a lit side for a while: the same
+      // gradient the day ended on, faded out as the palette goes to full night.
+      // Without it dusk is a blue-grey hour with no light in it at all, which is a
+      // thing no evening ever looks like.
+      var heat = clamp((1 - Night.k() - Night.tune().heat) / Math.max(0.05, 1 - Night.tune().heat), 0, 1);
+      if (heat > 0.02) {
+        var dg = ctx.createLinearGradient(L.sx > 0 ? W : 0, 0, L.sx > 0 ? 0 : W, H);
+        dg.addColorStop(0, 'rgba(255,132,52,' + (0.62 * heat).toFixed(3) + ')');
+        dg.addColorStop(0.5, 'rgba(255,198,138,' + (0.17 * heat).toFixed(3) + ')');
+        dg.addColorStop(1, 'rgba(255,150,64,0)');
+        ctx.fillStyle = dg;
+        ctx.fillRect(0, 0, W, H);
+      }
+      // Night is carried by the palette, so there is no colour left to lay over
+      // it. What is left is depth: a soft darkening at the edges of the page and
+      // none in the middle, so a still night does not read as flat.
+      var vg = ctx.createRadialGradient(W * 0.5, H * 0.45, Math.min(W, H) * 0.22, W * 0.5, H * 0.5, Math.max(W, H) * 0.78);
+      vg.addColorStop(0, 'rgba(10,14,26,0)');
+      vg.addColorStop(1, 'rgba(10,14,26,0.34)');
+      ctx.fillStyle = vg;
       ctx.fillRect(0, 0, W, H);
       return;
     }
@@ -32996,12 +34038,19 @@ var ANIMAL_SIZES = {
     // and the island's does too, or the chips pile up.
     hits = [];
     var d = sectionDef();
+    // Night first: the palette the whole world is drawn in this frame, before a
+    // single colour is chosen. The island's hour is its own - a stage's dusk mood
+    // belongs to the stages - and a band change means the quiet ground was baked
+    // in an earlier hour and has to be painted again.
+    Night.field(true);
+    if (Night.set(Night.ofHour(day.t))) quietGround.dirty = true;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#6E7F56';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.setTransform(dpr * fitScale, 0, 0, dpr * fitScale, dpr * ox, dpr * oy);
     drawBiomeGround(d);
+    drawEraGround();
     // No sun on the ground: the island is seen from above, so the light reaches
     // it but the disc does not. The sun is drawn on the sky page instead.
     if (!interior) drawSectionEdges(d);
@@ -33032,6 +34081,9 @@ var ANIMAL_SIZES = {
     _casting = null;
     if (!interior) drawMotes();
     drawParticles();
+    // The world is finished; everything from here is page, and paper never
+    // receives light.
+    Night.field(false);
     drawDayWash(world.w, world.h);
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -33069,7 +34121,7 @@ var ANIMAL_SIZES = {
      `node` is where in the person's tree she stands; `path` is how she got
      there, kept so a probe (and a later remark) can see what she chose. One
      node, one thing said, and the replies that lead on from it. */
-  var talk = { on: false, id: '', who: '', sp: null, node: '', path: [] };
+  var talk = { on: false, id: '', who: '', sp: null, node: '', path: [], captured: null };
 
   function nightNow() { return day.t < day.sunRise || day.t > day.sunSet; }
 
@@ -33078,7 +34130,12 @@ var ANIMAL_SIZES = {
   /* What a relative opens with, and the light she is standing in. Both are
      seeded by the island's day, so one person says one thing all day and
      something else tomorrow. */
-  function talkGreet() { return (yearDay() % 2) ? 'Sal\u00e1m, joon.' : 'Khosh \u00e1madi.'; }
+  function talkGreet() {
+    var n = dayName();
+    if (n === 'first light' || n === 'morning') return 'Sobh bekhayr.';
+    if (n === 'night' || n === 'dusk' || n === 'the golden hour') return 'Shab bekhayr.';
+    return talkBag('greet', ['Sal\u00e1m, joonam.', 'Dary\u00e1 joon!', 'Khosh \u00e1madi.']);
+  }
 
   function talkLight() {
     var n = dayName();
@@ -33091,7 +34148,56 @@ var ANIMAL_SIZES = {
 
   /* A node's line is usually one authored key. A voiced node computes its own
      keys on the day it is opened. */
-  function nodeSay(n) { return n ? (typeof n.say === 'function' ? n.say() : n.say) : ''; }
+  /* A person's own line, one of two, so the same face does not say the same
+     sentence on every day of the year. */
+  var TALK_OWN = {
+    mother: ["There is bread on the board; sit down.", "Put your coat on the hook; the fire is lit.", "The lamp oil is low; take the small jug.", "Your sister ate and went out. She will be back for the dark.", "I have kept a bowl for the storyteller. He eats late."],
+    grandmother: ["You have her hands.", "I have counted four winters since she left.", "Sit. The kettle is on the coals.", "She kept a book, not a treasure. Remember that.", "Do not hurry the dough or the day."],
+    grandfather: ["That wall was standing before my father.", "My hands know this wall better than my eyes.", "Sit in the shade; the sun is not kind at this hour.", "When I was a boy the sea came closer than this.", "Take the long way by the shrine. The short way is for carts."],
+    father: ["The boat needs a new pin. I will cut one.", "Sit at the bow and keep still; the boat does the rest.", "I am mending the net; hand me the twine.", "The wind is off the land today. We stay in.", "Ask your aunt for the salt; I have none in the boat."],
+    brother: ["I found a beetle with a red back.", "There is a frog that thinks it owns the trough.", "Do not tell Mâmân I was at the water.", "I can hold my breath longer than you.", "The cat follows me everywhere now."],
+    khale: ["Pick the beans; the pods are full.", "Do not eat standing up; you will forget what you ate.", "The pot is heavy; take the other handle.", "Your mother cooked yesterday. Today it is mine.", "There is mint by the channel. Bring a handful."],
+    amme: ["I have mended your coat again.", "Sit by the lamp; your hair is still wet.", "The comb is on the shelf, not in your hand.", "You have grown again. Stand still.", "I keep a needle for every season. This one is winter’s."],
+    dai: ["The pond gave me three fish and a boot.", "The wind is turning. The fish know before we do.", "A fish has no hurry. That is why it is still here.", "Hold the line and stop talking.", "The water is cold at the bottom. So is the sky at night."],
+    amu: ["I carry a stone in my pocket from the pass.", "A caravan is only people who agreed to walk together.", "A good road is one you can find again in the dark.", "The salt comes from the far side. So does the news.", "I have walked further for less. Sit and eat."],
+  };
+
+  function talkOwn(who) {
+    var rows = TALK_OWN[who];
+    if (!rows) return '';
+    return talkBag('own:' + who, rows);
+  }
+
+  /* A bag, not a die. Every line is used once before any is used again, and the
+     order is kept, so a person works through what they know instead of repeating
+     the same sentence on the same day of every year. */
+  var talkBags = {};
+  try { talkBags = JSON.parse(window.localStorage.getItem('darya.talkbags') || '{}'); } catch (e) { talkBags = {}; }
+
+  function talkBag(key, rows) {
+    var bag = talkBags[key];
+    if (!bag || !bag.length) {
+      bag = [];
+      for (var i = 0; i < rows.length; i++) bag.push(i);
+      for (var s = bag.length - 1; s > 0; s--) {
+        var j = Math.floor(Math.random() * (s + 1));
+        var t = bag[s]; bag[s] = bag[j]; bag[j] = t;
+      }
+    }
+    var pick = bag.shift();
+    talkBags[key] = bag;
+    try { window.localStorage.setItem('darya.talkbags', JSON.stringify(talkBags)); } catch (e) { /* private */ }
+    return rows[Math.min(pick, rows.length - 1)];
+  }
+
+  /* A voiced root reads from the lines captured at entry, not from a fresh bag
+     pull. Every other node keeps its written line. */
+  function nodeSay(n) {
+    if (!n) return '';
+    var t = talkTree();
+    if (t && t.voiced && talk.node === 'root' && talk.captured) return talk.captured;
+    return typeof n.say === 'function' ? n.say() : n.say;
+  }
 
   function talkNode() {
     var t = talkTree();
@@ -33100,12 +34206,22 @@ var ANIMAL_SIZES = {
 
   /* Walk to a node. `silent` is for opening a talk, which already made its own
      sound. A node that teaches a word teaches it on arrival, so the word comes
-     with the line that explained it rather than after the next tap. */
+     with the line that explained it rather than after the next tap.
+
+     A voiced root node captures its three lines the moment it is entered and
+     stores them on `talk.captured`, so the render loop reads the stored copy
+     instead of re-pulling from the bag on every frame. */
   function talkGo(id, silent) {
     var t = talkTree();
     if (!t || !t.nodes[id]) return false;
     talk.node = id;
-    if (t.nodes[id].teach) teachWord(t.nodes[id].teach);
+    var nd = t.nodes[id];
+    // Capture a voiced root's lines once, on entry.
+    if (t.voiced && id === 'root' && typeof nd.say === 'function') {
+      var lines = nd.say();
+      talk.captured = Array.isArray(lines) ? lines : [lines];
+    }
+    if (nd.teach) teachWord(nd.teach);
     if (!silent) sfx.pick();
     return true;
   }
@@ -33119,6 +34235,7 @@ var ANIMAL_SIZES = {
     talk.sp = p.sp || null;
     talk.who = p.sp ? shortName(p.sp) : (p.label || '');
     talk.path = [];
+    talk.captured = null;
     beingSaid = { at: -99, who: '', line: '' };
     // Meeting a person is the same act in the world and from a probe, so it is
     // counted here, not at the tap that happened to reach it.
@@ -33146,6 +34263,7 @@ var ANIMAL_SIZES = {
     talk.on = false;
     talk.node = '';
     talk.path = [];
+    talk.captured = null;
   }
 
   /* The talk from outside, for the owner's browser console and for a test: the
