@@ -10550,13 +10550,13 @@ function sightSp(sg) {
       if (lg.id === "en") continue;
       var table = TRANSLATIONS[lg.id];
       if (!table) { fail("language " + lg.id, "has no table"); continue; }
-      var missing = 0;
+      var missing = 0, missingKey = '';
       for (var ci = 0; ci < STORY.length; ci++) {
-        if (!table[STORY[ci].line]) missing++;
-        if (!table[STORY[ci].label]) missing++;
-        if (STORY[ci].c && !table[STORY[ci].c]) missing++;
+        if (!table[STORY[ci].line]) { missing++; if (!missingKey) missingKey = STORY[ci].line; }
+        if (!table[STORY[ci].label]) { missing++; if (!missingKey) missingKey = STORY[ci].label; }
+        if (STORY[ci].c && !table[STORY[ci].c]) { missing++; if (!missingKey) missingKey = STORY[ci].c; }
       }
-      if (missing > 0) fail("language " + lg.id, missing + " story line(s) not translated");
+      if (missing > 0) fail("language " + lg.id, missing + " story line(s) not translated: " + missingKey);
       var gloss = GLOSS[lg.id];
       if (!gloss || gloss.length !== words.length) {
         fail("language " + lg.id, "gloss has " + (gloss ? gloss.length : 0) + " of " + words.length + " words");
@@ -10615,10 +10615,11 @@ function sightSp(sg) {
       }
     }
     // Every person of the island has a tree, and the sister is one more voice
-    // than the six who are met in the wild.
+    // than the six who are met in the wild. (The family's voiced roots live in
+    // the same map and are not counted here.)
     var treeCount = 0;
-    for (var tc in TALK_TREES) if (TALK_TREES.hasOwnProperty(tc)) treeCount++;
-    if (treeCount !== beingCount + 1) fail("talk", treeCount + " trees for " + beingCount + " people");
+    for (var tc in TALK_TREES) if (TALK_TREES.hasOwnProperty(tc) && tc.indexOf("being-") === 0) treeCount++;
+    if (treeCount !== beingCount + 1) fail("talk", treeCount + " being trees for " + beingCount + " people");
     for (i = 0; i < LANGS.length; i++) {
       if (LANGS[i].id === "en") continue;
       var ttab = TRANSLATIONS[LANGS[i].id] || {};
@@ -12045,6 +12046,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Du hittade henne vid vattnet',
       'she goes ahead and waits by the water': 'hon går före och väntar vid vattnet',
       'she goes back to the well': 'hon går tillbaka till brunnen',
+      'the pantry': 'skafferiet',
 
     },
     fa: {
@@ -12758,6 +12760,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'اون رو کنار آب پیدا کردی.',
       'she goes ahead and waits by the water': 'اون جلو میره و کنار آب منتظر می‌مونه.',
       'she goes back to the well': 'اون به سر چاه برگشت.',
+      'the pantry': 'انبار',
 
     },
     de: {
@@ -13471,6 +13474,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Du hast sie am Wasser gefunden',
       'she goes ahead and waits by the water': 'sie geht voraus und wartet am Wasser',
       'she goes back to the well': 'sie geht zurück zum Brunnen',
+      'the pantry': 'die Vorratskammer',
 
     },
     fr: {
@@ -14183,6 +14187,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Tu l\'as trouvée près de l\'eau',
       'she goes ahead and waits by the water': 'elle passe devant et attend près de l\'eau',
       'she goes back to the well': 'elle retourne au puits',
+      'the pantry': 'le cellier',
 
     },
     es: {
@@ -14896,6 +14901,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'La encontraste junto al agua',
       'she goes ahead and waits by the water': 'ella va delante y espera junto al agua',
       'she goes back to the well': 'ella vuelve al pozo',
+      'the pantry': 'la despensa',
 
     },
     tr: {
@@ -15609,6 +15615,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Onu suyun başında buldun',
       'she goes ahead and waits by the water': 'o önden gider ve suyun başında bekler',
       'she goes back to the well': 'o kuyunun başına döner',
+      'the pantry': 'kiler',
 
     },
     ar: {
@@ -16322,6 +16329,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'وجدتها عند الماء',
       'she goes ahead and waits by the water': 'تسبقك وتنتظر عند الماء',
       'she goes back to the well': 'تعود إلى البئر',
+      'the pantry': 'المخزن',
 
     },
     zh: {
@@ -17035,6 +17043,7 @@ props: islandProps.map(function (p) {
       'You found her by the water': '你在水边找到了她',
       'she goes ahead and waits by the water': '她先走一步，在水边等你',
       'she goes back to the well': '她回到井边',
+      'the pantry': '储藏室',
 
     },
     fi: {
@@ -17511,7 +17520,7 @@ props: islandProps.map(function (p) {
       'A NEW WORD': 'Vázhe-ye táze',
       'THE WORDS': 'Vázhe-há',
       'the wild is on the chart': 'biábán ru-ye naghshe ast',
-      'hands full': 'dast-ha por ast',
+      'hands full': 'dast-há por ast',
       'a bee flew home': 'zanburi be kháne raft',
       'a bee is back': 'zanburi bargasht',
       'bloomed': 'shekoft',
@@ -17747,7 +17756,7 @@ props: islandProps.map(function (p) {
       'meet {0} by the pond': 'be {0} kenár-e hozd beres.',
       'You found her by the water': 'u rá kenár-e áb peydá kardi.',
       'she goes ahead and waits by the water': 'u jolo miravad va kenár-e áb montazer mimunad.',
-      'she goes back to the well': 'u be sar-e cháh bargasht.',
+      'she goes back to the well': 'u be sar-e cháh bargasht.',      'the pantry': 'anbár',
     },
   };
 
@@ -31848,10 +31857,11 @@ var ANIMAL_SIZES = {
           k: 'pondwater', x: psb.cx, y: psb.cy + psb.ry + 26,
           verb: 'fish the pond', act: 'enter', to: 'lake', from: 'pond', name: ''
         });
-        // A sister sent ahead by a talk waits here, on the water's edge.
+        // A sister sent ahead by a talk waits here, on the near bank beside the
+        // casting spot, where she can be reached without standing in the water.
         if (sisterWaitingHere()) {
           out.push({
-            k: 'sister', x: W * 0.30, y: H * 0.70,
+            k: 'sister', x: psb.cx + 120, y: psb.cy + psb.ry + 30,
             verb: who === 'darya' ? 'greet Donya' : 'greet Daryá',
             act: 'sister', talkId: 'being-sister', label: otherSister().name, name: ''
           });
@@ -34590,6 +34600,31 @@ var ANIMAL_SIZES = {
     for (var i = 0; i < list.length; i++) {
       var sp = list[i].sp;
       if ((sp && sp.id === id) || list[i].talkId === id) { startTalk(list[i]); return true; }
+    }
+    return false;
+  };
+  /* Do what a tap on a prop of this act does. A world tap goes through propAt and
+     the verb chip; this reaches the same function without needing a screen point,
+     which is what a test wants. */
+  /* Where a prop of this act is on the page, in CSS pixels. The camera transform
+     lives in ox/oy/fitScale and nothing else exposes it, so a test that wants to
+     look at a particular thing has to ask here. */
+  window.__propScreen = function (act) {
+    var list = buildProps();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].act !== act) continue;
+      return {
+        x: Math.round(ox + list[i].x * fitScale),
+        y: Math.round(oy + (list[i].y - (list[i].flight || 0)) * fitScale),
+        scale: Math.round(fitScale * 100) / 100
+      };
+    }
+    return null;
+  };
+  window.__propAct = function (act) {
+    var list = buildProps();
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].act === act) { useProp(list[i]); return true; }
     }
     return false;
   };
