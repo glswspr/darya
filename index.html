@@ -18342,6 +18342,19 @@ props: islandProps.map(function (p) {
     }
   }
 
+  /* Watch the animal with this species id, for inspection from the console. */
+  window.__watchId = function (id) {
+    islandProps = buildProps();
+    for (var i = 0; i < islandProps.length; i++) {
+      var p = islandProps[i];
+      if (!p.sp || !p.sp.e) continue;
+      if (String(p.sp.e).indexOf(id) < 0) continue;
+      startWatch(p);
+      return String(p.sp.e) + ' at ' + Math.round(dist(hero.x, hero.y, p.x, p.y));
+    }
+    return null;
+  };
+
   window.__watchNearest = function () {
     var best = null, bd = 1e9;
     islandProps = buildProps();
