@@ -7858,66 +7858,85 @@ function sightSp(sg) {
 
   function drawTitle(cssW, cssH) {
     hits = [];
-    ctx.fillStyle = C.plaster;
-    ctx.fillRect(0, 0, cssW, cssH);
     pageBegin(cssW, cssH);
     cssW = 390;
     cssH = 844;
 
-    // The page's hairline frame.
-    ctx.strokeStyle = 'rgba(42,35,32,0.16)';
-    ctx.lineWidth = 1;
-    var m = 18;
-    ctx.strokeRect(m, m, cssW - m * 2, cssH - m * 2);
+    // The horizon: sky, the ridge, the sea, and the ground where the pair stands.
+    var skyG = ctx.createLinearGradient(0, 0, 0, 430);
+    skyG.addColorStop(0, '#C6D3CF');
+    skyG.addColorStop(1, '#E2DED0');
+    ctx.fillStyle = skyG;
+    ctx.fillRect(0, 0, cssW, 430);
 
-    // Faint botanical wash behind the pair.
-    var g = ctx.createRadialGradient(cssW * 0.5, cssH * 0.30, 20, cssW * 0.5, cssH * 0.30, cssW * 0.75);
-    g.addColorStop(0, 'rgba(224,163,42,0.11)');
-    g.addColorStop(1, 'rgba(224,163,42,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, cssW, cssH);
+    var ridgePath = new Path2D();
+    ridgePath.moveTo(0, 320);
+    ridgePath.lineTo(40, 286); ridgePath.lineTo(72, 302); ridgePath.lineTo(108, 258);
+    ridgePath.lineTo(148, 292); ridgePath.lineTo(186, 268); ridgePath.lineTo(222, 298);
+    ridgePath.lineTo(270, 250); ridgePath.lineTo(316, 294); ridgePath.lineTo(356, 268);
+    ridgePath.lineTo(cssW, 294);
+    ridgePath.lineTo(cssW, 340); ridgePath.lineTo(0, 340);
+    ridgePath.closePath();
+    ctx.fillStyle = 'rgba(127,144,120,0.55)';
+    ctx.fill(ridgePath);
+
+    var seaTop = 342, seaH = 44;
+    var seaG = ctx.createLinearGradient(0, seaTop, 0, seaTop + seaH);
+    seaG.addColorStop(0, '#8FA8A6');
+    seaG.addColorStop(0.5, '#9FB6B4');
+    seaG.addColorStop(1, '#B7C6BD');
+    ctx.fillStyle = seaG;
+    ctx.fillRect(0, seaTop, cssW, seaH);
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(0, seaTop - 1, cssW, 2);
+
+    var gTop = seaTop + seaH;
+    var groundG = ctx.createLinearGradient(0, gTop, 0, cssH);
+    groundG.addColorStop(0, '#B3B992');
+    groundG.addColorStop(0.34, '#A2B183');
+    groundG.addColorStop(1, '#8F9F74');
+    ctx.fillStyle = groundG;
+    ctx.fillRect(0, gTop, cssW, cssH - gTop);
+
+    // Grass tufts on the ground, between the sea and the pair.
+    ctx.strokeStyle = 'rgba(90,108,68,0.3)';
+    ctx.lineWidth = 1.2;
+    var tuftXs = [52, 96, 148, 196, 244, 296, 344];
+    var tuftYs = [gTop + 48, gTop + 80, gTop + 110, gTop + 88, gTop + 130, gTop + 70, gTop + 100];
+    for (var t = 0; t < tuftXs.length; t++) {
+      var tx = tuftXs[t], ty = tuftYs[t];
+      ctx.beginPath();
+      ctx.moveTo(tx - 5, ty + 8); ctx.lineTo(tx - 2, ty); ctx.lineTo(tx + 1, ty + 8);
+      ctx.moveTo(tx + 2, ty + 6); ctx.lineTo(tx + 5, ty - 2); ctx.lineTo(tx + 7, ty + 8);
+      ctx.stroke();
+    }
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // The name of the game, and the same name in its own script.
-    ctx.textAlign = 'center';
-    ctx.fillStyle = C.ink;
+    // The name, in the sky.
     var word = fitLine(T('Daryá va Donyá'), cssW - 56, FONT_SERIF, 600, 'italic', 46, 30);
+    ctx.fillStyle = C.ink;
     ctx.font = word.font;
     ctx.fillText(word.text, cssW / 2, 100);
     if (LANG !== 'fa') {
       ctx.fillStyle = C.turquoiseDeep;
       ctx.font = '500 24px ' + FONT_SERIF;
-      ctx.fillText('دریا و دنیا', cssW / 2, 140);
+      ctx.fillText('دریا و دنیا', cssW / 2, 142);
     }
 
-    // The island's two lines: the only place the myth is stated whole.
-    ctx.fillStyle = C.inkSoft;
+    // The island's two lines.
+    ctx.fillStyle = '#4A4C40';
     var myth1 = fitLine(T('The sea took the rest of the world.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
     ctx.font = myth1.font;
-    ctx.fillText(myth1.text, cssW / 2, 180);
+    ctx.fillText(myth1.text, cssW / 2, 210);
     var myth2 = fitLine(T('This is the piece that stayed.'), cssW - 60, FONT_SERIF, 500, 'italic', 12, 9);
     ctx.font = myth2.font;
-    ctx.fillText(myth2.text, cssW / 2, 200);
+    ctx.fillText(myth2.text, cssW / 2, 230);
 
-    // The two of them, on the island's own ground: a hairline, and their shadows.
-    var groundY = 446;
-    ctx.strokeStyle = 'rgba(42,35,32,0.22)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(56, groundY + 2);
-    ctx.lineTo(334, groundY + 2);
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(47,167,155,0.35)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(cssW / 2 - 26, groundY + 2);
-    ctx.lineTo(cssW / 2 + 26, groundY + 2);
-    ctx.stroke();
-
-    var cardW = 150, cardH = 360;
-    var spots = [{ x: 104, id: 'darya' }, { x: 286, id: 'donya' }];
+    // The pair, on the ground.
+    var groundY = 600;
+    var spots = [{ x: 116, id: 'darya' }, { x: 274, id: 'donya' }];
     for (var i = 0; i < spots.length; i++) {
       var sp2 = spots[i];
       var S = SISTERS[sp2.id];
@@ -7934,50 +7953,65 @@ function sightSp(sg) {
       } else {
         paintFadedSister(ctx, sp2.x, groundY, S.id, 0.5);
       }
-
-      // her name, in ink when chosen
-      ctx.fillStyle = chosen ? C.ink : C.inkFaint;
-      ctx.font = 'italic ' + (chosen ? 600 : 500) + ' 21px ' + FONT_SERIF;
-      ctx.fillText(T(S.name), sp2.x, groundY + 42);
-      if (chosen) {
-        var nw = ctx.measureText(T(S.name)).width;
-        ctx.fillStyle = C.turquoise;
-        ctx.fillRect(sp2.x - nw / 2, groundY + 58, nw, 2);
-      }
-      addHit(sp2.x - cardW / 2, groundY - cardH + 40, cardW, cardH, 'sister', S.id);
+      addHit(sp2.x - 56, groundY - 300, 112, 300, 'sister', S.id);
     }
 
-    // She speaks, in her own voice.
+    // Sister labels on the ground.
+    var labelY = groundY + 44;
+    var labelDefs = [
+      { name: 'darya', x: spots[0].x, text: T('keeps the book'), color: '#22301F' },
+      { name: 'donya', x: spots[1].x, text: T('finds it'), color: '#5A4526' }
+    ];
+    for (var li = 0; li < labelDefs.length; li++) {
+      var LN = labelDefs[li];
+      var lS = SISTERS[LN.name];
+      var lChosen = who === lS.id;
+      ctx.fillStyle = lChosen ? LN.color : 'rgba(42,35,32,0.4)';
+      var lNm = fitLine(T(lS.name), 150, FONT_SERIF, lChosen ? 600 : 500, 'italic', 22, 16);
+      ctx.font = lNm.font;
+      ctx.fillText(lNm.text, LN.x, labelY);
+      ctx.fillStyle = lChosen ? '#3F4A35' : 'rgba(63,74,53,0.6)';
+      ctx.font = '400 11.5px ' + FONT_UI;
+      ctx.fillText(LN.text, LN.x, labelY + 18);
+      if (lChosen) {
+        var nw = ctx.measureText(T(lS.name)).width;
+        ctx.fillStyle = C.turquoise;
+        ctx.fillRect(LN.x - nw / 2, labelY + 30, nw, 2);
+      }
+    }
+
+    // The chosen sister's own voice.
+    var chosenS = SISTERS[who];
     ctx.fillStyle = C.inkSoft;
-    var saidLines = wrapText(T(sister().says), cssW - 84, 'italic 500 12.5px ' + FONT_SERIF);
+    var saidLines = wrapText(T(chosenS.says), cssW - 84, 'italic 500 12.5px ' + FONT_SERIF);
     ctx.font = 'italic 500 12.5px ' + FONT_SERIF;
-    var saidTop = 556 - (saidLines.length - 1) * 9;
+    var saidTop = labelY + 50 - (saidLines.length - 1) * 9;
     for (var sl = 0; sl < saidLines.length; sl++) {
       ctx.fillText(saidLines[sl], cssW / 2, saidTop + sl * 18);
     }
 
     // And one way in, which says whose day it will be.
-    var bw = Math.min(278, cssW - 92), bh = 56;
-    var bx = cssW / 2 - bw / 2, by = 606;
+    var startLabel = fitLine(T('walk out as {0}', T(chosenS.name)), cssW - 80, FONT_UI, 600, 'normal', 17, 11);
+    ctx.font = startLabel.font;
+    var tw = ctx.measureText(startLabel.text).width;
+    var bw2 = Math.min(cssW - 48, tw + 44);
+    var bh2 = 52;
+    var bx = cssW / 2 - bw2 / 2, by = 738;
     ctx.fillStyle = C.terracotta;
-    roundRect(bx, by, bw, bh, bh / 2);
+    roundRect(bx, by, bw2, bh2, bh2 / 2);
     ctx.fill();
     ctx.fillStyle = C.paper;
-    var startLabel = fitLine(T('walk out as {0}', T(sister().name)), bw - 30, FONT_UI, 600, 'normal', 17, 12);
-    ctx.font = startLabel.font;
-    ctx.fillText(startLabel.text, cssW / 2, by + bh / 2 + 0.5);
-    addHit(bx, by, bw, bh, 'start');
+    ctx.fillText(startLabel.text, cssW / 2, by + bh2 / 2 + 0.5);
+    addHit(bx, by, bw2, bh2, 'start');
 
-    ctx.textAlign = 'center';
-    if (best > 0) {
-      ctx.fillStyle = C.inkFaint;
-      ctx.font = '400 11px ' + FONT_UI;
-      ctx.fillText(T('best: {0} jars', best), cssW / 2, by + bh + 26);
-    }
+    // 'tap a sister to choose', small, above the pill.
+    ctx.fillStyle = '#3F4A35';
+    ctx.font = '400 11px ' + FONT_UI;
+    ctx.fillText(T('tap a sister to choose'), cssW / 2, by - 14);
+
     ctx.textAlign = 'left';
 
-    // The book, and the two things she carries, on the cover as on every page: a
-    // keeper can read what she has written before she takes a step.
+    // The book, and the two things she carries, on the cover as on every page.
     bookTab(390, 844);
     carryTabs(390, 844);
     pageEnd();
@@ -9881,8 +9915,8 @@ function sightSp(sg) {
 
       // Device pixels per USER unit (paintAnimal applies `sc` itself) and per BODY
       // unit (the offsets). Using sc*dev for both doubled the scale.
-      var px = dev;
-      var pxB = sc * dev;
+      var px = Math.max(0.5, Math.min(4, dev));
+      var pxB = sc * px;
       var cw = Math.max(8, Math.ceil((x1 - x0) * pxB));
       var chh = Math.max(8, Math.ceil((y1 - y0) * pxB));
 
@@ -9904,7 +9938,7 @@ function sightSp(sg) {
       }
       ctx = prevCtx;
 
-      entry = { canvas: cvs, x0: x0, x1: x1, y0: y0, y1: y1, sc: sc };
+      entry = { canvas: cvs, x0: x0, x1: x1, y0: y0, y1: y1, sc: sc, px: px };
       SPRITE.cache.set(key, entry);
       SPRITE.order.push(key);
       // A bounded cache: the oldest sprite goes when the room runs out.
@@ -9930,9 +9964,14 @@ function sightSp(sg) {
       dxu = (Math.round(devX) - tr2.e) / ax;
       dyu = (Math.round(devY) - tr2.f) / ay;
     }
-    // Size taken from the sprite's pixels, so source and destination agree exactly.
-    g.drawImage(entry.canvas, dxu, dyu,
-      entry.canvas.width / Math.abs(ax), entry.canvas.height / Math.abs(ay));
+    // Size in USER units, so the live camera scale applies to it. The old blit was
+    // sized in screen pixels from the sprite's own pixel count, which pinned the
+    // animal to the resolution it was baked at: zooming in stepped it up in
+    // quarter-size jumps, one per device-scale bucket, while the birds drawn live
+    // scaled smoothly beside it.
+    var wu = (entry.x1 - entry.x0) * entry.sc;
+    var hu = (entry.y1 - entry.y0) * entry.sc;
+    g.drawImage(entry.canvas, dxu, dyu, wu, hu);
   }
 
   /* 11. MAIN LOOP */
@@ -11463,6 +11502,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'Jag hittar dem. Min syster skriver ner dem.',
       'You write; I find. Take the book and go.': 'Du skriver; jag hittar. Ta boken och gå.',
       'greet Daryá': 'hälsa på Daryá',
+      'keeps the book': 'håller boken',
+      'finds it': 'hittar den',
+      'tap a sister to choose': 'tryck en syster för att välja',
       'find the four ways out of the yard': 'hitta de fyra vägarna ut från gården',
       'find the apiary and open a hive': 'hitta bigården och öppna en kupa',
       'find the stream and fill the can': 'hitta bäcken och fyll kannan',
@@ -12178,6 +12220,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'من پیدایشان می‌کنم. خواهرم می‌نویسدشان.',
       'You write; I find. Take the book and go.': 'تو بنویس؛ من پیدا می‌کنم. دفتر را بردار و برو.',
       'greet Daryá': 'به دریا سلام کن',
+      'keeps the book': 'کتاب را نگاه می‌دارد',
+      'finds it': 'می‌یابدش',
+      'tap a sister to choose': 'برای انتخاب، یکی از خواهرها را لمس کن',
       'find the four ways out of the yard': 'چهار راه بیرون از حیاط را پیدا کن',
       'find the apiary and open a hive': 'زنبورستان را پیدا کن و یک کندو را باز کن',
       'find the stream and fill the can': 'جوی آب را پیدا کن و آبپاش را پر کن',
@@ -12893,6 +12938,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'Ich finde sie. Meine Schwester schreibt sie auf.',
       'You write; I find. Take the book and go.': 'Du schreibst; ich finde. Nimm das Buch und geh.',
       'greet Daryá': 'Daryá grüßen',
+      'keeps the book': 'hütet das Buch',
+      'finds it': 'findet es',
+      'tap a sister to choose': 'eine Schwester antippen, um sie zu wählen',
       'find the four ways out of the yard': 'die vier Wege aus dem Hof finden',
       'find the apiary and open a hive': 'den Bienenstand finden und einen Stock öffnen',
       'find the stream and fill the can': 'den Bach finden und die Kanne füllen',
@@ -13608,6 +13656,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'Je les trouve. Ma sœur les écrit.',
       'You write; I find. Take the book and go.': 'Toi, tu écris ; moi, je trouve. Prends le livre et va.',
       'greet Daryá': 'saluer Daryá',
+      'keeps the book': 'garde le livre',
+      'finds it': 'le trouve',
+      'tap a sister to choose': 'touche une sœur pour la choisir',
       'find the four ways out of the yard': 'trouver les quatre sorties de la cour',
       'find the apiary and open a hive': 'trouver le rucher et ouvrir une ruche',
       'find the stream and fill the can': 'trouver le ruisseau et remplir l\'arrosoir',
@@ -14322,6 +14373,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'Yo los encuentro. Mi hermana los escribe.',
       'You write; I find. Take the book and go.': 'Tú escribes; yo encuentro. Toma el libro y ve.',
       'greet Daryá': 'saludar a Daryá',
+      'keeps the book': 'cuida el libro',
+      'finds it': 'lo encuentra',
+      'tap a sister to choose': 'toca a una hermana para elegirla',
       'find the four ways out of the yard': 'encontrar las cuatro salidas del patio',
       'find the apiary and open a hive': 'encontrar el colmenar y abrir una colmena',
       'find the stream and fill the can': 'encontrar el arroyo y llenar la regadera',
@@ -15037,6 +15091,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'Onları ben bulurum. Kardeşim yazar.',
       'You write; I find. Take the book and go.': 'Sen yaz; ben bulurum. Defteri al ve git.',
       'greet Daryá': 'Daryá\'yı selamla',
+      'keeps the book': 'kitabı bekler',
+      'finds it': 'bulur',
+      'tap a sister to choose': 'seçmek için bir kız kardeşe dokun',
       'find the four ways out of the yard': 'avlundan çıkan dört yolu bul',
       'find the apiary and open a hive': 'aralığı bul ve bir kovan aç',
       'find the stream and fill the can': 'dereyi bul ve kabı doldur',
@@ -15752,6 +15809,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'أنا أجدها. أختي تكتبها.',
       'You write; I find. Take the book and go.': 'أنتِ تكتبين؛ أنا أجد. خذي الدفتر واذهبي.',
       'greet Daryá': 'سلّم على دريا',
+      'keeps the book': 'تحفظ الكتاب',
+      'finds it': 'تجده',
+      'tap a sister to choose': 'المسي أختاً للاختيار',
       'find the four ways out of the yard': 'اِجد الطرق الأربعة من الدار',
       'find the apiary and open a hive': 'اِجد المنحل وافتح خلية',
       'find the stream and fill the can': 'اِجد الجدول واملأ المرشّة',
@@ -16467,6 +16527,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': '我去找，我姐姐把它们写下来。',
       'You write; I find. Take the book and go.': '你写，我去找。拿上本子走吧。',
       'greet Daryá': '跟 Daryá 打个招呼',
+      'keeps the book': '守护书',
+      'finds it': '寻找',
+      'tap a sister to choose': '点一下姐妹来选择',
       'find the four ways out of the yard': '找出院子的四条出路',
       'find the apiary and open a hive': '找到蜂场，打开一只蜂箱',
       'find the stream and fill the can': '找到溪水，把壶灌满',
@@ -17182,6 +17245,9 @@ props: islandProps.map(function (p) {
       'I find them. My sister writes them down.': 'man peydá-eshán mikonam. kháhar-am minevisad-eshán.',
       'You write; I find. Take the book and go.': 'to benevis; man peydá mikonam. daftar rá bardár va boro.',
       'greet Daryá': 'be daryá salám kon',
+      'keeps the book': 'pitää kirjaa',
+      'finds it': 'löytää sen',
+      'tap a sister to choose': 'kosketa sisarta valitaksesi',
       'find the four ways out of the yard': 'cháhár ráh-e birun az hiayát rá peydá kon',
       'find the apiary and open a hive': 'zanbursetán rá peydá kon va yek kandu rá báz kon',
       'find the stream and fill the can': 'juy-e áb rá peydá kon va ábpásh rá por kon',
