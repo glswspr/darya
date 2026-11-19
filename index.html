@@ -4796,7 +4796,7 @@ function sightSp(sg) {
             { say: "Will you show me?", to: 'b' }
           ]
         },
-        a: { say: "Under the trough. Do not tell Mâmân.", replies: [{ say: 'Thank you.', to: 'root' }] },
+        a: { say: "Under the trough. Do not tell Mámán.", replies: [{ say: 'Thank you.', to: 'root' }] },
         b: { say: "Only if you race me to the stream.", replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
@@ -10236,6 +10236,25 @@ function sightSp(sg) {
     if (id) setLanguage(id);
     return LANG;
   };
+  /* The animals on screen this frame, with their own velocity: a still picture cannot
+     show whether a body is sliding in a straight line or carrying momentum, so this
+     exposes the numbers the motion is made of. */
+  window.__fauna = function (id) {
+    islandProps = islandProps && islandProps.length ? islandProps : buildProps();
+    var out = [];
+    for (var i = 0; i < islandProps.length; i++) {
+      var p = islandProps[i];
+      if (p.k !== 'species' || !p.anim) continue;
+      if (id && p.anim.sp && p.anim.sp.e !== id && p.anim.sp.e.id !== id) continue;
+      out.push({
+        id: p.anim.sp.e.id, gait: p.anim.gait,
+        x: +p.anim.x.toFixed(2), y: +p.anim.y.toFixed(2),
+        vx: +(p.anim.vx || 0).toFixed(2), vy: +(p.anim.vy || 0).toFixed(2)
+      });
+    }
+    return JSON.stringify(out);
+  };
+
   window.__draw = function () { render(); return 'drawn'; };
   window.__turnAt = function (t) {    if (!BOOK.turn) return 'no turn';
     BOOK.turn.at = clock - t * TURN_SECONDS;
@@ -11350,7 +11369,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Jag lagar nätet; räck mig snöret.',
       'The wind is off the land today. We stay in.': 'Vinden kommer från land i dag. Vi stannar inne.',
       'Ask your aunt for the salt; I have none in the boat.': 'Fråga din moster efter salt; jag har inget i båten.',
-      'Do not tell Mâmân I was at the water.': 'Säg inte till Mâmân att jag var vid vattnet.',
+      'Do not tell Mámán I was at the water.': 'Säg inte till Mámán att jag var vid vattnet.',
       'I can hold my breath longer than you.': 'Jag kan hålla andan längre än du.',
       'The cat follows me everywhere now.': 'Katten följer mig överallt nu.',
       'The pot is heavy; take the other handle.': 'Grytan är tung; ta det andra handtaget.',
@@ -11414,7 +11433,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'Den bästa av oss. Därför ville vattnet ha henne.',
       'I found a beetle with a red back.': 'Jag hittade en skalbagge med röd rygg.',
       'Where?': 'Var?',
-      'Under the trough. Do not tell Mâmân.': 'Under tråget. Säg inget till Mâmân.',
+      'Under the trough. Do not tell Mámán.': 'Under tråget. Säg inget till Mámán.',
       'Will you show me?': 'Visar du mig den?',
       'Only if you race me to the stream.': 'Bara om du tävlar mot mig till bäcken.',
       'Pick the beans; the pods are full.': 'Plocka bönorna; baljorna är fulla.',
@@ -12046,7 +12065,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Du hittade henne vid vattnet',
       'she goes ahead and waits by the water': 'hon går före och väntar vid vattnet',
       'she goes back to the well': 'hon går tillbaka till brunnen',
-      'the pantry': 'skafferiet',
+
+      'the pantry': 'skafferiet',
 
     },
     fa: {
@@ -12064,7 +12084,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'تور رو وصله می‌زنم؛ نخ رو بده.',
       'The wind is off the land today. We stay in.': 'باد امروز از خشکی میاد. خونه می‌مونیم.',
       'Ask your aunt for the salt; I have none in the boat.': 'نمک رو از خاله‌ت بگیر؛ توی قایق ندارم.',
-      'Do not tell Mâmân I was at the water.': 'به مامان نگو من لب آب بودم.',
+      'Do not tell Mámán I was at the water.': 'به مامان نگو من لب آب بودم.',
       'I can hold my breath longer than you.': 'من می‌تونم بیشتر از تو نفس نگه دارم.',
       'The cat follows me everywhere now.': 'گربه حالا همه‌جا دنبالم میاد.',
       'The pot is heavy; take the other handle.': 'قابلمه سنگینه؛ دسته‌ی دیگه‌ش رو بگیر.',
@@ -12128,7 +12148,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'بهترینِ ما. برای همین آب اونو خواست.',
       'I found a beetle with a red back.': 'یه سوسک پیدا کردم با پشت قرمز.',
       'Where?': 'کجا؟',
-      'Under the trough. Do not tell Mâmân.': 'زیر آبشخور. به مامان نگو.',
+      'Under the trough. Do not tell Mámán.': 'زیر آبشخور. به مامان نگو.',
       'Will you show me?': 'نشونم می‌دی؟',
       'Only if you race me to the stream.': 'فقط اگه تا جوی مسابقه بدیم.',
       'Pick the beans; the pods are full.': 'لوبیاها رو بچین؛ غلاف‌ها پرن.',
@@ -12760,7 +12780,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'اون رو کنار آب پیدا کردی.',
       'she goes ahead and waits by the water': 'اون جلو میره و کنار آب منتظر می‌مونه.',
       'she goes back to the well': 'اون به سر چاه برگشت.',
-      'the pantry': 'انبار',
+
+      'the pantry': 'انبار',
 
     },
     de: {
@@ -12778,7 +12799,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Ich flicke das Netz; reich mir die Schnur.',
       'The wind is off the land today. We stay in.': 'Der Wind kommt heute vom Land. Wir bleiben drinnen.',
       'Ask your aunt for the salt; I have none in the boat.': 'Frag deine Tante nach Salz; ich habe keins im Boot.',
-      'Do not tell Mâmân I was at the water.': 'Sag Mâmân nicht, dass ich am Wasser war.',
+      'Do not tell Mámán I was at the water.': 'Sag Mámán nicht, dass ich am Wasser war.',
       'I can hold my breath longer than you.': 'Ich kann länger die Luft anhalten als du.',
       'The cat follows me everywhere now.': 'Die Katze folgt mir jetzt überallhin.',
       'The pot is heavy; take the other handle.': 'Der Topf ist schwer; nimm den anderen Griff.',
@@ -12842,7 +12863,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'Die beste von uns. Darum wollte das Wasser sie.',
       'I found a beetle with a red back.': 'Ich habe einen Käfer mit rotem Rücken gefunden.',
       'Where?': 'Wo?',
-      'Under the trough. Do not tell Mâmân.': 'Unter dem Trog. Sag Mâmân nichts.',
+      'Under the trough. Do not tell Mámán.': 'Unter dem Trog. Sag Mámán nichts.',
       'Will you show me?': 'Zeigst du sie mir?',
       'Only if you race me to the stream.': 'Nur wenn du mit mir zum Bach rennst.',
       'Pick the beans; the pods are full.': 'Pflück die Bohnen; die Schoten sind voll.',
@@ -13474,7 +13495,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Du hast sie am Wasser gefunden',
       'she goes ahead and waits by the water': 'sie geht voraus und wartet am Wasser',
       'she goes back to the well': 'sie geht zurück zum Brunnen',
-      'the pantry': 'die Vorratskammer',
+
+      'the pantry': 'die Vorratskammer',
 
     },
     fr: {
@@ -13492,7 +13514,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Je répare le filet ; passe-moi la ficelle.',
       'The wind is off the land today. We stay in.': 'Le vent vient de la terre aujourd’hui. On reste à l’intérieur.',
       'Ask your aunt for the salt; I have none in the boat.': 'Demande du sel à ta tante ; je n’en ai pas dans le bateau.',
-      'Do not tell Mâmân I was at the water.': 'Ne dis pas à Mâmân que j’étais à l’eau.',
+      'Do not tell Mámán I was at the water.': 'Ne dis pas à Mámán que j’étais à l’eau.',
       'I can hold my breath longer than you.': 'Je peux retenir mon souffle plus longtemps que toi.',
       'The cat follows me everywhere now.': 'Le chat me suit partout maintenant.',
       'The pot is heavy; take the other handle.': 'La marmite est lourde ; prends l’autre poignée.',
@@ -13556,7 +13578,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'La meilleure de nous. C’est pour ça que l’eau l’a voulue.',
       'I found a beetle with a red back.': 'J’ai trouvé un scarabée au dos rouge.',
       'Where?': 'Où ?',
-      'Under the trough. Do not tell Mâmân.': 'Sous l’auge. Ne le dis pas à Mâmân.',
+      'Under the trough. Do not tell Mámán.': 'Sous l’auge. Ne le dis pas à Mámán.',
       'Will you show me?': 'Tu me le montres ?',
       'Only if you race me to the stream.': 'Seulement si tu fais la course jusqu’au ruisseau.',
       'Pick the beans; the pods are full.': 'Cueille les haricots ; les gousses sont pleines.',
@@ -14187,7 +14209,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Tu l\'as trouvée près de l\'eau',
       'she goes ahead and waits by the water': 'elle passe devant et attend près de l\'eau',
       'she goes back to the well': 'elle retourne au puits',
-      'the pantry': 'le cellier',
+
+      'the pantry': 'le cellier',
 
     },
     es: {
@@ -14205,7 +14228,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Estoy remendando la red; pásame el cordel.',
       'The wind is off the land today. We stay in.': 'Hoy el viento viene de tierra. Nos quedamos.',
       'Ask your aunt for the salt; I have none in the boat.': 'Pídele sal a tu tía; no tengo en el bote.',
-      'Do not tell Mâmân I was at the water.': 'No le digas a Mâmân que estuve en el agua.',
+      'Do not tell Mámán I was at the water.': 'No le digas a Mámán que estuve en el agua.',
       'I can hold my breath longer than you.': 'Puedo aguantar la respiración más que tú.',
       'The cat follows me everywhere now.': 'El gato me sigue a todas partes ahora.',
       'The pot is heavy; take the other handle.': 'La olla pesa; coge el otro asa.',
@@ -14269,7 +14292,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'La mejor de nosotros. Por eso el agua la quiso.',
       'I found a beetle with a red back.': 'Encontré un escarabajo de lomo rojo.',
       'Where?': '¿Dónde?',
-      'Under the trough. Do not tell Mâmân.': 'Bajo el pilón. No se lo digas a Mâmân.',
+      'Under the trough. Do not tell Mámán.': 'Bajo el pilón. No se lo digas a Mámán.',
       'Will you show me?': '¿Me lo enseñas?',
       'Only if you race me to the stream.': 'Solo si corres conmigo hasta el arroyo.',
       'Pick the beans; the pods are full.': 'Coge las judías; las vainas están llenas.',
@@ -14901,7 +14924,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'La encontraste junto al agua',
       'she goes ahead and waits by the water': 'ella va delante y espera junto al agua',
       'she goes back to the well': 'ella vuelve al pozo',
-      'the pantry': 'la despensa',
+
+      'the pantry': 'la despensa',
 
     },
     tr: {
@@ -14919,7 +14943,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Ağı onarıyorum; ipi ver.',
       'The wind is off the land today. We stay in.': 'Rüzgâr bugün karadan. Evde kalıyoruz.',
       'Ask your aunt for the salt; I have none in the boat.': 'Tuzu halandan iste; kayıkta yok.',
-      'Do not tell Mâmân I was at the water.': 'Mâmân’a suda olduğumu söyleme.',
+      'Do not tell Mámán I was at the water.': 'Mámán’a suda olduğumu söyleme.',
       'I can hold my breath longer than you.': 'Nefesimi senden uzun tutabilirim.',
       'The cat follows me everywhere now.': 'Kedi artık her yerde peşimde.',
       'The pot is heavy; take the other handle.': 'Tencere ağır; öbür kulpundan tut.',
@@ -14983,7 +15007,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'Aramızda en iyisi. Su onu bu yüzden istedi.',
       'I found a beetle with a red back.': 'Kırmızı sırtlı bir böcek buldum.',
       'Where?': 'Nerede?',
-      'Under the trough. Do not tell Mâmân.': 'Yalak altında. Mâmân’a söyleme.',
+      'Under the trough. Do not tell Mámán.': 'Yalak altında. Mámán’a söyleme.',
       'Will you show me?': 'Bana gösterir misin?',
       'Only if you race me to the stream.': 'Ancak derenin oraya kadar yarışırsak.',
       'Pick the beans; the pods are full.': 'Fasulyeleri topla; kapsüller dolu.',
@@ -15615,7 +15639,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'Onu suyun başında buldun',
       'she goes ahead and waits by the water': 'o önden gider ve suyun başında bekler',
       'she goes back to the well': 'o kuyunun başına döner',
-      'the pantry': 'kiler',
+
+      'the pantry': 'kiler',
 
     },
     ar: {
@@ -15633,7 +15658,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'أرمّم الشبكة؛ ناوليني الخيط.',
       'The wind is off the land today. We stay in.': 'الريح من البر اليوم. نبقى في الداخل.',
       'Ask your aunt for the salt; I have none in the boat.': 'اطلبي الملح من خالتك؛ ليس عندي في القارب.',
-      'Do not tell Mâmân I was at the water.': 'لا تخبري مامان أنني كنت عند الماء.',
+      'Do not tell Mámán I was at the water.': 'لا تخبري مامان أنني كنت عند الماء.',
       'I can hold my breath longer than you.': 'أستطيع كتم نفسي أكثر منك.',
       'The cat follows me everywhere now.': 'القطة تتبعني في كل مكان الآن.',
       'The pot is heavy; take the other handle.': 'القدر ثقيل؛ خذي المقبض الآخر.',
@@ -15697,7 +15722,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'أفضلنا. لهذا أرادها الماء.',
       'I found a beetle with a red back.': 'وجدت خنفساء بظهر أحمر.',
       'Where?': 'أين؟',
-      'Under the trough. Do not tell Mâmân.': 'تحت الحوض. لا تخبري مامان.',
+      'Under the trough. Do not tell Mámán.': 'تحت الحوض. لا تخبري مامان.',
       'Will you show me?': 'هل تريني؟',
       'Only if you race me to the stream.': 'فقط إن تسابقتِ معي إلى الجدول.',
       'Pick the beans; the pods are full.': 'اقطفق الفاصولياء؛ القرنات ممتلئة.',
@@ -16329,7 +16354,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': 'وجدتها عند الماء',
       'she goes ahead and waits by the water': 'تسبقك وتنتظر عند الماء',
       'she goes back to the well': 'تعود إلى البئر',
-      'the pantry': 'المخزن',
+
+      'the pantry': 'المخزن',
 
     },
     zh: {
@@ -16347,7 +16373,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': '我在补网，把线递给我。',
       'The wind is off the land today. We stay in.': '今天风从岸上来，我们不出海。',
       'Ask your aunt for the salt; I have none in the boat.': '去问姑姑要盐，船上没有。',
-      'Do not tell Mâmân I was at the water.': '别告诉妈妈我去水边了。',
+      'Do not tell Mámán I was at the water.': '别告诉妈妈我去水边了。',
       'I can hold my breath longer than you.': '我憋气比你久。',
       'The cat follows me everywhere now.': '那只猫现在到哪儿都跟着我。',
       'The pot is heavy; take the other handle.': '锅很重，抓住另一个把手。',
@@ -16411,7 +16437,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': '我们当中最好的。所以水才要了她。',
       'I found a beetle with a red back.': '我找到一只红背甲虫。',
       'Where?': '哪儿？',
-      'Under the trough. Do not tell Mâmân.': '在水槽下面。别告诉妈妈。',
+      'Under the trough. Do not tell Mámán.': '在水槽下面。别告诉妈妈。',
       'Will you show me?': '给我看看？',
       'Only if you race me to the stream.': '你跟我跑到溪边就给你看。',
       'Pick the beans; the pods are full.': '摘豆子吧，豆荚都满了。',
@@ -17043,7 +17069,8 @@ props: islandProps.map(function (p) {
       'You found her by the water': '你在水边找到了她',
       'she goes ahead and waits by the water': '她先走一步，在水边等你',
       'she goes back to the well': '她回到井边',
-      'the pantry': '储藏室',
+
+      'the pantry': '储藏室',
 
     },
     fi: {
@@ -17061,7 +17088,7 @@ props: islandProps.map(function (p) {
       'I am mending the net; hand me the twine.': 'Tur-ro vasle mizanam; nakh-ro bede.',
       'The wind is off the land today. We stay in.': 'Bád emruz az khoshki miád. Khune mimunim.',
       'Ask your aunt for the salt; I have none in the boat.': 'namak-ro az kháleat begir; tuye Gháyegh nadáram.',
-      'Do not tell Mâmân I was at the water.': 'Be mámán nagu man lab-e áb budam.',
+      'Do not tell Mámán I was at the water.': 'Be mámán nagu man lab-e áb budam.',
       'I can hold my breath longer than you.': 'Man mitunam bishtar az to nafas negah dáram.',
       'The cat follows me everywhere now.': 'Gorbe hálá hamme-já donbálam miád.',
       'The pot is heavy; take the other handle.': 'Ghábalambe sangine; dasteye digash-ro begir.',
@@ -17125,7 +17152,7 @@ props: islandProps.map(function (p) {
       'The best of us. That is why the water wanted her.': 'Behtarin-e má. Baráye hamun áb uno khást.',
       'I found a beetle with a red back.': 'Ye susk peydá kardam bá pusht-e ghermez.',
       'Where?': 'Kojá?',
-      'Under the trough. Do not tell Mâmân.': 'Zir-e ábshakhur. Be mámán nagu.',
+      'Under the trough. Do not tell Mámán.': 'Zir-e ábshakhur. Be mámán nagu.',
       'Will you show me?': 'Neshoonam midi?',
       'Only if you race me to the stream.': 'Faghat age tá juy mosábeghe bedim.',
       'Pick the beans; the pods are full.': 'Lubyáhá-ro bechin; gheláfhá poran.',
@@ -17745,7 +17772,7 @@ props: islandProps.map(function (p) {
       'Tell me one of them.': 'yeki az un-há ro be man begu.',
       'What do you carry?': 'che haml mikon-i?',
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'shab-e nohom ye mard shotor-ásh ro bá ye avaz avaz kard. un moamele-ye behtari kard.',
-      'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va nâme-há-i ke hich kas poolesh ro be man nadád.',
+      'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va náme-há-i ke hich kas poolesh ro be man nadád.',
       'I will leave you to it.': 'to rá be hál-e khodat migozaram.',
       'Come. There is something at the pond I want you to see.': 'biá. ye chiz-i dam-e hozd hast ke mikhám bebinish.',
       'I am coming.': 'miám.',
@@ -17756,7 +17783,8 @@ props: islandProps.map(function (p) {
       'meet {0} by the pond': 'be {0} kenár-e hozd beres.',
       'You found her by the water': 'u rá kenár-e áb peydá kardi.',
       'she goes ahead and waits by the water': 'u jolo miravad va kenár-e áb montazer mimunad.',
-      'she goes back to the well': 'u be sar-e cháh bargasht.',      'the pantry': 'anbár',
+      'she goes back to the well': 'u be sar-e cháh bargasht.',
+      'the pantry': 'anbár',
     },
   };
 
@@ -29327,6 +29355,22 @@ var ANIMAL_SIZES = {
     return out;
   };
 
+  window.__figure = function (id, size) {
+    var px = Math.max(80, Math.min(900, Math.round(size || 360)));
+    var c = document.createElement('canvas');
+    c.width = Math.round(px * 0.8);
+    c.height = px;
+    var g = c.getContext('2d');
+    var feet = keeperFeetBelow(R.heroSize);
+    g.save();
+    g.translate(c.width / 2, c.height - px * 0.06 - feet * (px / R.heroSize));
+    g.scale(px / R.heroSize, px / R.heroSize);
+    castShadow(0, feet, 12, 0.18);
+    paintKeeper(g, R.heroSize, 'front', null, false, wearFor(id || who, SISTERS[id || who].own), false);
+    g.restore();
+    return c.toDataURL('image/png');
+  };
+
   window.__looks = function () {
     var me = wearFor(who, outfit);
     var them = wearFor(otherWho(), SISTERS[otherWho()].own);
@@ -31201,7 +31245,10 @@ var ANIMAL_SIZES = {
       thirst: 14 + seeded(seed + 11)() * 26,
       thirsty: false,
       drinking: 0,
-      heading: { x: 0, y: 0 }
+      heading: { x: 0, y: 0 },
+      // The body's own velocity, eased toward whatever the last beat asked for.
+      // Without it an animal moves in a straight line at a constant speed.
+      vx: 0, vy: 0
     };
   }
 
@@ -31378,26 +31425,41 @@ var ANIMAL_SIZES = {
         a.leapK = done;
         a.moving = true;
         a.walk += dt * 8;
-        if (a.leap <= 0) { a.leap = 0; a.gait = 'still'; a.moving = false; }
+        if (a.leap <= 0) { a.leap = 0; a.gait = 'still'; a.moving = false; a.vx = 0; a.vy = 0; }
         clampAnimal(a);
         continue;
       }
 
       if (a.gait === 'walk' || a.gait === 'run') {
         var pace = a.speed || a.traits.wander;
-        a.x += a.heading.x * pace * dt;
-        a.y += a.heading.y * pace * dt;
-        // The stride keeps time with the ground it covers, not the clock: a
-        // running animal does not paddle. One pose per 11 units walked.
-        // One cycle per stride the legs can actually make. The old divisor was a
-        // fixed 11 px and a flat 1.25 for a run: two more clocks, unrelated to the
-        // feet, which is what made every animal slide.
-        a.walk += ((pace * dt) / (a.stridePx || 11)) * 8;
+        // It carries momentum, the way she does: the beat chooses a direction and a
+        // pace, and the body's velocity eases toward that. The old step was
+        // `x += heading * pace * dt` - full speed from a standing start, then dead stop,
+        // along a perfectly straight line, which is why every animal read as a shape
+        // being slid across the grass.
+        var wantX = a.heading.x * pace, wantY = a.heading.y * pace;
+        // A fleeing animal turns sooner than a grazing one.
+        var grip = a.gait === 'run' ? 9 : 6;
+        var easeV = 1 - Math.exp(-dt * grip);
+        a.vx += (wantX - a.vx) * easeV;
+        a.vy += (wantY - a.vy) * easeV;
+        // The feet keep time with the ground actually covered, so a body still
+        // gliding to a stop still steps instead of skating.
+        a.walk += ((a.vx * a.heading.x + a.vy * a.heading.y) * dt / (a.stridePx || 11)) * 8;
         a.moving = true;
-        clampAnimal(a);
       } else {
-        a.moving = false;
+        // Stopping is the same easing, toward nothing: it coasts to rest.
+        var rest = 1 - Math.exp(-dt * 6);
+        a.vx -= a.vx * rest;
+        a.vy -= a.vy * rest;
+        var coast = Math.sqrt(a.vx * a.vx + a.vy * a.vy);
+        a.moving = coast > 4;
+        if (!a.moving) { a.vx = 0; a.vy = 0; }
+        a.walk += ((coast * dt) / (a.stridePx || 11)) * 8;
       }
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      clampAnimal(a);
 
       a.pulse -= dt;
       if (a.pulse > 0) continue;
@@ -34479,7 +34541,7 @@ var ANIMAL_SIZES = {
     grandmother: ["You have her hands.", "I have counted four winters since she left.", "Sit. The kettle is on the coals.", "She kept a book, not a treasure. Remember that.", "Do not hurry the dough or the day."],
     grandfather: ["That wall was standing before my father.", "My hands know this wall better than my eyes.", "Sit in the shade; the sun is not kind at this hour.", "When I was a boy the sea came closer than this.", "Take the long way by the shrine. The short way is for carts."],
     father: ["The boat needs a new pin. I will cut one.", "Sit at the bow and keep still; the boat does the rest.", "I am mending the net; hand me the twine.", "The wind is off the land today. We stay in.", "Ask your aunt for the salt; I have none in the boat."],
-    brother: ["I found a beetle with a red back.", "There is a frog that thinks it owns the trough.", "Do not tell Mâmân I was at the water.", "I can hold my breath longer than you.", "The cat follows me everywhere now."],
+    brother: ["I found a beetle with a red back.", "There is a frog that thinks it owns the trough.", "Do not tell Mámán I was at the water.", "I can hold my breath longer than you.", "The cat follows me everywhere now."],
     khale: ["Pick the beans; the pods are full.", "Do not eat standing up; you will forget what you ate.", "The pot is heavy; take the other handle.", "Your mother cooked yesterday. Today it is mine.", "There is mint by the channel. Bring a handful."],
     amme: ["I have mended your coat again.", "Sit by the lamp; your hair is still wet.", "The comb is on the shelf, not in your hand.", "You have grown again. Stand still.", "I keep a needle for every season. This one is winter’s."],
     dai: ["The pond gave me three fish and a boot.", "The wind is turning. The fish know before we do.", "A fish has no hurry. That is why it is still here.", "Hold the line and stop talking.", "The water is cold at the bottom. So is the sky at night."],
