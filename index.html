@@ -9872,6 +9872,57 @@ function sightSp(sg) {
     return s;
   }
 
+  /* How much of a body's turn is showing as the OTHER drawing. A turn between the
+     profile and the front cannot be drawn by one of three pictures, so the two
+     neighbours are woven: at 0 the profile alone, past ~0.64 the front alone, and in
+     between both, the incoming one over the outgoing one. Because `turn` eases, the
+     weave runs over a few frames instead of snapping. */
+  function animalTurnBlend(a) {
+    var t = a && a.turn !== undefined ? a.turn : 0;
+    t = t < -1 ? -1 : (t > 1 ? 1 : t);
+    // A NARROW window. Over a wide one both drawings are visible together for long
+    // enough to be seen as two animals in the same place - a ghost. The profile
+    // narrows and the turn view comes up only as it takes over.
+    var w = (Math.abs(t) - 0.34) / 0.36;
+    w = w < 0 ? 0 : (w > 1 ? 1 : w);
+    // Smoothstep, so the fade does not start and stop abruptly.
+    w = w * w * (3 - 2 * w);
+    return { other: t >= 0 ? 'front' : 'back', w: w };
+  }
+
+  function drawAnimalTurned(g, e, a, S) {
+    var b = animalTurnBlend(a);
+    var prevAlpha = g.globalAlpha;
+    // A scratch anim, so the two passes cannot fight over `a.view`: the cache is
+    // keyed by it, and mutating the live animal twice a frame is how a cached
+    // sprite ends up labelled with the wrong drawing.
+    var pass = _turnAnim;
+    for (var k in a) pass[k] = a[k];
+
+    if (b.w < 0.995) {
+      pass.view = 'side';
+      // THE BODY NARROWING. A turned body shows less of itself, so the profile is
+      // drawn narrower as it comes round - the same trick the keeper's own profile
+      // uses. Without it the cross-fade reads as two animals in one place.
+      var narrow = 1 - 0.34 * b.w;
+      g.save();
+      // Fading out as it turns, and narrowing, so it is never a second animal on
+      // top of the first.
+      g.globalAlpha = prevAlpha * (1 - b.w * 0.85);
+      g.scale(narrow, 1);
+      paintAnimalCached(g, e, pass, S);
+      g.restore();
+    }
+    if (b.w > 0.005) {
+      pass.view = b.other;
+      g.globalAlpha = prevAlpha;
+      paintAnimalCached(g, e, pass, S);
+    }
+    g.globalAlpha = prevAlpha;
+  }
+
+  var _turnAnim = {};
+
   /* Draw one animal, from the cache when it is there. */
   /* Turn the cache off to measure against a live draw. Same page, same animals. */
   window.__spriteOff = function (v) {
@@ -10310,7 +10361,9 @@ function sightSp(sg) {
         id: p.sp.id, gait: p.anim.gait,
         x: +p.anim.x.toFixed(2), y: +p.anim.y.toFixed(2),
         vx: +(p.anim.vx || 0).toFixed(2), vy: +(p.anim.vy || 0).toFixed(2),
-        walk: +((p.anim.walk || 0) % 8).toFixed(2)
+        walk: +((p.anim.walk || 0) % 8).toFixed(2),
+        turn: +(p.anim.turn || 0).toFixed(2),
+        turnTo: +(p.anim.turnTo || 0).toFixed(2)
       });
     }
     return JSON.stringify(out);
@@ -26678,6 +26731,14 @@ var ANIMAL_SIZES = {
     fore: [0.86, 0.50, 0.28, 0.24, 0.28]
   };
 
+  /* The same profile seen from the FRONT. A leg seen end-on does not narrow as much
+     at the joints - the joint is mostly hidden behind the limb - but it does narrow
+     at the cannon, which is the part that says "leg" from any angle. */
+  var ANIMAL_LEG_FRONT_PROFILE = {
+    hind: [1.00, 0.74, 0.48, 0.34, 0.32],
+    fore: [0.92, 0.62, 0.40, 0.30, 0.30]
+  };
+
   /* ONE LIMB, ONE OUTLINE. Generated from the joint chain and a width profile, so a
      leg is a single tapered silhouette from the body to the hoof - not a mass with
      strokes drawn under it, which always shows a step or a notch where they meet.
@@ -27042,12 +27103,34 @@ var ANIMAL_SIZES = {
       var top = hind ? hindSocketY : socketY;
       var ground = w * 0.55;
       var footY = ground + (lift || 0) * (top - ground) * 0.34;
+
+      // A JOINTED LEG, HERE TOO. This limb was one tapered shape from hip to hoof -
+      // a post. Seen from the front a joint bends toward or away from the camera, so
+      // it does not show as a corner in the outline; what shows is the narrowing at
+      // the joint and the small lateral kick the limb takes past it. It is built from
+      // the same side-view joint plan, read against the limb's own length.
+      var vplan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
+      var vlen = top - footY;
+      // A SHALLOW bend. From the front a joint reads mostly as a narrowing, not as a
+      // zig-zag: the side view's own offsets made a spider's leg here.
+      var vJoint = function (j) {
+        return [hipX + (footX - hipX) * j.t + side * j.x * vlen * 0.7, top - vlen * j.t];
+      };
+      var vNodes = [
+        [hipX, top],
+        vJoint(vplan.elbow || vplan.stifle),
+        vJoint(vplan.knee || vplan.hock),
+        vJoint(vplan.fetlock),
+        [footX, footY]
+      ];
+      var vOutline = animalLimbOutline(vNodes,
+        ANIMAL_LEG_FRONT_PROFILE[hind ? 'hind' : 'fore'], w * 2);
       g.fillStyle = isFar ? far : fur;
       g.beginPath();
-      g.moveTo(hipX - w, top);
-      g.quadraticCurveTo(hipX - w * 1.04, (top + footY) * 0.5, footX - w * 0.88, footY);
-      g.lineTo(footX + w * 0.88, footY);
-      g.quadraticCurveTo(hipX + w * 1.04, (top + footY) * 0.5, hipX + w, top);
+      for (var oi = 0; oi < vOutline.length; oi++) {
+        if (oi === 0) g.moveTo(vOutline[oi][0], vOutline[oi][1]);
+        else g.lineTo(vOutline[oi][0], vOutline[oi][1]);
+      }
       g.closePath();
       g.fill();
       if (!isFar) {
@@ -27057,7 +27140,7 @@ var ANIMAL_SIZES = {
       }
       g.fillStyle = hoofC;
       g.beginPath();
-      g.ellipse(footX, footY - w * 0.35, w * 0.95, w * 0.32, 0, 0, TAU);
+      g.ellipse(footX, footY + w * 0.30, w * 0.95, w * 0.32, 0, 0, TAU);
       g.fill();
     }
 
@@ -27095,6 +27178,22 @@ var ANIMAL_SIZES = {
     var headY = front
       ? Math.max(withersY + headR * 0.30, withersY + (f.head.y - withersY) * 0.85)
       : withersY + headW * 0.42;
+    // ---- the ears, sized and placed from the skull's own radius. They were drawn
+    // at a FIXED 1.02 head-widths out, barely above the crown and in the head's own
+    // fur tone, so from the front a cat's round ear merged into its skull and was
+    // invisible - and the pointed ears of a wolf were no better.
+    var earRadii = (f.ears.len || 0) / Math.max(1e-6, headR);
+    // An ear's `len` is how far it reaches, not its radius: a cat's ear is about
+    // half its own length across. At the full length it was two discs wider than
+    // the skull.
+    var earR = Math.max(0.016, earRadii * headR * 0.46);
+    var earRootY = headY + headW * 0.60;
+    // The two views share ONE ink box, measured from the side. A front head at a
+    // comfortable height above the withers put its ears above that box's top, so a
+    // front-facing animal lost them off the page. The head is pulled down by what
+    // the ears need to stay inside it.
+    headY = Math.min(headY, b.y1 - (headW * 0.60 + earR * 1.60) - 0.006);
+    earRootY = headY + headW * 0.60;
     // The head lags the body a little: on a walking animal it is the last thing to
     // settle, so a head that moves exactly with the barrel reads as a figure on a
     // spring. A third of the dip, so it trails without bobbing on its own.
@@ -27147,15 +27246,55 @@ var ANIMAL_SIZES = {
         g.fill();
       }
 
-      var earLen = (f.ears.len || 0);
-      if (earLen > 0.01) {
+      var earKindF = f.ears.kind || 'up';
+      if (earKindF !== 'none' && earRadii > 0.02) {
         for (var es = -1; es <= 1; es += 2) {
-          var ex = es * headW * 1.02, ey = headY + headW * 0.78;
+          // On the CROWN, not out at the skull's edge: a cat's ear sits on top of
+          // its head. The rim is the palette's shadow tone, because ear and skull
+          // are the same fur - without it the ear is invisible, which is what a
+          // front-facing cat used to be.
+          var ex = es * headW * 0.66;
           g.fillStyle = es > 0 ? fur : shadeHex(fur, 0.90);
-          g.beginPath();
-          g.ellipse(ex, ey + earLen * 0.30, Math.max(0.010, earLen * 0.42),
-            Math.max(0.012, earLen * 0.52), es * 0.30, 0, 0, TAU);
-          g.fill();
+          g.strokeStyle = shadeHex(fur, 0.72);
+          g.lineWidth = Math.max(0.004, earR * 0.22);
+          if (earKindF === 'round') {
+            g.beginPath();
+            g.arc(ex, earRootY + earR * 0.42, earR, 0, TAU);
+            g.fill();
+            g.stroke();
+            g.fillStyle = shadeHex(fur, 0.70);
+            g.beginPath();
+            g.arc(ex, earRootY + earR * 0.42, earR * 0.46, 0, TAU);
+            g.fill();
+          } else if (earKindF === 'long') {
+            // A hare's ear: a blade held up and a little back, wider at the root.
+            g.beginPath();
+            g.moveTo(ex - earR * 0.52, earRootY);
+            g.quadraticCurveTo(ex - earR * 0.34, earRootY + earR * 1.9,
+              ex + earR * 0.16, earRootY + earR * 2.15);
+            g.quadraticCurveTo(ex + earR * 0.46, earRootY + earR * 1.1,
+              ex + earR * 0.52, earRootY);
+            g.closePath();
+            g.fill();
+            g.stroke();
+          } else {
+            // A pointed ear, standing up and leaning a little outward.
+            var lean = es * earR * 0.34;
+            g.beginPath();
+            g.moveTo(ex - earR * 0.62, earRootY);
+            g.lineTo(ex + lean, earRootY + earR * 1.72);
+            g.lineTo(ex + earR * 0.62, earRootY);
+            g.closePath();
+            g.fill();
+            g.stroke();
+            g.fillStyle = shadeHex(fur, 0.70);
+            g.beginPath();
+            g.moveTo(ex - earR * 0.26, earRootY + earR * 0.14);
+            g.lineTo(ex + lean * 0.8, earRootY + earR * 1.18);
+            g.lineTo(ex + earR * 0.26, earRootY + earR * 0.14);
+            g.closePath();
+            g.fill();
+          }
         }
       }
       if ((f.horns.len || 0) > 0.01) {
@@ -31302,7 +31441,12 @@ var ANIMAL_SIZES = {
       heading: { x: 0, y: 0 },
       // The body's own velocity, eased toward whatever the last beat asked for.
       // Without it an animal moves in a straight line at a constant speed.
-      vx: 0, vy: 0
+      vx: 0, vy: 0,
+      // Which way the body is turned, as an ANGLE rather than one of three fixed
+      // drawings: 0 is side-on facing right, +90 is facing the camera, -90 is facing
+      // away. A discrete swap between two drawings can only ever be a jump; an angle
+      // can be eased, and the two drawings can be woven while it moves.
+      turn: 0, turnTo: 0
     };
   }
 
@@ -31377,6 +31521,9 @@ var ANIMAL_SIZES = {
 
     if (len < FAUNA_IDLE) {
       a.gait = 'still';
+      // Standing, it turns back to profile: the body does not stay stuck facing
+      // the camera just because the last thing it did was walk this way.
+      a.turnTo = 0;
       a.grazing = t.eatsPlants && seeded(a.seed + Math.floor(clock))() > 0.35;
       return;
     }
@@ -31393,14 +31540,19 @@ var ANIMAL_SIZES = {
     // second. It takes a clear margin on the other axis to change, and keeps the
     // current view in between.
     var ax = Math.abs(dirX), ay = Math.abs(dirY);
+    // The TURN, as an angle. The old code chose one of three drawings and swapped
+    // between them, which can only ever be a jump. This is a continuous measure of
+    // how far the body is turned toward the camera: 0 side-on, +1 straight at it,
+    // -1 straight away. `view` is still what the painter names its drawing, but it
+    // is now derived, and the two neighbouring drawings are woven while it eases.
+    a.turnTo = ay > 0.001 ? dirY / Math.hypot(dirX, dirY) : 0;
+    a.turnTo = clamp(a.turnTo * 1.35, -1, 1);
+    // The drawing the eased turn is CLOSEST to, with the dead band kept - a heading
+    // whose sum of pulls wobbles must not flip the drawing several times a second.
     var want;
-    if (ay > ax * 1.6) {
-      want = dirY < 0 ? 'back' : 'front';
-    } else if (ax > ay * 1.6) {
-      want = 'side';
-    } else {
-      want = a.view || 'side';
-    }
+    if (a.turnTo > 0.62) want = 'front';
+    else if (a.turnTo < -0.62) want = 'back';
+    else want = 'side';
     // On open water the world is seen from above and a beast is swimming, not
     // standing: the profile says that better than a front view ever could.
     a.view = waterSection() ? 'side' : want;
@@ -31484,8 +31636,14 @@ var ANIMAL_SIZES = {
         continue;
       }
 
+      // The turn EASES in both branches, so a body that changes direction leans
+      // round instead of swapping drawings - and one that stops comes back to the
+      // profile instead of standing there frozen facing the camera.
+      a.turn += (a.turnTo - a.turn) * (1 - Math.exp(-dt * 5.5));
+
       if (a.gait === 'walk' || a.gait === 'run') {
         var pace = a.speed || a.traits.wander;
+
         // It carries momentum, the way she does: the beat chooses a direction and a
         // pace, and the body's velocity eases toward that. The old step was
         // `x += heading * pace * dt` - full speed from a standing start, then dead stop,
@@ -33522,7 +33680,7 @@ var ANIMAL_SIZES = {
         // like the rest. Its facing comes from `a.facing`, so the yard cat is only
         // flipped when it is actually walking that way.
         var _at0 = performance.now();
-        paintAnimalCached(ctx, e, a, beastHeight(e));
+        drawAnimalTurned(ctx, e, a, beastHeight(e));
         _costAcc.fauna += performance.now() - _at0;
         _costAcc.animals++;
         ctx.restore();
