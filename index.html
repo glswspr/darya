@@ -2084,7 +2084,7 @@ function sightSp(sg) {
     {"f":"jazire","e":"island","p":"جزیره"},
     {"f":"ásemán","e":"sky","p":"آسمان"},
     {"f":"áftábi","e":"sunny","p":"آفتابی"},
-    {"f":"ábri","e":"cloudy","p":"ابری"},
+    {"f":"abri","e":"cloudy","p":"ابری"},
     {"f":"tufán","e":"storm","p":"طوفان"},
     {"f":"garmá","e":"heat","p":"گرما"},
     {"f":"barf","e":"snow","p":"برف"},
@@ -2102,7 +2102,7 @@ function sightSp(sg) {
     {"f":"sag-e bozorg","e":"Canis Major, the great dog","p":"سگ بزرگ"},
     {"f":"gávrán","e":"Boötes, the herdsman","p":"گاوران"},
     {"f":"dob-e asghar","e":"Ursa Minor, the little bear","p":"دب اصغر"},
-    {"f":"ásb-e bál-dár","e":"Pegasus, the winged horse","p":"اسب بالدار"},
+    {"f":"asb-e bál-dár","e":"Pegasus, the winged horse","p":"اسب بالدار"},
     {"f":"zan-e barzanjir","e":"Andromeda, the chained woman","p":"زن برزنجیر"},
     {"f":"barsávosh","e":"Perseus, the hero","p":"بَرساوُش"},
     {"f":"arábe-rán","e":"Auriga, the charioteer","p":"ارابه‌ران"},
@@ -2118,7 +2118,7 @@ function sightSp(sg) {
     {"f":"nime abri","e":"partly cloudy","p":"نیمه ابری"},
     {"f":"kámelan abri","e":"overcast","p":"کاملاً ابری"},
     {"f":"meh álud","e":"foggy","p":"مه‌آلود"},
-    {"f":"ghobár alud","e":"hazy","p":"غبارآلود"},
+    {"f":"ghobár álud","e":"hazy","p":"غبارآلود"},
     {"f":"báráni","e":"rainy","p":"بارانی"},
     {"f":"nam nam","e":"drizzle","p":"باران نم نم"},
     {"f":"ragbár","e":"shower","p":"رگبار"},
@@ -2145,7 +2145,7 @@ function sightSp(sg) {
     {"f":"moj-e garmá","e":"heatwave","p":"موج گرما"},
     {"f":"jebhe-ye sarmá","e":"cold snap","p":"جبهه‌ی سرما"},
     {"f":"sang","e":"stone","p":"سنگ"},
-    {"f":"qanát","e":"channel, qanat","p":"کاریز"},
+    {"f":"kāriz","e":"channel, qanat","p":"کاریز"},
     {"f":"tabl","e":"drum","p":"طبل"},
   ];
 
@@ -4348,8 +4348,8 @@ function sightSp(sg) {
     if (scene !== 'island') {
       var pcW = canvas.width / dpr, pcH = canvas.height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#141B2C';
-      ctx.fillRect(0, 0, pcW, pcH);
+    ctx.fillStyle = C.plaster;
+    ctx.fillRect(0, 0, pcW, pcH);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       // A place draws itself on its OWN page frame: it opens one with pageBegin and
       // closes it with pageEnd. Do not open one here - doing both nested the frames and
@@ -4360,11 +4360,9 @@ function sightSp(sg) {
       if (place) place.draw(pcW, pcH);
       // The tab, in the same corner on every page, drawn on a page of its own because
       // a place has already closed its frame by the time it returns.
-      pageBegin(pcW, pcH);
-      bookTab(390, 844);
-      carryTabs(390, 844);
-      pageEnd();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      bookTab(pcW, pcH);
+      carryTabs(pcW, pcH);
       // The look page has the word on it already; anything else needs the card.
       if (scene !== 'look' && watch.panel < 0.5) drawWordCard();
       // The book covers a place as well as the island: it is the one record, so
@@ -4736,12 +4734,12 @@ function sightSp(sg) {
         root: {
           say: function () { return [talkGreet(), talkLight(), talkOwn('mother')]; },
           replies: [
-            { say: "Where is Baba?", to: 'a' },
+            { say: "Where is Baba?", to: 'a', do: 'pointGarden' },
             { say: "What are you making?", to: 'b' }
           ]
         },
-        a: { say: "At the old wall. He has been there since first light.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Bread for tonight, and one for the road.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "At the old wall. He has been there since first light.", teach: 'kháne', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Bread for tonight, and one for the road.", teach: 'sabze', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-grandmother': {
@@ -4754,8 +4752,8 @@ function sightSp(sg) {
             { say: "What was she like?", to: 'b' }
           ]
         },
-        a: { say: "Your great-grandmother’s. She kept this island before me.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Quiet. Worse than quiet when she was right.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "Your great-grandmother’s. She kept this island before me.", teach: 'kháne', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Quiet. Worse than quiet when she was right.", teach: 'setáre', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-grandfather': {
@@ -4768,8 +4766,8 @@ function sightSp(sg) {
             { say: "Does it hold?", to: 'b' }
           ]
         },
-        a: { say: "Somebody who is not here to be thanked.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "It holds. Stone remembers longer than people.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "Somebody who is not here to be thanked.", teach: 'sang', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "It holds. Stone remembers longer than people.", teach: 'khák', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-father': {
@@ -4778,12 +4776,12 @@ function sightSp(sg) {
         root: {
           say: function () { return [talkGreet(), talkLight(), talkOwn('father')]; },
           replies: [
-            { say: "Can I come out on the water?", to: 'a' },
+            { say: "Can I come out on the water?", to: 'a', do: 'pointShore' },
             { say: "Was she a good sailor?", to: 'b' }
           ]
         },
-        a: { say: "When the wind lies down. Not before.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "The best of us. That is why the water wanted her.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "When the wind lies down. Not before.", teach: 'bád', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "The best of us. That is why the water wanted her.", teach: 'daryá', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-brother': {
@@ -4793,11 +4791,11 @@ function sightSp(sg) {
           say: function () { return [talkGreet(), talkLight(), talkOwn('brother')]; },
           replies: [
             { say: "Where?", to: 'a' },
-            { say: "Will you show me?", to: 'b' }
+            { say: "Will you show me?", to: 'b', do: 'pointPond' }
           ]
         },
-        a: { say: "Under the trough. Do not tell Mámán.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Only if you race me to the stream.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "Under the trough. Do not tell Mámán.", teach: 'mive', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Only if you race me to the stream.", teach: 'áb', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-khale': {
@@ -4810,8 +4808,8 @@ function sightSp(sg) {
             { say: "Why do you always cook?", to: 'b' }
           ]
         },
-        a: { say: "A stew that will feed nine and still have some.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Because somebody must, and I am good at it.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "A stew that will feed nine and still have some.", teach: 'sabze', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Because somebody must, and I am good at it.", teach: 'kháne', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-amme': {
@@ -4824,8 +4822,8 @@ function sightSp(sg) {
             { say: "Why do you bother?", to: 'b' }
           ]
         },
-        a: { say: "Enough that the coat is mostly my stitches.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Because the wind off the water is not kind.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "Enough that the coat is mostly my stitches.", teach: 'bád', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Because the wind off the water is not kind.", teach: 'khák', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-dai': {
@@ -4835,11 +4833,11 @@ function sightSp(sg) {
           say: function () { return [talkGreet(), talkLight(), talkOwn('dai')]; },
           replies: [
             { say: "Whose boot?", to: 'a' },
-            { say: "Do you ever catch the big one?", to: 'b' }
+            { say: "Do you ever catch the big one?", to: 'b', do: 'pointPond' }
           ]
         },
-        a: { say: "Nobody’s now. Ask the water, it keeps things.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "I have met him. We have an understanding.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "Nobody’s now. Ask the water, it keeps things.", teach: 'kāriz', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "I have met him. We have an understanding.", teach: 'mive', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
     'family-amu': {
@@ -4849,11 +4847,11 @@ function sightSp(sg) {
           say: function () { return [talkGreet(), talkLight(), talkOwn('amu')]; },
           replies: [
             { say: "Why carry it?", to: 'a' },
-            { say: "What is over the pass?", to: 'b' }
+            { say: "What is over the pass?", to: 'b', do: 'pointHeights' }
           ]
         },
-        a: { say: "To remember a road I will not walk again.", replies: [{ say: 'Thank you.', to: 'root' }] },
-        b: { say: "Another island. Every hill here was somebody’s.", replies: [{ say: 'Thank you.', to: 'root' }] }
+        a: { say: "To remember a road I will not walk again.", teach: 'ráh', replies: [{ say: 'Thank you.', to: 'root' }] },
+        b: { say: "Another island. Every hill here was somebody’s.", teach: 'jazire', replies: [{ say: 'Thank you.', to: 'root' }] }
       }
     },
 
@@ -4901,7 +4899,7 @@ function sightSp(sg) {
           say: 'Rosemary keeps its smell through winter. Nobody asked it to.',
           replies: [
             { say: 'That is all?', to: 'b11' },
-            { say: 'I will plant it.', to: 'b12' }
+            { say: 'I will plant it.', to: 'b12', do: 'pointGarden' }
           ]
         },
         b2: {
@@ -4911,14 +4909,14 @@ function sightSp(sg) {
             { say: 'Then I will listen twice.', to: 'b22' }
           ]
         },
-        a11: { say: 'It does. Ask the drum, and it answers with your own heart.', end: true },
-        a12: { say: 'Then the yard keeps its sleep, and I keep my best story for the morning.', end: true },
-        a21: { say: 'So the island keeps a chair for you. Not out of politeness - out of patience.', end: true },
-        a22: { say: 'The garden and the story are one trade. One feeds the mouth, the other the winter.', end: true },
-        b11: { say: 'That is all. All anything asks of you is to keep something living through a hard month.', end: true },
-        b12: { say: 'Plant it by the wall, and tell me when it flowers.', end: true },
-        b21: { say: 'Go and tell it, then. A craft lives by the telling.', end: true },
-        b22: { say: 'And the second time you will hear what I did not say.', end: true }
+        a11: { say: 'It does. Ask the drum, and it answers with your own heart.', teach: 'tabl', end: true },
+        a12: { say: 'Then the yard keeps its sleep, and I keep my best story for the morning.', teach: 'shab', end: true },
+        a21: { say: 'So the island keeps a chair for you. Not out of politeness - out of patience.', teach: 'kháne', end: true },
+        a22: { say: 'The garden and the story are one trade. One feeds the mouth, the other the winter.', teach: 'bágh', end: true },
+        b11: { say: 'That is all. All anything asks of you is to keep something living through a hard month.', teach: 'gol', end: true },
+        b12: { say: 'Plant it by the wall, and tell me when it flowers.', teach: 'sabze', end: true },
+        b21: { say: 'Go and tell it, then. A craft lives by the telling.', teach: 'dust', end: true },
+        b22: { say: 'And the second time you will hear what I did not say.', teach: 'setáre', end: true }
       }
     },
 
@@ -4927,12 +4925,12 @@ function sightSp(sg) {
         root: {
           say: 'The pond keeps its own counsel. Ask it at dusk.',
           replies: [
-            { say: 'Then I will come at dusk.', to: 'p1' },
+            { say: 'Then I will come at dusk.', to: 'p1', do: 'pointPond' },
             { say: 'What does it say at noon?', to: 'p2' }
           ]
         },
-        p1: { say: 'Bring patience and no bucket. It gives to the patient.', end: true },
-        p2: { say: 'At noon it says nothing, and that is what it says.', end: true }
+        p1: { say: 'Bring patience and no bucket. It gives to the patient.', teach: 'áb', end: true },
+        p2: { say: 'At noon it says nothing, and that is what it says.', teach: 'sáye', end: true }
       }
     },
 
@@ -4942,11 +4940,11 @@ function sightSp(sg) {
           say: 'Every row is a decision. You cannot take one back.',
           replies: [
             { say: 'Then I will decide slowly.', to: 'w1' },
-            { say: 'What are you weaving?', to: 'w2' }
+            { say: 'What are you weaving?', to: 'w2', do: 'pointGarden' }
           ]
         },
-        w1: { say: 'Slow hands make straight cloth. The loom does not forgive hurry.', end: true },
-        w2: { say: 'A field. Not a picture of one - a field that stays.', end: true }
+        w1: { say: 'Slow hands make straight cloth. The loom does not forgive hurry.', teach: 'sabze', end: true },
+        w2: { say: 'A field. Not a picture of one - a field that stays.', teach: 'bágh', end: true }
       }
     },
 
@@ -4955,12 +4953,12 @@ function sightSp(sg) {
         root: {
           say: 'Up here the flock knows the ground better than I do.',
           replies: [
-            { say: 'Then let them lead.', to: 'h1' },
+            { say: 'Then let them lead.', to: 'h1', do: 'pointSteppe' },
             { say: 'Do they ever lose you?', to: 'h2' }
           ]
         },
-        h1: { say: 'They do. At dusk I follow the bell, not the map.', end: true },
-        h2: { say: 'Every spring one ewe takes the high path. I find her where the grass is sweetest.', end: true }
+        h1: { say: 'They do. At dusk I follow the bell, not the map.', teach: 'shab', end: true },
+        h2: { say: 'Every spring one ewe takes the high path. I find her where the grass is sweetest.', teach: 'sabze', end: true }
       }
     },
 
@@ -4969,12 +4967,12 @@ function sightSp(sg) {
         root: {
           say: 'The sand remembers every path. I only follow the cool ones.',
           replies: [
-            { say: 'Which path is cool today?', to: 'n1' },
+            { say: 'Which path is cool today?', to: 'n1', do: 'pointDesert' },
             { say: 'Do the old paths still work?', to: 'n2' }
           ]
         },
-        n1: { say: 'The one that keeps the low dune on your left. It ends at a well nobody dug.', end: true },
-        n2: { say: 'They do. A path is not lost when nobody walks it, only unused.', end: true }
+        n1: { say: 'The one that keeps the low dune on your left. It ends at a well nobody dug.', teach: 'ráh', end: true },
+        n2: { say: 'They do. A path is not lost when nobody walks it, only unused.', teach: 'khák', end: true }
       }
     },
 
@@ -4983,12 +4981,12 @@ function sightSp(sg) {
         root: {
           say: 'Forty days to the sea, and every one of them a story.',
           replies: [
-            { say: 'Tell me one of them.', to: 'c1' },
+            { say: 'Tell me one of them.', to: 'c1', do: 'pointShore' },
             { say: 'What do you carry?', to: 'c2' }
           ]
         },
-        c1: { say: 'On the ninth night a man traded his camel for a song. He had the better bargain.', end: true },
-        c2: { say: 'Salt, wool, and letters nobody paid me to carry.', end: true }
+        c1: { say: 'On the ninth night a man traded his camel for a song. He had the better bargain.', teach: 'kárván', end: true },
+        c2: { say: 'Salt, wool, and letters nobody paid me to carry.', teach: 'sekke', end: true }
       }
     },
 
@@ -5004,8 +5002,8 @@ function sightSp(sg) {
             { say: 'Not now.', to: 'stay' }
           ]
         },
-        go: { say: 'Then walk behind me. I will be by the water.', end: true },
-        stay: { say: 'Then I will go alone. The water keeps till you come.', end: true }
+        go: { say: 'Then walk behind me. I will be by the water.', teach: 'daryá', end: true },
+        stay: { say: 'Then I will go alone. The water keeps till you come.', teach: 'sáye', end: true }
       }
     }
   };
@@ -7858,6 +7856,7 @@ function sightSp(sg) {
 
   function drawTitle(cssW, cssH) {
     hits = [];
+    var rW = cssW, rH = cssH;
     pageBegin(cssW, cssH);
     cssW = 390;
     cssH = 844;
@@ -7867,15 +7866,15 @@ function sightSp(sg) {
     skyG.addColorStop(0, '#C6D3CF');
     skyG.addColorStop(1, '#E2DED0');
     ctx.fillStyle = skyG;
-    ctx.fillRect(0, 0, cssW, 430);
+    ctx.fillRect(0, 0, rW, 430);
 
     var ridgePath = new Path2D();
     ridgePath.moveTo(0, 320);
     ridgePath.lineTo(40, 286); ridgePath.lineTo(72, 302); ridgePath.lineTo(108, 258);
     ridgePath.lineTo(148, 292); ridgePath.lineTo(186, 268); ridgePath.lineTo(222, 298);
     ridgePath.lineTo(270, 250); ridgePath.lineTo(316, 294); ridgePath.lineTo(356, 268);
-    ridgePath.lineTo(cssW, 294);
-    ridgePath.lineTo(cssW, 340); ridgePath.lineTo(0, 340);
+    ridgePath.lineTo(rW, 294);
+    ridgePath.lineTo(rW, 340); ridgePath.lineTo(0, 340);
     ridgePath.closePath();
     ctx.fillStyle = 'rgba(127,144,120,0.55)';
     ctx.fill(ridgePath);
@@ -7886,17 +7885,17 @@ function sightSp(sg) {
     seaG.addColorStop(0.5, '#9FB6B4');
     seaG.addColorStop(1, '#B7C6BD');
     ctx.fillStyle = seaG;
-    ctx.fillRect(0, seaTop, cssW, seaH);
+    ctx.fillRect(0, seaTop, rW, seaH);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.fillRect(0, seaTop - 1, cssW, 2);
+    ctx.fillRect(0, seaTop - 1, rW, 2);
 
     var gTop = seaTop + seaH;
-    var groundG = ctx.createLinearGradient(0, gTop, 0, cssH);
+    var groundG = ctx.createLinearGradient(0, gTop, 0, rH);
     groundG.addColorStop(0, '#B3B992');
     groundG.addColorStop(0.34, '#A2B183');
     groundG.addColorStop(1, '#8F9F74');
     ctx.fillStyle = groundG;
-    ctx.fillRect(0, gTop, cssW, cssH - gTop);
+    ctx.fillRect(0, gTop, rW, rH - gTop);
 
     // Grass tufts on the ground, between the sea and the pair.
     ctx.strokeStyle = 'rgba(90,108,68,0.3)';
@@ -8012,8 +8011,9 @@ function sightSp(sg) {
     ctx.textAlign = 'left';
 
     // The book, and the two things she carries, on the cover as on every page.
-    bookTab(390, 844);
-    carryTabs(390, 844);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bookTab(rW, rH);
+    carryTabs(rW, rH);
     pageEnd();
   }
 
@@ -10284,11 +10284,12 @@ function sightSp(sg) {
     for (var i = 0; i < islandProps.length; i++) {
       var p = islandProps[i];
       if (p.k !== 'species' || !p.anim) continue;
-      if (id && p.anim.sp && p.anim.sp.e !== id && p.anim.sp.e.id !== id) continue;
+      if (id && p.sp && p.sp.id !== id) continue;
       out.push({
-        id: p.anim.sp.e.id, gait: p.anim.gait,
+        id: p.sp.id, gait: p.anim.gait,
         x: +p.anim.x.toFixed(2), y: +p.anim.y.toFixed(2),
-        vx: +(p.anim.vx || 0).toFixed(2), vy: +(p.anim.vy || 0).toFixed(2)
+        vx: +(p.anim.vx || 0).toFixed(2), vy: +(p.anim.vy || 0).toFixed(2),
+        walk: +((p.anim.walk || 0) % 8).toFixed(2)
       });
     }
     return JSON.stringify(out);
@@ -17139,7 +17140,7 @@ props: islandProps.map(function (p) {
     fi: {
       'Sobh bekhayr.': 'Sobh bekhayr.',
       'Shab bekhayr.': 'Shab bekhayr.',
-      'The lamp oil is low; take the small jug.': 'Roughan-e cherágh kame; sabuye kuchike-ro bardár.',
+      'The lamp oil is low; take the small jug.': 'rowghan-e cherágh kame; sabuye kuchike-ro bardár.',
       'Your sister ate and went out. She will be back for the dark.': 'Kháharat ghazá khord va raft birun. Ghabl-e tárikí barmigarde.',
       'I have kept a bowl for the storyteller. He eats late.': 'Ye káse baráye ghesse-gu kenár gozáshtam. Dir ghazá mikhore.',
       'Sit. The kettle is on the coals.': 'Beshin. Ketri ruye zoghálhá-st.',
@@ -17785,7 +17786,7 @@ props: islandProps.map(function (p) {
       'greet Donya': 'be Donyá salám kon',
       'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
       'read the stone': 'sang rá bekhán',
-      'The pond keeps its own counsel. Ask it at dusk.': 'hozd be hál-e khodashe; vaght-e ghurub azash bepors.',
+      'The pond keeps its own counsel. Ask it at dusk.': 'hóz be hál-e khodashe; vaght-e ghurub azash bepors.',
       'Every row is a decision. You cannot take one back.': 'har khat ye tasmime; hich khat-i ro nemituni bargarduni.',
       'Up here the flock knows the ground better than I do.': 'in bálá, galle zamin ro behtar az man mishenáse.',
       'The sand remembers every path. I only follow the cool ones.': 'shen hame ráh-há ro yadeshe; man faghat ráh-há-ye khonak ro miram.',
@@ -17840,13 +17841,13 @@ props: islandProps.map(function (p) {
       'On the ninth night a man traded his camel for a song. He had the better bargain.': 'shab-e nohom ye mard shotor-ásh ro bá ye avaz avaz kard. un moamele-ye behtari kard.',
       'Salt, wool, and letters nobody paid me to carry.': 'namak, pashm, va náme-há-i ke hich kas poolesh ro be man nadád.',
       'I will leave you to it.': 'to rá be hál-e khodat migozaram.',
-      'Come. There is something at the pond I want you to see.': 'biá. ye chiz-i dam-e hozd hast ke mikhám bebinish.',
+      'Come. There is something at the pond I want you to see.': 'biá. ye chiz-i dam-e hóz hast ke mikhám bebinish.',
       'I am coming.': 'miám.',
       'Not now.': 'hálá na.',
       'Then walk behind me. I will be by the water.': 'pas donbál-am biá. kenár-e áb montazeret-am.',
       'Then I will go alone. The water keeps till you come.': 'pas tanhá miram. áb tá to biái mimune.',
       'Here you are. Sit; the water is doing all the work.': 'residi. beneshin; hame-ye kár ro áb mikone.',
-      'meet {0} by the pond': 'be {0} kenár-e hozd beres.',
+      'meet {0} by the pond': 'be {0} kenár-e hóz beres.',
       'You found her by the water': 'u rá kenár-e áb peydá kardi.',
       'she goes ahead and waits by the water': 'u jolo miravad va kenár-e áb montazer mimunad.',
       'she goes back to the well': 'u be sar-e cháh bargasht.',
@@ -17894,44 +17895,6 @@ props: islandProps.map(function (p) {
       'temperatur', 'värmebölja', 'köldknäpp', 'sten',
       'kanal, qanat',
       'trumma'
-    ],
-    fa: [
-      'ستون',       'آتش',       'پل',       'گردنه',       'کاروان',       'سکه', 
-            'زنبور', 'کندو', 'شهدانه', 'ملکه',
-      'عسل', 'کنه', 'موم', 'گرده',
-      'شهد', 'پرواز', 'زنبور کارگر', 'زنبور پرستار',
-      'زنبور نگهبان', 'لارو', 'شفیره', 'درخت',
-      'گلدان', 'بهار', 'تابستان', 'پاییز',
-      'زمستان', 'دزد', 'کنه', 'آب',
-      'اردک', 'گل', 'سبزه، علف', 'شکوفه',
-      'باغ، باغستان', 'گیاه', 'بذر', 'نر',
-      'ژله‌ی سلطنتی', 'بره‌موم', 'خانه‌ی شان', 'کلنی',
-      'نانِ زنبور', 'دسته', 'بال', 'چشم',
-      'ریشه', 'برگ', 'شاخه', 'میوه',
-      'غنچه', 'خار', 'خاک', 'آفتاب',
-      'سایه', 'باران', 'روز', 'شب',
-      'خانه', 'مادر', 'پدر', 'خواهر',
-      'دوست', 'خانواده', 'مادربزرگ', 'پدربزرگ',
-      'برادر', 'خاله', 'عمه', 'دایی',
-      'عمو', 'باد', 'راه',
-      'جزیره', 'آسمان', 'آفتابی', 'ابری',
-      'توفان', 'گرما', 'برف', 'ستاره',
-      'دب اکبر', 'شکارچی', 'ذات‌الکرسی', 'قو',
-      'چنگ', 'کژدم', 'شیر', 'گاو',
-      'دوپیکر', 'عقاب', 'سگ بزرگ', 'گاوران',
-      'دب اصغر', 'اسب بال‌دار', 'زن برزنجیر', 'برساوش',
-      'ارابه‌ران', 'بره', 'سگ کوچک', 'خرچنگ',
-      'دوشیزه', 'ترازو', 'کمان', 'بزغاله',
-      'دریا', 'صاف', 'نیمه‌ابری', 'کاملاً ابری',
-      'مه‌آلود', 'غبارآلود', 'بارانی', 'نم‌نم',
-      'رگبار', 'باران شدید', 'برفی', 'کولاک',
-      'تگرگ', 'مخلوط برف و باران', 'بادی', 'نسیم',
-      'تندباد', 'توفانی', 'رعد و برق', 'گردباد',
-      'داغ', 'گرم', 'خنک', 'سرد',
-      'یخبندان', 'مرطوب', 'خشک', 'پیش‌بینی هوا',
-      'دمای هوا', 'موج گرما', 'جبهه‌ی سرما', 'سنگ',
-      'کانال، قنات',
-      'طبل'
     ],
     de: [
       'Säule',       'Feuer',       'Brücke',       'Pass',       'Karawane',       'Münze', 
@@ -18158,44 +18121,83 @@ props: islandProps.map(function (p) {
       '水渠、坎儿井',
       '鼓'
     ],
-    fi: [
-      'setun', 'átash', 'pol', 'gardane',
-      'kárván', 'sekke', 'zanbur', 'kandu',
-      'sháne', 'malake', 'asal', 'kane',
-      'mum', 'garde', 'shahd', 'parváz',
-      'zanbur-e kárgar', 'zanbur-e parastár', 'zanbur-e negahbán', 'lárv',
-      'shafire', 'derakht', 'goldán', 'bahár',
-      'tábestán', 'páyiz', 'zemestán', 'dozd',
-      'kane', 'áb', 'ordak', 'gol',
-      'sabze, alaf', 'shokufe', 'bágh, baghestan', 'giáh',
-      'bazr', 'nar', 'zhele-ye saltanati', 'bare-mum',
-      'kháne-ye sháne', 'koloni', 'nán-e zanbur', 'daste',
-      'bál', 'cheshm', 'rishe', 'barg',
-      'shákhe', 'mive', 'ghonche', 'khár',
-      'khák', 'áftáb', 'sáye', 'bárán',
-      'ruz', 'shab', 'kháne', 'mámán',
-      'bábá', 'kháhar', 'dust', 'kháneváde',
-      'mádarbozorg', 'pedarbozorg', 'barádar', 'khále',
-      'amme', 'dái', 'amu', 'bád',
-      'ráh', 'jazire', 'ásemán', 'áftábi',
-      'ábri', 'tufán', 'garmá', 'barf',
-      'setáre', 'Dob-e Akbar', 'Shekárchi', 'Zat al-Korsi',
-      'Ghu', 'Chang', 'Kazhdom', 'Shir',
-      'Gáv', 'Dopeykar', 'Ogháb', 'Sag-e Bozorg',
-      'Gávrán', 'Dob-e Asghar', 'Asb-e Bál-dar', 'Zan-e Barzanjir',
-      'Barsávosh', 'Arábe-ran', 'Barre', 'Sag-e Kuchak',
-      'Kharchang', 'Dushize', 'Tarázu', 'Kamán',
-      'Bozghále', 'daryá', 'sáf', 'nime ábri',
-      'kámelan ábri', 'meh alud', 'ghobar alud', 'báráni',
-      'nám nám', 'ragbár', 'bárán-e shadid', 'barfi',
-      'kulák', 'tagarg', 'makhlut', 'bádi',
-      'nasim', 'tondbád', 'tufáni', 'rad va bargh',
-      'gerdbád', 'dágh', 'garm', 'khonak',
-      'sard', 'yakhbandán', 'martub', 'khoshk',
-      'pish-bini-ye hava', 'daraje-ye hararat', 'moj-e garmá', 'jebhe-ye sarma',
-      'sang', 'kanal, qanát', 'tabl',
-    ],
   };
+  /* Finglish and Persian are fields of the word table, so the gloss for those
+     two languages is built from the table and never stored in a second copy. A
+     word whose gloss is deliberately fuller than the word itself is listed once
+     here, keyed by the canonical Finglish spelling, which stays the authority. */
+  var GLOSS_FI_MORE = {
+    "varroa": "kane",
+    "kárgar": "zanbur-e kárgar",
+    "parastár": "zanbur-e parastár",
+    "negahbán": "zanbur-e negahbán",
+    "sabze": "sabze, alaf",
+    "bágh": "bágh, baghestan",
+    "zhele": "zhele-ye saltanati",
+    "sellul": "kháne-ye sháne",
+    "dob-e akbar": "Dob-e Akbar",
+    "shekárchi": "Shekárchi",
+    "zát al-korsi": "Zát al-Korsi",
+    "ghu": "Ghu",
+    "chang": "Chang",
+    "kazhdom": "Kazhdom",
+    "shir": "Shir",
+    "gáv": "Gáv",
+    "dopeykar": "Dopeykar",
+    "ogháb": "Ogháb",
+    "sag-e bozorg": "Sag-e Bozorg",
+    "gávrán": "Gávrán",
+    "dob-e asghar": "Dob-e Asghar",
+    "asb-e bál-dár": "Asb-e Bál-dár",
+    "zan-e barzanjir": "Zan-e Barzanjir",
+    "barsávosh": "Barsávosh",
+    "arábe-rán": "Arábe-rán",
+    "barre": "Barre",
+    "sag-e kuchak": "Sag-e Kuchak",
+    "kharchang": "Kharchang",
+    "dushize": "Dushize",
+    "tarázu": "Tarázu",
+    "kamán": "Kamán",
+    "bozghále": "Bozghále",
+    "kāriz": "kanal, kāriz"
+  };
+  var GLOSS_FA_MORE = {
+    "sháne": "شهدانه",
+    "kárgar": "زنبور کارگر",
+    "parastár": "زنبور پرستار",
+    "negahbán": "زنبور نگهبان",
+    "sabze": "سبزه، علف",
+    "bágh": "باغ، باغستان",
+    "zhele": "ژله‌ی سلطنتی",
+    "sellul": "خانه‌ی شان",
+    "koloni": "کلنی",
+    "nán-e zanbur": "نانِ زنبور",
+    "mámán": "مادر",
+    "bábá": "پدر",
+    "tufán": "توفان",
+    "dob-e akbar": "دب اکبر",
+    "asb-e bál-dár": "اسب بال‌دار",
+    "barsávosh": "برساوش",
+    "barre": "بره",
+    "nime abri": "نیمه‌ابری",
+    "nam nam": "نم‌نم",
+    "tufáni": "توفانی",
+    "yakhbandán": "یخبندان",
+    "pish-bini-ye havá": "پیش‌بینی هوا",
+    "daraje-ye harárat": "دمای هوا",
+    "kāriz": "کانال، قنات"
+  };
+  (function () {
+    var gfi = [], gfa = [];
+    for (var gk = 0; gk < words.length; gk++) {
+      var wf = words[gk].f;
+      gfi.push(GLOSS_FI_MORE[wf] || wf);
+      gfa.push(GLOSS_FA_MORE[wf] || words[gk].p);
+    }
+    GLOSS.fi = gfi;
+    GLOSS.fa = gfa;
+  })();
+
 
 
 
@@ -23748,155 +23750,71 @@ props: islandProps.map(function (p) {
   };
 
   var WORD_STONES = {
-    apiary: [
-      {"f":"zanbur","e":"bee","p":"زنبور"},
-      {"f":"kandu","e":"hive","p":"کندو"},
-      {"f":"sháne","e":"honeycomb","p":"شانه"},
-      {"f":"malake","e":"queen","p":"ملکه"},
-      {"f":"asal","e":"honey","p":"عسل"},
-      {"f":"varroa","e":"mite","p":"کنه"},
-      {"f":"mum","e":"wax","p":"موم"},
-      {"f":"garde","e":"pollen","p":"گرده"},
-      {"f":"shahd","e":"nectar","p":"شهد"},
-      {"f":"parváz","e":"flight","p":"پرواز"},
-      {"f":"kárgar","e":"worker bee","p":"کارگر"},
-      {"f":"parastár","e":"nurse bee","p":"پرستار"},
-      {"f":"negahbán","e":"guard bee","p":"نگهبان"},
-      {"f":"lárv","e":"larva","p":"لارو"},
-      {"f":"shafire","e":"pupa","p":"شفیره"},
-      {"f":"kane","e":"mite","p":"کنه"},
-      {"f":"nar","e":"drone","p":"نر"},
-      {"f":"zhele","e":"royal jelly","p":"ژله رویال"},
-      {"f":"bare-mum","e":"propolis","p":"بره‌موم"},
-      {"f":"sellul","e":"comb cell","p":"سلول"},
-      {"f":"koloni","e":"colony","p":"کلونی"},
-      {"f":"nán-e zanbur","e":"bee bread","p":"نان زنبور"},
-      {"f":"daste","e":"swarm","p":"دسته"},
-      {"f":"bál","e":"wing","p":"بال"},
-      {"f":"zát al-korsi","e":"Cassiopeia, the queen","p":"ذات‌الکرسی"},
-      {"f":"ásb-e bál-dár","e":"Pegasus, the winged horse","p":"اسب بالدار"},
-    ],
-    garden: [
-      {"f":"derakht","e":"tree","p":"درخت"},
-      {"f":"goldán","e":"flowerpot","p":"گلدان"},
-      {"f":"gol","e":"flower","p":"گل"},
-      {"f":"sabze","e":"greens, grass","p":"سبزه"},
-      {"f":"shokufe","e":"blossom","p":"شکوفه"},
-      {"f":"bágh","e":"garden, orchard","p":"باغ"},
-      {"f":"giáh","e":"plant","p":"گیاه"},
-      {"f":"bazr","e":"seed","p":"بذر"},
-      {"f":"rishe","e":"root","p":"ریشه"},
-      {"f":"barg","e":"leaf","p":"برگ"},
-      {"f":"shákhe","e":"branch","p":"شاخه"},
-      {"f":"mive","e":"fruit","p":"میوه"},
-      {"f":"ghonche","e":"bud","p":"غنچه"},
-      {"f":"khár","e":"thorn","p":"خار"},
-      {"f":"khák","e":"soil","p":"خاک"},
-    ],
-    pond: [
-      {"f":"bahár","e":"spring","p":"بهار"},
-      {"f":"áb","e":"water","p":"آب"},
-      {"f":"bárán","e":"rain","p":"باران"},
-      {"f":"bozghále","e":"Capricornus, the sea-goat","p":"بزغاله"},
-      {"f":"daryá","e":"sea","p":"دریا"},
-      {"f":"nam nam","e":"drizzle","p":"باران نم نم"},
-      {"f":"khonak","e":"cool","p":"خنک"},
-      {"f":"moj-e garmá","e":"heatwave","p":"موج گرما"},
-      {"f":"qanát","e":"channel, qanat","p":"کاریز"},
-    ],
-    heights: [
-      {"f":"tábestán","e":"summer","p":"تابستان"},
-      {"f":"ruz","e":"day","p":"روز"},
-      {"f":"ásemán","e":"sky","p":"آسمان"},
-      {"f":"garmá","e":"heat","p":"گرما"},
-      {"f":"setáre","e":"star","p":"ستاره"},
-      {"f":"dob-e akbar","e":"Ursa Major, the great bear","p":"دُبِّ اکبر"},
-      {"f":"shekárchi","e":"Orion, the hunter","p":"شکارچی"},
-      {"f":"ghu","e":"Cygnus, the swan","p":"قو"},
-      {"f":"chang","e":"Lyra, the lyre","p":"چنگ"},
-      {"f":"kazhdom","e":"Scorpius, the scorpion","p":"کژدم"},
-      {"f":"shir","e":"Leo, the lion","p":"شیر"},
-      {"f":"gáv","e":"Taurus, the bull","p":"گاو"},
-      {"f":"dopeykar","e":"Gemini, the twins","p":"دوپیکر"},
-      {"f":"ogháb","e":"Aquila, the eagle","p":"عقاب"},
-      {"f":"sag-e bozorg","e":"Canis Major, the great dog","p":"سگ بزرگ"},
-      {"f":"gávrán","e":"Boötes, the herdsman","p":"گاوران"},
-      {"f":"dob-e asghar","e":"Ursa Minor, the little bear","p":"دب اصغر"},
-      {"f":"zan-e barzanjir","e":"Andromeda, the chained woman","p":"زن برزنجیر"},
-      {"f":"barsávosh","e":"Perseus, the hero","p":"بَرساوُش"},
-      {"f":"arábe-rán","e":"Auriga, the charioteer","p":"ارابه‌ران"},
-      {"f":"barre","e":"Aries, the ram","p":"برّه"},
-      {"f":"sag-e kuchak","e":"Canis Minor, the little dog","p":"سگ کوچک"},
-      {"f":"kharchang","e":"Cancer, the crab","p":"خرچنگ"},
-      {"f":"dushize","e":"Virgo, the maiden","p":"دوشیزه"},
-      {"f":"tarázu","e":"Libra, the scales","p":"ترازو"},
-      {"f":"kamán","e":"Sagittarius, the archer","p":"کمان"},
-      {"f":"ragbár","e":"shower","p":"رگبار"},
-      {"f":"bádi","e":"windy","p":"بادی"},
-      {"f":"sard","e":"cold","p":"سرد"},
-      {"f":"jebhe-ye sarmá","e":"cold snap","p":"جبهه‌ی سرما"},
-    ],
-    steppe: [
-      {"f":"páyiz","e":"autumn","p":"پاییز"},
-      {"f":"shab","e":"night","p":"شب"},
-      {"f":"barf","e":"snow","p":"برف"},
-      {"f":"bárán-e shadid","e":"heavy rain","p":"باران شدید"},
-      {"f":"nasim","e":"breeze","p":"نسیم"},
-      {"f":"yakhbandán","e":"freezing","p":"یخ‌بندان"},
-      {"f":"sang","e":"stone","p":"سنگ"},
-    ],
-    desert: [
-      {"f":"zemestán","e":"winter","p":"زمستان"},
-      {"f":"bád","e":"wind","p":"باد"},
-      {"f":"sáf","e":"clear","p":"صاف"},
-      {"f":"barfi","e":"snowy","p":"برفی"},
-      {"f":"tondbád","e":"gale","p":"تندباد"},
-      {"f":"martub","e":"humid","p":"مرطوب"},
-    ],
-    meadow: [
-      {"f":"dozd","e":"thief","p":"دزد"},
-      {"f":"áftábi","e":"sunny","p":"آفتابی"},
-      {"f":"nime abri","e":"partly cloudy","p":"نیمه ابری"},
-      {"f":"kulák","e":"blizzard","p":"کولاک"},
-      {"f":"tufáni","e":"stormy","p":"طوفانی"},
-      {"f":"khoshk","e":"dry","p":"خشک"},
-    ],
-    woods: [
-      {"f":"ordak","e":"duck","p":"اردک"},
-      {"f":"ábri","e":"cloudy","p":"ابری"},
-      {"f":"kámelan abri","e":"overcast","p":"کاملاً ابری"},
-      {"f":"tagarg","e":"hail","p":"تگرگ"},
-      {"f":"ra'd o bargh","e":"thunderstorm","p":"رعد و برق"},
-      {"f":"pish-bini-ye havá","e":"weather forecast","p":"پیش‌بینی وضعیت هوا"},
-    ],
-    river: [
-      {"f":"cheshm","e":"eye","p":"چشم"},
-      {"f":"tufán","e":"storm","p":"طوفان"},
-      {"f":"meh álud","e":"foggy","p":"مه‌آلود"},
-      {"f":"makhlut","e":"sleet","p":"مخلوط برف و باران"},
-      {"f":"gerdbád","e":"tornado","p":"گردباد"},
-      {"f":"daraje-ye harárat","e":"temperature","p":"درجه حرارت"},
-    ],
-    sea: [
-      {"f":"áftáb","e":"sun","p":"آفتاب"},
-      {"f":"ghobár alud","e":"hazy","p":"غبارآلود"},
-      {"f":"dágh","e":"hot","p":"داغ"},
-    ],
-    beach: [
-      {"f":"sáye","e":"shade","p":"سایه"},
-      {"f":"báráni","e":"rainy","p":"بارانی"},
-      {"f":"garm","e":"warm","p":"گرم"},
-    ],
-    yard: [
-      {"f":"kháne","e":"home","p":"خانه"},
-      {"f":"mámán","e":"mother","p":"مامان"},
-      {"f":"bábá","e":"father","p":"بابا"},
-      {"f":"kháhar","e":"sister","p":"خواهر"},
-      {"f":"dust","e":"friend","p":"دوست"},
-      {"f":"kháneváde","e":"family","p":"خانواده"},
-      {"f":"ráh","e":"path","p":"راه"},
-      {"f":"jazire","e":"island","p":"جزیره"},
-    ],
+  apiary: [
+    "zanbur", "kandu", "sháne", "malake", "asal", "varroa",
+    "mum", "garde", "shahd", "parváz", "kárgar", "parastár",
+    "negahbán", "lárv", "shafire", "kane", "nar", "zhele",
+    "bare-mum", "sellul", "koloni", "nán-e zanbur", "daste", "bál",
+    "zát al-korsi", "asb-e bál-dár"
+  ],
+  garden: [
+    "derakht", "goldán", "gol", "sabze", "shokufe", "bágh",
+    "giáh", "bazr", "rishe", "barg", "shákhe", "mive",
+    "ghonche", "khár", "khák"
+  ],
+  pond: [
+    "bahár", "áb", "bárán", "bozghále", "daryá", "nam nam",
+    "khonak", "moj-e garmá", "kāriz"
+  ],
+  heights: [
+    "tábestán", "ruz", "ásemán", "garmá", "setáre", "dob-e akbar",
+    "shekárchi", "ghu", "chang", "kazhdom", "shir", "gáv",
+    "dopeykar", "ogháb", "sag-e bozorg", "gávrán", "dob-e asghar", "zan-e barzanjir",
+    "barsávosh", "arábe-rán", "barre", "sag-e kuchak", "kharchang", "dushize",
+    "tarázu", "kamán", "ragbár", "bádi", "sard", "jebhe-ye sarmá"
+  ],
+  steppe: [
+    "páyiz", "shab", "barf", "bárán-e shadid", "nasim", "yakhbandán",
+    "sang"
+  ],
+  desert: [
+    "zemestán", "bád", "sáf", "barfi", "tondbád", "martub"
+  ],
+  meadow: [
+    "dozd", "áftábi", "nime abri", "kulák", "tufáni", "khoshk"
+  ],
+  woods: [
+    "ordak", "abri", "kámelan abri", "tagarg", "ra'd o bargh", "pish-bini-ye havá"
+  ],
+  river: [
+    "cheshm", "tufán", "meh álud", "makhlut", "gerdbád", "daraje-ye harárat"
+  ],
+  sea: [
+    "áftáb", "ghobár álud", "dágh"
+  ],
+  beach: [
+    "sáye", "báráni", "garm"
+  ],
+  yard: [
+    "kháne", "mámán", "bábá", "kháhar", "dust", "kháneváde",
+    "ráh", "jazire"
+  ]
+};
+
+  // The stones name words; the word table owns the spelling, the gloss and
+  // the script. Resolve each key once, so a stone never carries its own copy.
+  var WORD_BY_F = {};
+  for (var wbf = 0; wbf < words.length; wbf++) {
+    if (WORD_BY_F[words[wbf].f]) throw new Error('duplicate word: ' + words[wbf].f);
+    WORD_BY_F[words[wbf].f] = words[wbf];
+  }
+  for (var wsg in WORD_STONES) {
+    if (!WORD_STONES.hasOwnProperty(wsg)) continue;
+    var wg = WORD_STONES[wsg];
+    for (var wsi = 0; wsi < wg.length; wsi++) {
+      if (!WORD_BY_F[wg[wsi]]) throw new Error('WORD_STONES.' + wsg + ': unknown word ' + wg[wsi]);
+      wg[wsi] = WORD_BY_F[wg[wsi]];
+    }
   };
 
 /* ---- The island: a grid of biomes, walked at the edges ------------------ */
@@ -25715,6 +25633,16 @@ var ANIMAL_SIZES = {
   }
 
   /* Every animal's own colours, by the body it wears and its own id. */
+  /* A pet's coat, by the name it wears. A cat called ginger has to be ginger. */
+  var PET_COATS = {
+    'pet-tabby': [['#A8917A', '#F1EADC'], ['#8E7A63', '#EDE4D4'], ['#B9A58C', '#F4EFE3']],
+    'pet-ginger': [['#D08540', '#FBF1E0'], ['#C2762F', '#F9EDD9'], ['#E09A55', '#FCF4E6']],
+    'pet-blackcat': [['#4A4640', '#8E877D'], ['#3C3934', '#827B72'], ['#565149', '#968F84']],
+    'pet-shepherd': [['#7A6248', '#EAE0CC'], ['#5E4C38', '#E5D9C3']],
+    'pet-retriever': [['#C99A5C', '#F7EEDA'], ['#B98B4E', '#F5EAD5']],
+    'pet-terrier': [['#B4A794', '#F2EEE4'], ['#9C8F7C', '#EFEAE0']]
+  };
+
   function beastLook(e, shape) {
     var h = hueOf(e.id);
     var palettes = {
@@ -25736,6 +25664,12 @@ var ANIMAL_SIZES = {
       seal: [['#8C9BB2', '#E7EBF1']]
     };
     var rows = palettes[shape] || palettes.wolf;
+    // A pet is named by its coat, so its coat has to be that colour: every cat
+    // shared the wild smallcat's grey rows, which made the ginger cat grey and the
+    // black cat pale. Matched on the id, because the name is the only thing that
+    // says which coat the animal is wearing.
+    var petCoat = PET_COATS[e.id];
+    if (petCoat) rows = petCoat;
     var row = rows[h % rows.length];
     return {
       fur: row[0],
@@ -26283,9 +26217,13 @@ var ANIMAL_SIZES = {
     var grazeK = a.grazing ? (a.grazeK === undefined ? 1 : Math.max(0, Math.min(1, a.grazeK))) : 0;
     var drinkK = a.drinking > 0 ? Math.min(1, a.drinking) : 0;
     var walk = a.walk % 8;
-    pose.dip = moving ? 0.010 * walkDipAt(walk) : 0;
+    pose.dip = moving ? 0.010 * walkDipAt(walk)
+      : 0.0042 * (0.5 + 0.5 * Math.sin(2 * Math.PI * walk / 8 + (a.seed || 0)));
+    // At rest it breathes and its tail drifts. Read from `walk` rather than from
+    // the clock, because a cached sprite is keyed by the walk bucket: swaying on
+    // the clock left every standing animal frozen in the frame it was baked in.
     pose.sway = moving ? Math.sin(2 * Math.PI * (walk + 0.6) / 8) * 0.05
-      : Math.sin(clock * 1.1 + (a.seed || 0)) * 0.02;
+      : Math.sin(2 * Math.PI * walk / 8 + (a.seed || 0)) * 0.030;
 
     if (grazeK > 0) {
       // The head goes down as far as the neck REACHES, and no further: below the
@@ -29002,9 +28940,15 @@ var ANIMAL_SIZES = {
   function drawBeing(e, x, y, t, isSister) {
     var h = hueOf(e.id);
     var dress = isSister ? '#C4557C' : ['#4E7B90', '#8A6A44', '#5C7F42', '#B4553F'][h % 4];
-    var bob = Math.sin(t * 2.2 + x * 0.02) * 1.8;
+    var bob = 0;
     ctx.save();
-    ctx.translate(x, y + bob);
+    ctx.translate(x, y);
+    // She stands on the ground: a shadow and feet, so she does not read as
+    // floating. The dress alone ended in mid-air and looked like a ghost.
+    ctx.fillStyle = 'rgba(46,42,38,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(0, 38, 16, 4, 0, 0, TAU);
+    ctx.fill();
 
     // Hair down the back first, so the dress covers its falls.
     ctx.fillStyle = isSister ? '#4A3324' : '#5B4432';
@@ -29023,6 +28967,13 @@ var ANIMAL_SIZES = {
     ctx.bezierCurveTo(-6, 38, 6, 38, 18, 34);
     ctx.bezierCurveTo(20, 28, 18, 16, 11, 4);
     ctx.closePath();
+    ctx.fill();
+
+    // Feet on the ground, so the figure stands rather than floats.
+    ctx.fillStyle = isSister ? '#3A2A1E' : '#4A3A2A';
+    ctx.beginPath();
+    ctx.ellipse(-6, 36, 5, 2.5, 0, 0, TAU);
+    ctx.ellipse(6, 36, 5, 2.5, 0, 0, TAU);
     ctx.fill();
 
     // A sash, so the two sisters read as two people dressed for one island.
@@ -29095,6 +29046,9 @@ var ANIMAL_SIZES = {
   };
 
   function drawPetAnimal(e, x, y) {
+    // It breathes on the same rest cycle the yard animals use, so a pet standing
+    // still is not a frozen picture.
+    PET_STILL.walk = (clock * 0.55) % 8;
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(-1, 1);
@@ -31535,6 +31489,10 @@ var ANIMAL_SIZES = {
         a.moving = coast > 4;
         if (!a.moving) { a.vx = 0; a.vy = 0; }
         a.walk += ((coast * dt) / (a.stridePx || 11)) * 8;
+        // A standing animal still breathes. It advances the same walk counter
+        // slowly, so the cached sprite cycles its rest poses instead of freezing
+        // in whichever bucket it happened to stop in.
+        if (!a.moving) a.walk += dt * 0.55;
       }
       a.x += a.vx * dt;
       a.y += a.vy * dt;
@@ -33536,8 +33494,12 @@ var ANIMAL_SIZES = {
       ctx.save();
       ctx.translate(x, y - a.lift);
       if (a.facing < 0 && !waterSection()) ctx.scale(-1, 1);
-      if (e.sh === 'beast') {
+      if (e.sh === 'beast' || e.sh === 'cat' || e.sh === 'dog') {
         // paintAnimal takes its height directly, so it is not scaled again.
+        // A pet goes through the same painter with its LIVE anim, not the frozen
+        // PET_STILL: it has a body in the same herd, so it walks, turns and grazes
+        // like the rest. Its facing comes from `a.facing`, so the yard cat is only
+        // flipped when it is actually walking that way.
         var _at0 = performance.now();
         paintAnimalCached(ctx, e, a, beastHeight(e));
         _costAcc.fauna += performance.now() - _at0;
@@ -34232,6 +34194,10 @@ var ANIMAL_SIZES = {
       // `smallcat` shape the wild cats use, and the same cached blit. It was the last
       // hand-drawn animal left, and no longer matched the rest.
       var catE = { id: 'pet-tabby' };
+      // The house cat breathes: its rest poses are keyed by `walk`, so the same
+      // counter that paces a walking animal is advanced slowly here instead of
+      // being left at zero, which froze it in one baked frame forever.
+      PET_CAT_ANIM.walk = (clock * 0.55) % 8;
       ctx.save();
       ctx.translate(x, y);
       // The sketch faces +x; the pet faces left, into the room.
@@ -34578,6 +34544,38 @@ var ANIMAL_SIZES = {
     follow: function () {
       startMission('donya-pond');
       showNotice(T('meet {0} by the pond', T(otherSister().name)), T('she goes ahead and waits by the water'));
+    },
+    pointPond: function () {
+      startMission('point-pond');
+      showNotice(T('go to the pond'), T('the water keeps its own counsel at dusk'));
+    },
+    pointGarden: function () {
+      startMission('point-garden');
+      showNotice(T('go to the garden'), T('a field that stays'));
+    },
+    pointHeights: function () {
+      startMission('point-heights');
+      showNotice(T('climb to the high pastures'), T('follow the bell, not the map'));
+    },
+    pointShore: function () {
+      startMission('point-shore');
+      showNotice(T('go to the shore'), T('forty days to the sea'));
+    },
+    pointApiary: function () {
+      startMission('point-apiary');
+      showNotice(T('go to the apiary'), T('open a hive and read the comb'));
+    },
+    pointDesert: function () {
+      startMission('point-desert');
+      showNotice(T('cross the desert'), T('follow the cool paths'));
+    },
+    pointSteppe: function () {
+      startMission('point-steppe');
+      showNotice(T('walk the steppe'), T('the flock knows the ground'));
+    },
+    pointWoods: function () {
+      startMission('point-woods');
+      showNotice(T('enter the woods'), T('the trees keep their own counsel'));
     }
   };
 
