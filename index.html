@@ -9158,10 +9158,10 @@ function sightSp(sg) {
       g.translate(0, t.dy);
       if (t.d || t.knee) {
         g.translate(pivot[0], pivot[1]);
+        // The shortening runs along the limb's OWN length, so it is applied before
+        // the limb is turned. Applied after, it squashed the limb's thickness instead.
+        if (t.knee) g.scale(1, 1 + t.knee);
         if (t.d) g.rotate(t.d * Math.PI / 180);
-        // A seated leg is shorter than a standing one: the shortening along its
-        // own length is what reads as bent rather than straight.
-        if (t.knee) g.scale(1 + t.knee, 1);
         g.translate(-pivot[0], -pivot[1]);
       }
       if (breadth !== 1) {
@@ -10007,6 +10007,27 @@ function sightSp(sg) {
   /* 12. INTROSPECTION + HOST MESSAGES */
   /* Show any place's finished card, so a page can be read without playing the place
    * again. Reachable from the console only. */
+  /* Her drawing, one pose and one view at a time, on a blank card. The only way
+     to see a pose the island's grass and skirt hide. Console: __keeperPlate('side','sit'). */
+  window.__keeperPlate = function (view, pose, size) {
+    size = size || 220;
+    var k = size / 158;
+    // Her drawing spans y = -112.8 (crown) to +46.2 (feet) around the point she is
+    // drawn at, and KEEP_W wide. The card is sized from that, not guessed.
+    var cvs = document.createElement('canvas');
+    cvs.width = Math.round(200 * k);
+    cvs.height = Math.round(200 * k);
+    var g = cvs.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, cvs.width, cvs.height);
+    g.save();
+    g.translate(cvs.width * 0.5, 40 + 112.8 * k);
+    paintKeeper(g, size, view || 'front', pose || 'sit', false,
+      OUTFITS[outfit] || OUTFITS[0], false);
+    g.restore();
+    return cvs;
+  };
+
   window.__previewPage = function (id) {
     var page = storyPage(id);
     if (!page) return false;
