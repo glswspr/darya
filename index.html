@@ -6056,12 +6056,12 @@ function sightSp(sg) {
     var label = dayClock();
     var part = T(dayName());
     ctx.save();
-    ctx.font = '600 ' + Math.round(11 * s) + 'px ' + FONT_UI;
+    ctx.font = '600 ' + Math.round(13 * s) + 'px ' + FONT_UI;
     var w1 = ctx.measureText(label).width;
-    ctx.font = 'italic 400 ' + Math.round(11 * s) + 'px ' + FONT_SERIF;
+    ctx.font = 'italic 400 ' + Math.round(12 * s) + 'px ' + FONT_SERIF;
     var w2 = ctx.measureText(part).width;
-    var w = Math.max(w1, w2) + 34 * s;
-    var h = 32 * s;
+    var w = Math.max(w1, w2) + 40 * s;
+    var h = 37 * s;
     var x = rtl() ? 12 * s : cssW - w - 12 * s, y = 10 * s;
     ctx.fillStyle = 'rgba(247,244,238,0.80)';
     roundRect(x, y, w, h, h / 2);
@@ -6097,11 +6097,11 @@ function sightSp(sg) {
 
     ctx.textAlign = 'left';
     ctx.fillStyle = C.ink;
-    ctx.font = '600 ' + Math.round(11 * s) + 'px ' + FONT_UI;
-    ctx.fillText(label, x + 26 * s, y + 13 * s);
+    ctx.font = '600 ' + Math.round(13 * s) + 'px ' + FONT_UI;
+    ctx.fillText(label, x + 29 * s, y + 15 * s);
     ctx.fillStyle = C.inkFaint;
-    ctx.font = 'italic 400 ' + Math.round(10 * s) + 'px ' + FONT_SERIF;
-    ctx.fillText(part, x + 26 * s, y + 25 * s);
+    ctx.font = 'italic 400 ' + Math.round(12 * s) + 'px ' + FONT_SERIF;
+    ctx.fillText(part, x + 29 * s, y + 28 * s);
     ctx.restore();
     ctx.textAlign = 'left';
 
@@ -10399,6 +10399,21 @@ function sightSp(sg) {
     return out;
   };
   window.__scene = function () { return scene + '/' + stage + '/' + phase; };
+  /* TEMP COVER PROBE */
+  window.__coverProbe = function () {
+    var s = fitScale, out = [];
+    var ps = islandProps && islandProps.length ? islandProps : buildProps();
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      var id = p.sp ? p.sp.id : '';
+      if (p.k !== 'house' && p.k !== 'well' && !(p.sp && (p.sp.sh === 'cat' || p.sp.sh === 'dog'))) continue;
+      out.push({ k: p.k, id: id, x: Math.round(p.x), y: Math.round(p.y),
+        sx: Math.round(p.x * s + ox), sy: Math.round(p.y * s + oy) });
+    }
+    return JSON.stringify({ cam: [cam.x, cam.y], s: s, ox: ox, oy: oy, world: [world.w, world.h],
+      band: [Math.round((0 - ox) / s), Math.round((pageTX - ox) / s), Math.round((0 - oy) / s), Math.round((cssView.h - oy) / s)],
+      props: out });
+  };
   /* The translator itself, so a tool can ask what a stored English line becomes
      in the current language without having to catch the frame that draws it. */
   window.__t = function (line) { return T(String(line)); };
@@ -25607,7 +25622,8 @@ props: islandProps.map(function (p) {
        hump      the shoulder mound;  tuck  how high the belly rises behind
        skullH    the skull's height, in skull radii
        earKind   'up' pointed, 'round', 'fox' huge, 'hare' long, 'none'
-       tailKind  'bush', 'brush', 'streamer', 'stub', 'flipper', 'thin', 'up'
+       tailKind  'bush', 'brush', 'streamer', 'stub', 'flipper', 'thin', 'up',
+                 'curl'
 
      `neckRun` and `neckRise` are the two numbers that make a silhouette, and they
      are measured from the CHEST FRONT, not from a point on the back. A wolf
@@ -25853,6 +25869,21 @@ var ANIMAL_SIZES = {
     'pet-retriever': [['#C99A5C', '#F7EEDA'], ['#B98B4E', '#F5EAD5']],
     'pet-terrier': [['#B4A794', '#F2EEE4'], ['#9C8F7C', '#EFEAE0']]
   };
+
+  /* A pet's own tail, when the look its name promises is not its body's row: the
+     ginger cat in the yard wears a long tail curled up over its back, where the
+     shape it borrows gives a house cat a short one held up. */
+  var PET_TAILS = {
+    'pet-ginger': { len: 0.92, kind: 'curl' }
+  };
+  function animalTail(e, f) {
+    var own = e && PET_TAILS[e.id];
+    return {
+      len: own && own.len !== undefined ? own.len : f.tail.len,
+      kind: own && own.kind ? own.kind : f.tail.kind,
+      root: f.tail.root
+    };
+  }
 
   function beastLook(e, shape) {
     var h = hueOf(e.id);
@@ -27547,13 +27578,15 @@ var ANIMAL_SIZES = {
       limb(-1, true, step[2].lift, false);
       limb(1, true, step[3].lift, false);
       barrel(withersY * 0.99, bellyY, bodyWide);
-      if (f.tail.len > 0.02) {
+      // A pet may wear a tail of its own; the mass is a share of `len` either way.
+      var backTail = animalTail(e, f);
+      if (backTail.len > 0.02) {
         // A TAIL SEEN FROM BEHIND IS ALMOST ALL FORESHORTENED. Its length runs away
         // from the camera, so what shows is a short, wide mass over the rump - not a
         // long thin stroke down between the legs, which is what made a wolf look like
         // it had a fifth leg.
         var bodyH = Math.max(0.02, withersY - bellyY);
-        var tl = Math.min(f.tail.len, bodyH * 0.55);
+        var tl = Math.min(backTail.len, bodyH * 0.55);
         var tTop = withersY * 0.74;
         g.fillStyle = shadeHex(fur, 0.88);
         g.beginPath();
@@ -27610,11 +27643,12 @@ var ANIMAL_SIZES = {
     var dip = pose.dip;
 
     // ---- THE TAIL, behind everything: it hangs off the croup.
-    if (f.tail.len > 0.02) {
-      var tbx = f.tail.root[0], tby = f.tail.root[1] - dip * 0.6;
-      var tailL = f.tail.len;
+    var tail = animalTail(e, f);
+    if (tail.len > 0.02) {
+      var tbx = tail.root[0], tby = tail.root[1] - dip * 0.6;
+      var tailL = tail.len;
       var tdx = -tailL * 0.62, tdy = -tailL * 0.30 + pose.sway * 0.10;
-      var kind = f.tail.kind;
+      var kind = tail.kind;
       if (kind === 'brush') {
         g.fillStyle = fur;
         g.beginPath();
@@ -27663,6 +27697,18 @@ var ANIMAL_SIZES = {
         g.moveTo(tbx, tby);
         g.quadraticCurveTo(tbx - tailL * 0.30, tby + tailL * 0.70 + pose.sway,
           tbx - tailL * 0.42, tby + tailL * 0.92);
+        g.stroke();
+      } else if (kind === 'curl') {
+        // A long tail: it leaves the croup going back, rises behind the rump and
+        // hooks forward over the back, the tip level with the shoulders.
+        g.strokeStyle = fur;
+        g.lineCap = 'round';
+        g.lineWidth = Math.max(0.014, legW * 0.60);
+        g.beginPath();
+        g.moveTo(tbx, tby);
+        g.bezierCurveTo(tbx - tailL * 0.46, tby + tailL * 0.26 + pose.sway,
+          tbx - tailL * 0.38, tby + tailL * 0.76 + pose.sway,
+          tbx + tailL * 0.16, tby + tailL * 0.48);
         g.stroke();
       } else {
         g.fillStyle = fur;
@@ -36555,8 +36601,18 @@ var ANIMAL_SIZES = {
   resize();
   window.addEventListener('resize', resize);
   layout();
-  hero.x = world.w / 2;
-  hero.y = world.h * 0.64;
+  // The cover shows the island through the strip of screen the title paper leaves
+  // uncovered, and that strip is the left quarter of a screenful. So the camera
+  // stands that strip to her home's right: the house, its well and the yard's own
+  // animals fall inside it, where the world's own near anchor showed an empty corner
+  // of the field. followCamera runs nowhere while the title is up, so it is asked
+  // to snap here.
+  var coverK = Math.min(cssView.w / 390, cssView.h / 844);
+  var coverLeft = (cssView.w - 390 * coverK) / 2;
+  var coverPeek = (cssView.w - coverLeft) / (2 * Math.max(1e-6, baseScale));
+  hero.x = clamp(world.w * 0.34 + coverPeek, view.w * 0.5, world.w - view.w * 0.5);
+  hero.y = world.h * 0.56;
+  followCamera(true);
   requestAnimationFrame(frame);
 })();</script>
 </body></html>
