@@ -10138,6 +10138,26 @@ function sightSp(sg) {
   /* The turn's own numbers for one species: how wide its profile ink is, how wide
      its front drawing should be, and the squash it uses at the hand-over. Printed
      rather than guessed, so the transition can be checked per species. */
+  /* The numbers a front view is drawn from, printed so a limb's width can be
+     checked against the body it hangs from instead of guessed at. */
+  window.__frontMath = function (id, view) {
+    var shape = animalShapeOf(id);
+    var m = animalRow(shape);
+    var f = animalFrame(shape);
+    var b = f.bounds;
+    var halfW = (m.breadth || 0.28) * 0.5;
+    return {
+      id: id, shape: shape,
+      halfW: +halfW.toFixed(3),
+      legW: +f.legW.toFixed(3),
+      legHalf: +(f.legW * 1.10 * 0.5).toFixed(3),
+      bodySpan: +(f.edges.top.a[1] - f.bellyY).toFixed(3),
+      bellyY: +f.bellyY.toFixed(3),
+      foreSpreadX: +(halfW * 0.40).toFixed(3),
+      hindSpreadX: +(halfW * 0.60).toFixed(3)
+    };
+  };
+
   window.__turnMath = function (id) {
     var shape = animalShapeOf(id);
     // Cleared for the probe, so a species can be measured with its own look rather
@@ -12953,7 +12973,7 @@ props: islandProps.map(function (p) {
       'hear storyteller out': 'قصه‌گو را تا آخر بشنو',
       'read the stone': 'سنگ را بخوان',
       'The pond keeps its own counsel. Ask it at dusk.': 'حوض به حال خودشه؛ وقت غروب ازش بپرس.',
-      'Every row is a decision. You cannot take one back.': 'هر خط یه تصمیمه؛ هیچ خطی رو نمی‌تونی برگردونی.',
+      'Every row is a decision. You cannot take one back.': 'هر ردیف یه تصمیمه؛ هیچ ردیفی رو نمی‌تونی برگردونی.',
       'Up here the flock knows the ground better than I do.': 'این بالا، گله زمین رو بهتر از من می‌شناسه.',
       'The sand remembers every path. I only follow the cool ones.': 'شن همه راه‌ها رو یادشه؛ من فقط راه‌های خنک رو میرم.',
       'Forty days to the sea, and every one of them a story.': 'چهل روز تا دریا، و هر روزش یک قصه.',
@@ -17978,7 +17998,7 @@ props: islandProps.map(function (p) {
       'hear storyteller out': 'ghesse-gu rá tá ákhar beshno',
       'read the stone': 'sang rá bekhán',
       'The pond keeps its own counsel. Ask it at dusk.': 'hóz be hál-e khodashe; vaght-e ghurub azash bepors.',
-      'Every row is a decision. You cannot take one back.': 'har khat ye tasmime; hich khat-i ro nemituni bargarduni.',
+      'Every row is a decision. You cannot take one back.': 'har radif ye tasmime; hich radif-i ro nemituni bargarduni.',
       'Up here the flock knows the ground better than I do.': 'in bálá, galle zamin ro behtar az man mishenáse.',
       'The sand remembers every path. I only follow the cool ones.': 'shen hame ráh-há ro yadeshe; man faghat ráh-há-ye khonak ro miram.',
       'Forty days to the sea, and every one of them a story.': 'chehel ruz tá daryá, va har ruz yek ghesse.',
@@ -27212,26 +27232,76 @@ var ANIMAL_SIZES = {
        limb shortens from the bottom, so a lifted foot does not stretch the leg.
        `hind` is the pair it belongs to, which decides how wide it stands and how high
        it is socketed. */
-    function limb(side, isFar, lift, hind) {
-      var spread = hind ? (isFar ? 1.02 : 0.70) : (isFar ? 0.74 : 0.46);
-      var hipX = side * halfW * spread;
-      var footX = side * halfW * (spread * 1.06);
-      var w = legW * (isFar ? 0.44 : 0.52) * (hind ? 0.94 : 1);
-      var top = hind ? hindSocketY : socketY;
-      var ground = w * 0.55;
-      var footY = ground + (lift || 0) * (top - ground) * 0.34;
+    // The barrel's own ellipse, so a limb can be clipped against the SAME edge the
+    // body is filled to. Set by barrel() every time it draws.
+    var bodyTop = 0, bodyBottom = 0, bodyWide = 1;
+    function bodyUnderY(x) {
+      // Where the body's LOWER edge runs at this x. The body is an ellipse whose
+      // centre is at cy = bottom + span/2, so its lower edge is cy MINUS ry: y up,
+      // an ellipse's lower half is the smaller y. (This returned the upper edge when
+      // it read cy + ry, which is why limbs kept landing above the body.)
+      var w = halfW * bodyWide;
+      var span = Math.max(0.02, bodyTop - bodyBottom);
+      var u = x / Math.max(1e-6, w);
+      if (u < -1 || u > 1) return -Infinity;
+      return bodyBottom + span * 0.5 * (1 - Math.sqrt(1 - u * u));
+    }
 
-      // A JOINTED LEG, HERE TOO. This limb was one tapered shape from hip to hoof -
-      // a post. Seen from the front a joint bends toward or away from the camera, so
-      // it does not show as a corner in the outline; what shows is the narrowing at
-      // the joint and the small lateral kick the limb takes past it. It is built from
-      // the same side-view joint plan, read against the limb's own length.
+    function clipOutsideBody() {
+      // Keep everything OUTSIDE the body ellipse. A limb's top is inside the body, and
+      // drawing it on top of the body left a step at the chest - the limb's flat top,
+      // in fur, on the body's own fur. Outside-the-ellipse keeps the leg and removes
+      // the part that belongs to the body.
+      var w = halfW * bodyWide;
+      var span = Math.max(0.02, bodyTop - bodyBottom);
+      g.beginPath();
+      g.rect(-10, -10, 20, 20);
+      g.ellipse(0, bodyBottom + span * 0.5, w, span * 0.5, 0, 0, TAU);
+      g.clip('evenodd');
+    }
+    function limb(side, behind, lift, hind) {
+      // WHICH PAIR, NOT WHICH SIDE. In a front view both forelegs are equally near
+      // the camera and both hind legs are equally behind it, so the depth tone
+      // belongs to the PAIR. Keying it to the side drew the whole left of the animal
+      // dark and the whole right light, which read as one thick column and one thin
+      // one rather than four legs.
+      //
+      // The two legs of a pair stand about half a body-width apart, and the hind pair
+      // a little wider, so it shows outside the fore pair instead of behind it.
+      // FOUR LEGS, AND ALL FOUR SHOW. The fore pair is near the camera and stands
+      // under the chest; the hind pair is behind the body and stands WIDER, which is
+      // the only reason it is seen at all. At the fore pair's own spread the hind pair
+      // vanished completely and the animal stood on two legs.
+      var spread = hind ? 0.80 : 0.44;
+      var hipX = side * halfW * spread;
+      var footX = side * halfW * (spread * 1.10);
+      // A limb seen end-on is NARROWER than its profile: the profile shows the limb's
+      // whole breadth, while end-on you see its diameter. Sized from `legW` alone it
+      // was as wide as the body's own quarter and read as a skirt rather than legs.
+      var w = legW * (hind ? 0.62 : 0.56);
+      var socket = hind ? hindSocketY : socketY;
+      // THE TOP RUNS UP INSIDE THE BODY. The barrel is painted after every limb, so it
+      // covers the join completely - provided the top is at or above the body's lower
+      // edge everywhere the limb spans. Its lowest point is the body's own bottom, so
+      // starting a little above the belly line guarantees that at every stance width,
+      // and the leg still emerges from under the body with no gap.
+      var bodySpan = Math.max(0.02, bodyTop - bodyBottom);
+      var top = Math.max(socket, bodyBottom + bodySpan * 0.55);
+      // A step lifts the hoof by a share of the leg's VISIBLE length, measured from the
+      // socket - not from inside the body, where the barrel hides it. Measured from the
+      // internal top, a lifted hoof rose to mid-thigh and floated beside the leg.
+      var ground = w * 0.42;
+      var footY = ground + (lift || 0) * Math.max(0, socket - ground) * 0.34;
+
+      // A JOINTED LEG, HERE TOO - but the joints are FORESHORTENED almost to
+      // nothing. A joint bends in the fore-aft axis, which from the front points at
+      // the camera, so what remains visible is the limb narrowing at each joint, not
+      // a sideways zig-zag. Carrying the side view's own offsets across made a
+      // spider's leg: four kinked sticks bowing inward.
       var vplan = hind ? ANIMAL_LEG.hind : ANIMAL_LEG.fore;
-      var vlen = top - footY;
-      // A SHALLOW bend. From the front a joint reads mostly as a narrowing, not as a
-      // zig-zag: the side view's own offsets made a spider's leg here.
+      var vlen = Math.max(0.01, top - footY);
       var vJoint = function (j) {
-        return [hipX + (footX - hipX) * j.t + side * j.x * vlen * 0.7, top - vlen * j.t];
+        return [hipX + (footX - hipX) * j.t + side * j.x * vlen * 0.12, top - vlen * j.t];
       };
       var vNodes = [
         [hipX, top],
@@ -27242,7 +27312,12 @@ var ANIMAL_SIZES = {
       ];
       var vOutline = animalLimbOutline(vNodes,
         ANIMAL_LEG_FRONT_PROFILE[hind ? 'hind' : 'fore'], w * 2);
-      g.fillStyle = isFar ? far : fur;
+
+      g.save();
+      // NO CLIP. The barrel is painted after every limb and its width is chosen to
+      // swallow the outermost hip, so it covers the join on its own. Clipping the limb
+      // to the body's outline cut a rectangular notch out of the body instead.
+      g.fillStyle = behind ? shadeHex(fur, 0.80) : fur;
       g.beginPath();
       for (var oi = 0; oi < vOutline.length; oi++) {
         if (oi === 0) g.moveTo(vOutline[oi][0], vOutline[oi][1]);
@@ -27250,18 +27325,22 @@ var ANIMAL_SIZES = {
       }
       g.closePath();
       g.fill();
-      if (!isFar) {
+      if (!behind) {
         g.strokeStyle = shadeHex(fur, 0.78);
-        g.lineWidth = Math.max(0.005, w * 0.22);
+        g.lineWidth = Math.max(0.005, w * 0.20);
         g.stroke();
       }
+      g.restore();
+      // The hoof stands a little narrower than the limb and sits ON the ground line,
+      // so two hooves of a pair stay two hooves instead of merging into one blob.
       g.fillStyle = hoofC;
       g.beginPath();
-      g.ellipse(footX, footY + w * 0.30, w * 0.95, w * 0.32, 0, 0, TAU);
+      g.ellipse(footX, footY - w * 0.14, w * 0.72, w * 0.26, 0, 0, TAU);
       g.fill();
     }
 
     function barrel(top, bottom, wide) {
+      bodyTop = top; bodyBottom = bottom; bodyWide = wide || 1;
       var span = Math.max(0.02, top - bottom);
       var w = halfW * (wide || 1);
       g.fillStyle = fur;
@@ -27434,37 +27513,59 @@ var ANIMAL_SIZES = {
       }
     }
 
+    // THE BODY'S BOX IS SET BEFORE THE LIMBS, not by the barrel when it paints.
+    // Limbs are painted first and need the body's height and width to place their
+    // tops; reading them from the barrel meant reading zeroes, which is why the legs
+    // vanished (or sprouted tabs) depending on the order.
+    bodyTop = front ? withersY : withersY * 0.99;
+    bodyBottom = front ? brisketY : bellyY;
+    bodyWide = Math.max(1.0, (0.80 * halfW + legW * 0.62 * 0.5) * 1.06 / Math.max(1e-6, halfW));
+
     if (front) {
-      // The head is NEARER than the body, so it paints last. Far limbs first, then
-      // the barrel, then the near pair: four legs, so it reads as a quadruped seen
-      // end-on and not as a figure standing up. The pairs are in a lateral walk, so
-      // one hoof of each pair is always down.
+      // Walking TOWARD the camera. Every limb is behind the body's own edge, so all
+      // four are painted FIRST and the barrel then covers their joins - the leg shows
+      // below the body and nothing of it shows above. The hind pair is darker because
+      // it is further away.
       limb(-1, true, step[0].lift, true);
-      limb(-1, true, step[1].lift, false);
-      barrel(withersY, brisketY, 1.0);
-      limb(1, false, step[2].lift, true);
-      limb(1, false, step[3].lift, false);
+      limb(1, true, step[1].lift, true);
+      limb(-1, true, step[2].lift, false);
+      limb(1, true, step[3].lift, false);
+      // WIDE ENOUGH TO COVER ITS OWN LEGS. The body is widened just enough to swallow
+      // the outermost hind hip, so the barrel covers every limb's top on its own.
+      barrel(withersY, brisketY, bodyWide);
       head();
     } else {
-      // The head is FURTHER than the body: it paints first and the rump covers it,
-      // leaving only the crown above the withers - which is what a back view shows.
+      // Walking AWAY. Same depth rule, mirrored: the body covers the rump end of the
+      // leg, and the head is furthest of all so it paints first.
+      // Walking AWAY: every limb is still behind the body's own edge, so all four are
+      // painted before the barrel and the body covers their joins - exactly as in the
+      // front view. Painting the near pair OVER the body is what left the rectangular
+      // tab at the hips: the limb's flat top showed on top of the rump.
       head();
       limb(-1, true, step[0].lift, true);
-      limb(-1, true, step[1].lift, false);
-      barrel(withersY * 0.99, bellyY, 1.06);
+      limb(1, true, step[1].lift, true);
+      limb(-1, true, step[2].lift, false);
+      limb(1, true, step[3].lift, false);
+      barrel(withersY * 0.99, bellyY, bodyWide);
       if (f.tail.len > 0.02) {
-        var tl = Math.min(f.tail.len, (withersY - bellyY) * 1.5);
-        var tTop = withersY * 0.80;
-        g.strokeStyle = shadeHex(fur, 0.84);
-        g.lineCap = 'round';
-        g.lineWidth = Math.max(0.016, legW * (f.tail.kind === 'bush' ? 1.25 : 0.85));
+        // A TAIL SEEN FROM BEHIND IS ALMOST ALL FORESHORTENED. Its length runs away
+        // from the camera, so what shows is a short, wide mass over the rump - not a
+        // long thin stroke down between the legs, which is what made a wolf look like
+        // it had a fifth leg.
+        var bodyH = Math.max(0.02, withersY - bellyY);
+        var tl = Math.min(f.tail.len, bodyH * 0.55);
+        var tTop = withersY * 0.74;
+        g.fillStyle = shadeHex(fur, 0.88);
         g.beginPath();
-        g.moveTo(0, tTop);
-        g.quadraticCurveTo(halfW * 0.26, tTop - tl * 0.55, 0, tTop - tl);
+        // Wider than it is long, hanging just inside the rump's own width.
+        g.ellipse(halfW * 0.06, tTop - tl * 0.35,
+          Math.max(0.016, Math.min(halfW * 0.42, legW * 1.35)),
+          Math.max(0.022, tl * 0.55), 0, 0, TAU);
+        g.fill();
+        g.strokeStyle = shadeHex(fur, 0.76);
+        g.lineWidth = Math.max(0.004, legW * 0.14);
         g.stroke();
       }
-      limb(1, false, step[2].lift, true);
-      limb(1, false, step[3].lift, false);
     }
 
     g.restore();
