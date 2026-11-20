@@ -9872,53 +9872,128 @@ function sightSp(sg) {
     return s;
   }
 
-  /* How much of a body's turn is showing as the OTHER drawing. A turn between the
-     profile and the front cannot be drawn by one of three pictures, so the two
-     neighbours are woven: at 0 the profile alone, past ~0.64 the front alone, and in
-     between both, the incoming one over the outgoing one. Because `turn` eases, the
-     weave runs over a few frames instead of snapping. */
-  function animalTurnBlend(a) {
+  /* Turning is drawn by ROTATING THE PICTURE, not by fading one into the other.
+     A cross-fade puts two animals in the same place for a moment and reads as a
+     ghost. A scale does what an orthographic camera does when a body comes round:
+     the profile narrows to nothing, then the front opens out of nothing. Only one
+     drawing is on screen at any moment, and the width carries the turn.
+
+     `w` is how far the body has come round: 0 = profile, 1 = facing the camera
+     (or away). The half-way width is zero, which is where the drawing swaps, so
+     the swap is never visible. */
+  /* Turning is drawn by SCALING THE PICTURE, not by fading one drawing into the
+     other. A cross-fade leaves two animals in the same place for a moment and reads
+     as a ghost; a squash all the way to a line reads as a card flipping over. What a
+     body actually does is narrow from its length toward its breadth and widen again
+     on the other side, so the two drawings hand over at the NARROWEST point - where
+     both are the same width, and a swap cannot be seen.
+
+     `k` is that ratio: how wide the front drawing is against the profile's own ink,
+     read from the same frame the painter fits with, so it is a measured number and
+     not a chosen one. */
+  function animalTurnBlend(a, k) {
     var t = a && a.turn !== undefined ? a.turn : 0;
     t = t < -1 ? -1 : (t > 1 ? 1 : t);
-    // A NARROW window. Over a wide one both drawings are visible together for long
-    // enough to be seen as two animals in the same place - a ghost. The profile
-    // narrows and the turn view comes up only as it takes over.
-    var w = (Math.abs(t) - 0.34) / 0.36;
-    w = w < 0 ? 0 : (w > 1 ? 1 : w);
-    // Smoothstep, so the fade does not start and stop abruptly.
-    w = w * w * (3 - 2 * w);
-    return { other: t >= 0 ? 'front' : 'back', w: w };
+    var u = Math.abs(t);
+    // Eased, so the turn starts and finishes without a jerk at either end.
+    u = u * u * (3 - 2 * u);
+    // THE PROFILE NARROWS; THE TURNED DRAWING IS ALREADY NARROW. A front view's ink
+    // is `k` of the profile's, so the profile closes to exactly `k` by the time the
+    // swap happens at half a turn, and the front takes over at its own natural
+    // width - the same width, so nothing jumps. Squashing the front as well would
+    // squeeze it to k times k and make the animal a sliver on the way round.
+    // A ROTATION ABOUT THE VERTICAL AXIS, which is what a body turning on the ground
+    // actually is: its length foreshortens toward its breadth while its height stays
+    // the same. So the picture narrows and never changes size.
+    //
+    // The swap happens at exactly `k` - the MEASURED width of a front drawing
+    // against the profile's - so at the moment the two drawings trade places they
+    // are the same width. Nothing jumps, nothing fades, and only one drawing is ever
+    // on screen.
+    var tri = u < 0.5 ? (u / 0.5) : 0;
+    return {
+      view: u < 0.5 ? 'side' : (t >= 0 ? 'front' : 'back'),
+      sx: 1 - (1 - k) * tri,
+      sy: 1
+    };
+  }
+
+  /* How wide a front drawing comes out against the profile, measured from the two
+     drawings themselves. A body coming round narrows from its LENGTH toward its
+     BREADTH, so this ratio is where the profile must arrive for the two drawings to
+     be the same width at the moment they swap - which is what makes the swap
+     invisible. Derived from `breadth` alone it was wrong, because the profile's ink
+     also carries a muzzle and a tail that `breadth` knows nothing about.
+
+     Measured once per species and cached: it is a property of the shape, not of the
+     frame. */
+  var TURN_RATIO = {};
+  function animalTurnRatio(shape, sampleId) {
+    if (TURN_RATIO[shape] !== undefined) return TURN_RATIO[shape];
+    var e = (sampleId && findSpecies(sampleId)) || { id: shape, sh: 'beast', f: shape, e: shape };
+    var n = 180;
+    var c = document.createElement('canvas');
+    c.width = n; c.height = n;
+    var g = c.getContext('2d');
+    if (!g) return 0.30;
+    var prev = ctx;
+    var inkW = function (view) {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, n, n);
+      var save = ctx;
+      ctx = g;
+      try {
+        // Positioned the way the game positions an animal: the ground under its
+        // feet, near the bottom of the card. Without this the drawing sits off the
+        // top of the canvas (its y axis points up) and measures as empty.
+        g.save();
+        g.translate(n * 0.5, n * 0.94);
+        paintAnimal(g, e, { moving: false, walk: 0, facing: 1, gait: 'still',
+          view: view, seed: 3, lift: 0 }, n * 0.6);
+        g.restore();
+      } catch (err) {
+        ctx = save;
+        return 0;
+      }
+      ctx = save;
+      var d = g.getImageData(0, 0, n, n).data;
+      var lo = n, hi = -1;
+      for (var x = 0; x < n; x++) {
+        for (var y = 0; y < n; y++) {
+          if (d[(y * n + x) * 4 + 3] > 8) {
+            if (x < lo) lo = x;
+            if (x > hi) hi = x;
+            break;
+          }
+        }
+      }
+      return hi < 0 ? 0 : (hi - lo + 1);
+    };
+    var sideW = inkW('side'), frontW = inkW('front');
+    ctx = prev;
+    var k = (sideW > 4 && frontW > 2) ? frontW / sideW : 0.34;
+    k = Math.max(0.12, Math.min(0.95, k));
+    TURN_RATIO[shape] = k;
+    return k;
+  }
+
+  function paintAnimalTurned(g, e, a, S, paintFn) {
+    var b = animalTurnBlend(a, animalTurnRatio(animalShapeOf(e.id), e.id));
+
+    // A scratch anim, so this cannot fight over `a.view`: the cache is keyed by
+    // it, and mutating the live animal twice a frame is how a cached sprite ends
+    // up labelled with the wrong drawing.
+    var pass = _turnAnim;
+    for (var key in a) pass[key] = a[key];
+    pass.view = b.view;
+    g.save();
+    g.scale(b.sx, b.sy);
+    paintFn(g, e, pass, S);
+    g.restore();
   }
 
   function drawAnimalTurned(g, e, a, S) {
-    var b = animalTurnBlend(a);
-    var prevAlpha = g.globalAlpha;
-    // A scratch anim, so the two passes cannot fight over `a.view`: the cache is
-    // keyed by it, and mutating the live animal twice a frame is how a cached
-    // sprite ends up labelled with the wrong drawing.
-    var pass = _turnAnim;
-    for (var k in a) pass[k] = a[k];
-
-    if (b.w < 0.995) {
-      pass.view = 'side';
-      // THE BODY NARROWING. A turned body shows less of itself, so the profile is
-      // drawn narrower as it comes round - the same trick the keeper's own profile
-      // uses. Without it the cross-fade reads as two animals in one place.
-      var narrow = 1 - 0.34 * b.w;
-      g.save();
-      // Fading out as it turns, and narrowing, so it is never a second animal on
-      // top of the first.
-      g.globalAlpha = prevAlpha * (1 - b.w * 0.85);
-      g.scale(narrow, 1);
-      paintAnimalCached(g, e, pass, S);
-      g.restore();
-    }
-    if (b.w > 0.005) {
-      pass.view = b.other;
-      g.globalAlpha = prevAlpha;
-      paintAnimalCached(g, e, pass, S);
-    }
-    g.globalAlpha = prevAlpha;
+    paintAnimalTurned(g, e, a, S, paintAnimalCached);
   }
 
   var _turnAnim = {};
@@ -10060,6 +10135,48 @@ function sightSp(sg) {
    * again. Reachable from the console only. */
   /* Her drawing, one pose and one view at a time, on a blank card. The only way
      to see a pose the island's grass and skirt hide. Console: __keeperPlate('side','sit'). */
+  /* The turn's own numbers for one species: how wide its profile ink is, how wide
+     its front drawing should be, and the squash it uses at the hand-over. Printed
+     rather than guessed, so the transition can be checked per species. */
+  window.__turnMath = function (id) {
+    var shape = animalShapeOf(id);
+    // Cleared for the probe, so a species can be measured with its own look rather
+    // than inheriting whichever id happened to build the entry first.
+    delete TURN_RATIO[shape];
+    return { id: id, shape: shape, k: +animalTurnRatio(shape, id).toFixed(3) };
+  };
+
+  /* A strip of one animal over its whole turn: t = -1 (facing away) to +1 (facing
+     the camera), so the scale of the turn can be judged frame by frame. */
+  window.__animalTurnStrip = function (id, size, t) {
+    size = size || 110;
+    var c = document.createElement('canvas');
+    // A beast is drawn to fit its HEIGHT, so a long one is wider than it is tall.
+    // A square card would crop a profile.
+    c.width = Math.round(size * 2);
+    c.height = size;
+    var g = c.getContext('2d');
+    g.fillStyle = '#F2ECDC';
+    g.fillRect(0, 0, c.width, c.height);
+    var prev = ctx;
+    ctx = g;
+    var e = findSpecies(id) || { id: id, sh: 'beast', f: id, e: id };
+    g.save();
+    g.translate(size, size * 0.86);
+    paintAnimalTurned(g, e, {
+      moving: false, walk: 0, facing: 1, seed: 3, gait: 'still',
+      turn: t === undefined ? 0 : t, turnTo: 0, lift: 0
+    }, size * 0.70, paintAnimal);
+    g.restore();
+    ctx = prev;
+    return c;
+  };
+
+  /* A plate of one animal, on a card of its own, so a view can be looked at on its
+     own rather than hunted for in the yard. */
+
+  /* Her own plate: the keeper on a card, for judging a pose that the skirt and the
+     grass hide in the world. */
   window.__keeperPlate = function (view, pose, size) {
     size = size || 220;
     var k = size / 158;
