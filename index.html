@@ -1854,7 +1854,8 @@
   /* The island day is one place; three more are puzzles of their own. */
   var scene = 'island';   // island | shrine | lake | sky
   var previewPage = null; // console only: draw one place's finished card
-  var hits = [];          // what the last frame drew that can be tapped
+  var hits = [];          // the 390x844 page: what the last frame drew that can be tapped
+  var screenHits = [];    // the window's own pixels: furniture that is not on the page
   var pageK = 1, pageTX = 0, pageTY = 0;  // the 390x844 page, fitted
   var restartGuard = 0;
   var spawnTimer = 0;
@@ -4339,6 +4340,8 @@ function sightSp(sg) {
   /* 9. RENDER */
   function render() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // The window's own furniture is rebuilt every frame, like the page's.
+    screenHits = [];
 
     // Three silhouettes may be baked in a frame, so a section fills its shadows in
     // over a fifth of a second instead of stalling on forty drawings at once.
@@ -4348,9 +4351,26 @@ function sightSp(sg) {
     if (scene !== 'island') {
       var pcW = canvas.width / dpr, pcH = canvas.height / dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = C.plaster;
-    ctx.fillRect(0, 0, pcW, pcH);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      /* The world is full-bleed; a page of the book is not. The island and the
+         title reach both edges of the window, because they are a place. A place
+         page, the book, the map and the bag are paper, and paper lies on
+         something: the bands either side are the desk, and a shadow under the
+         sheet says which of the two is the object. On a phone there are no bands
+         and none of this is visible. */
+      ctx.fillStyle = '#DFD6C4';
+      ctx.fillRect(0, 0, pcW, pcH);
+      var deskK = Math.min(pcW / 390, pcH / 844);
+      var deskX = (pcW - 390 * deskK) / 2, deskY = (pcH - 844 * deskK) / 2;
+      ctx.save();
+      ctx.shadowColor = 'rgba(42,35,32,0.20)';
+      ctx.shadowBlur = 18 * deskK;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 6 * deskK;
+      ctx.fillStyle = C.plaster;
+      ctx.fillRect(deskX, deskY, 390 * deskK, 844 * deskK);
+      ctx.restore();
+
       // A place draws itself on its OWN page frame: it opens one with pageBegin and
       // closes it with pageEnd. Do not open one here - doing both nested the frames and
       // scaled every place page by pageK squared, which is invisible on a window that is
@@ -4358,8 +4378,8 @@ function sightSp(sg) {
       // right edge, the walk screen was drawn at 1.8x).
       var place = placeDef(scene);
       if (place) place.draw(pcW, pcH);
-      // The tab, in the same corner on every page, drawn on a page of its own because
-      // a place has already closed its frame by the time it returns.
+      // The tab, in the same corner on every page, drawn in the window's own pixels
+      // because a place has already closed its frame by the time it returns.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       bookTab(pcW, pcH);
       carryTabs(pcW, pcH);
@@ -6761,14 +6781,21 @@ function sightSp(sg) {
      page beneath is uncovered from the outer edge in. A change of leaf is a
      different object, so the whole spread slides instead. */
 
-  var FOLD = 195;
   var TURN_SECONDS = 0.36;
 
   function bookGeo() {
+    /* The sheet's written column, inset from the fore-edge the tabs are cut into.
+       Full-bleed content ran under the tabs, so the foot's "next" sat behind the
+       close mark in a left-to-right page and the folio 40 px off the sheet in a
+       right-to-left one. The tabs need their own strip, on whichever edge the
+       page starts from. */
     return rtl()
-      ? { a: { x: 212, w: 150 }, b: { x: 34, w: 148 } }
-      : { a: { x: 26, w: 150 }, b: { x: 208, w: 148 } };
+      ? { a: { x: 44, w: 330 } }
+      : { a: { x: 18, w: 330 } };
   }
+  /* One sheet, two edges: which one a line starts from is the page's direction,
+     not the sheet's. A Persian page opens at the right edge and closes at the
+     left, so its head, its foot and its tabs all anchor the other way round. */
   function colOpen(p) { return rtl() ? p.x + p.w : p.x; }
   function colClose(p) { return rtl() ? p.x : p.x + p.w; }
 
@@ -6867,67 +6894,46 @@ function sightSp(sg) {
     ctx.fillStyle = C.paper;
     ctx.fillRect(0, 0, 390, 844);
 
-    // Ruled lines, broken at the fold so the two pages read as two.
+    // Ruled lines across the whole sheet.
     ctx.strokeStyle = 'rgba(42,35,32,0.045)';
     ctx.lineWidth = 1;
     for (var y = 104; y < 806; y += 21) {
       ctx.beginPath();
       ctx.moveTo(8, y);
-      ctx.lineTo(FOLD - 14, y);
-      ctx.moveTo(FOLD + 14, y);
       ctx.lineTo(382, y);
       ctx.stroke();
     }
-
-    // The fold: each page curves down into it, so the paper darkens there.
-    var g = ctx.createLinearGradient(FOLD - 32, 0, FOLD + 32, 0);
-    g.addColorStop(0, 'rgba(42,35,32,0)');
-    g.addColorStop(0.42, 'rgba(42,35,32,0.10)');
-    g.addColorStop(0.5, 'rgba(42,35,32,0.16)');
-    g.addColorStop(0.58, 'rgba(42,35,32,0.10)');
-    g.addColorStop(1, 'rgba(42,35,32,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(FOLD - 32, 0, 64, 844);
-
-    // The stitching, one signature either side of the fold.
-    ctx.strokeStyle = 'rgba(122,104,80,0.30)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 8]);
-    ctx.beginPath();
-    ctx.moveTo(FOLD, 20);
-    ctx.lineTo(FOLD, 824);
-    ctx.stroke();
-    ctx.setLineDash([]);
 
     ctx.strokeStyle = 'rgba(42,35,32,0.10)';
     ctx.strokeRect(0.5, 0.5, 389, 843);
   }
 
-  /* ---- The head: the leaf's name, and the spread's folio ---------------- */
+  /* ---- The head: the leaf's name, and the folio ------------------------- */
   function bookHead() {
     var g = bookGeo();
-    alignText('left');
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = C.ink;
     ctx.font = 'italic 600 18px ' + FONT_SERIF;
-    ctx.fillText(bookTitle(), colOpen(g.a), 52);
+    // A page reads from one edge and ends at the other. Every head line names its
+    // edge and its own direction directly, so nothing can be anchored past an
+    // edge in a mirrored page - which is what put the count behind the close mark.
+    var openX = colOpen(g.a), closeX = colClose(g.a);
+    ctx.textAlign = rtl() ? 'right' : 'left';
+    ctx.fillText(bookTitle(), openX, 52);
 
     var count = bookCount();
     if (count) {
-      alignText('right');
+      ctx.textAlign = rtl() ? 'left' : 'right';
       ctx.fillStyle = C.inkFaint;
       ctx.font = '600 10px ' + FONT_UI;
-      ctx.fillText(count, colClose(g.b), 51);
-      alignText('left');
+      ctx.fillText(count, closeX, 51);
     }
 
     ctx.strokeStyle = 'rgba(42,35,32,0.09)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(colOpen(g.a), 66);
-    ctx.lineTo(colClose(g.a), 66);
-    ctx.moveTo(colOpen(g.b), 66);
-    ctx.lineTo(colClose(g.b), 66);
+    ctx.moveTo(openX, 66);
+    ctx.lineTo(closeX, 66);
     ctx.stroke();
     ctx.textAlign = 'left';
   }
@@ -6940,22 +6946,28 @@ function sightSp(sg) {
     ctx.font = 'italic 500 11px ' + FONT_SERIF;
     ctx.fillStyle = C.inkFaint;
     if (BOOK.leaf === 'words' && pages > 1) {
-      ctx.textAlign = rtl() ? 'right' : 'left';
-      ctx.font = '600 10px ' + FONT_UI;
-      ctx.fillText(T('page {0} of {1}', BOOK.page + 1, pages), colOpen(g.a), 806);
-
       ctx.fillStyle = C.turquoiseDeep;
       ctx.font = '600 11px ' + FONT_UI;
+      /* Three slots across the foot, each pinned to its own edge with the
+         alignment that keeps it inside: the way back sits where the page starts,
+         the way on where it ends, the folio in the middle. Absolute offsets from
+         the spread's edges (what this used to be) put the folio and "back" 44 px
+         off the sheet the moment the page mirrored. */
+      var fW = 90, midX = 195;
       if (BOOK.page > 0) {
-        ctx.textAlign = 'right';
-        ctx.fillText('\u2039 ' + T('back'), colClose(g.a), 806);
-        addHit(colClose(g.a) - 90, 790, 90, 32, 'bookpage', -1);
+        ctx.textAlign = rtl() ? 'right' : 'left';
+        ctx.fillText(rtl() ? T('back') + ' \u203a' : '\u2039 ' + T('back'), colOpen(g.a), 806);
+        addHit(rtl() ? colOpen(g.a) - fW : colOpen(g.a), 790, fW, 32, 'bookpage', -1);
       }
       if (BOOK.page < pages - 1) {
         ctx.textAlign = rtl() ? 'left' : 'right';
-        ctx.fillText(T('next') + ' \u203a', colClose(g.b), 806);
-        addHit(colOpen(g.b), 790, 90, 32, 'bookpage', 1);
+        ctx.fillText(rtl() ? '\u2039 ' + T('next') : T('next') + ' \u203a', colClose(g.a), 806);
+        addHit(rtl() ? colClose(g.a) : colClose(g.a) - fW, 790, fW, 32, 'bookpage', 1);
       }
+      ctx.textAlign = 'center';
+      ctx.fillStyle = C.inkFaint;
+      ctx.font = '600 10px ' + FONT_UI;
+      ctx.fillText(T('page {0} of {1}', BOOK.page + 1, pages), midX, 806);
     } else if (BOOK.leaf !== 'cover') {
       ctx.textAlign = rtl() ? 'right' : 'left';
       if (storyComplete()) ctx.fillText(T('tap to close the book'), colOpen(g.a), 806);
@@ -6993,15 +7005,13 @@ function sightSp(sg) {
     return 'the island is named';
   }
 
-  /* ---- Leaf one, first page: the index of pages -------------------------- */
+  /* ---- Leaf one: the index of pages, and the picked page below it -------- */
   function drawBookPages() {
     var g = bookGeo();
     var x = g.a.x, w = g.a.w;
     var ax = colOpen(g.a), bx = colClose(g.a);
 
     if (storyComplete()) {
-      // The last page is its own spread: no second page, no picked-page column
-      // showing through the writing.
       drawNotebookEnding();
       return;
     }
@@ -7009,9 +7019,6 @@ function sightSp(sg) {
     var picked = pickedPage();
     var y = 92;
     var i, page;
-    // The list is measured before a line is drawn so it always fits: this ledger
-    // grew to 23 entries, and its last rows were once drawn off the sheet. The
-    // row height is the only free number, so the list tightens instead of spilling.
     var rowGap = 26, doneGap = 40, chapterGap = 28;
     var availTop = 92, availBottom = 748;
     var need = 0;
@@ -7026,10 +7033,6 @@ function sightSp(sg) {
       chapterGap = Math.floor(chapterGap * squeeze);
     }
 
-    // The word column is measured before the story is wrapped: a long word
-    // ("cheshmeh", "morghdani") is wider than the fixed 44px gutter this list
-    // used to reserve, so in a language whose words run long it drew straight
-    // through the story beside it. One measure decides both columns.
     var wordW = 0;
     ctx.font = 'italic 600 11px ' + FONT_SERIF;
     for (i = 0; i < STORY.length; i++) {
@@ -7088,11 +7091,11 @@ function sightSp(sg) {
     drawPageFace();
   }
 
-  /* ---- Leaf one, facing page: the page in her own hand ------------------ */
+  /* ---- The picked page, below the index on the same sheet ---------------- */
   function drawPageFace() {
     var g = bookGeo();
-    var x = g.b.x, w = g.b.w;
-    var ax = colOpen(g.b), bx = colClose(g.b);
+    var x = g.a.x, w = g.a.w;
+    var ax = colOpen(g.a), bx = colClose(g.a);
 
     var page = pickedPage();
     var done = !!storyDone[page.id];
@@ -7182,7 +7185,7 @@ function sightSp(sg) {
     ctx.fill();
   }
 
-  /* ---- Leaf two, first page: the words she learned --------------------- */
+  /* ---- Leaf two: the words she learned --------------------------------- */
   function drawBookWords() {
     var g = bookGeo();
     var x = g.a.x, w = g.a.w;
@@ -7266,11 +7269,11 @@ function sightSp(sg) {
     drawWordFace(rows);
   }
 
-  /* ---- Leaf two, facing page: the open word ---------------------------- */
+  /* ---- The open word, below the list on the same sheet ------------------- */
   function drawWordFace(rows) {
     var g = bookGeo();
-    var x = g.b.x, w = g.b.w;
-    var ax = colOpen(g.b), bx = colClose(g.b);
+    var x = g.a.x, w = g.a.w;
+    var ax = colOpen(g.a), bx = colClose(g.a);
 
     var wr = pickedWord(rows);
     if (!wr) { drawSprig(x + w / 2, 640, 3.6, '#8a8a58', 8); return; }
@@ -7317,7 +7320,7 @@ function sightSp(sg) {
   /* ---- Leaf three: inside the cover ------------------------------------ */
   function drawBookCover() {
     var g = bookGeo();
-    var ax = colOpen(g.a), bx = colClose(g.b);
+    var ax = colOpen(g.a), bx = colClose(g.a);
     alignText('left');
     ctx.textBaseline = 'alphabetic';
 
@@ -7564,30 +7567,27 @@ function sightSp(sg) {
       return;
     }
 
-    // The departing sheet, hinged at the fold, closing over the arriving page.
-    // Only the facing page of the photograph is taken: scaling the whole spread
-    // about the fold would compress the left page against the fold too, and its
-    // ghost would show through under the turning sheet.
+    // The departing sheet, hinged at the right edge, folding back over the
+    // arriving page. The single sheet turns like a page in a book.
     var open = Math.max(0.012, 1 - e);
-    var edge = FOLD + (390 - FOLD) * open;
-    var pageW = 390 - FOLD;
+    var edge = 390 * open;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(FOLD, -4, pageW + 4, 852);
+    ctx.rect(0, -4, 390, 852);
     ctx.clip();
-    ctx.translate(FOLD, 0);
+    ctx.translate(390, 0);
     ctx.scale(open, 1);
-    ctx.translate(-FOLD, 0);
-    ctx.drawImage(turn.sheet, FOLD, 0, pageW, 844, FOLD, 0, pageW, 844);
+    ctx.translate(-390, 0);
+    ctx.drawImage(turn.sheet, 0, 0, 390, 844, 0, 0, 390, 844);
     ctx.restore();
 
-    // Its shadow on the page it is uncovering: deepest at the fold.
-    var g2 = ctx.createLinearGradient(FOLD, 0, Math.min(390, FOLD + 82), 0);
-    g2.addColorStop(0, 'rgba(26,22,18,' + (0.34 * (1 - e * 0.4)).toFixed(3) + ')');
+    // Shadow at the fold, deepest at the spine.
+    var g2 = ctx.createLinearGradient(390 - 82, 0, 390, 0);
+    g2.addColorStop(0, 'rgba(26,22,18,0)');
     g2.addColorStop(0.5, 'rgba(26,22,18,' + (0.11 * (1 - e)).toFixed(3) + ')');
-    g2.addColorStop(1, 'rgba(26,22,18,0)');
+    g2.addColorStop(1, 'rgba(26,22,18,' + (0.34 * (1 - e * 0.4)).toFixed(3) + ')');
     ctx.fillStyle = g2;
-    ctx.fillRect(FOLD, 0, Math.min(82, 390 - FOLD), 844);
+    ctx.fillRect(390 - 82, 0, 82, 844);
 
     // The turning sheet's edge, and the light along its back.
     if (edge < 388) {
@@ -7651,7 +7651,7 @@ function sightSp(sg) {
     ctx.fillText(label, x + 26 * s, y + h / 2);
 
     tabHit = { x: x, y: y, w: w, h: h, act: 'book' };
-    addHit(x, y, w, h, 'book');
+    addScreenHit(x, y, w, h, 'book');
     ctx.restore();
   }
 
@@ -7716,7 +7716,7 @@ function sightSp(sg) {
       ctx.stroke();
     }
     ctx.restore();
-    addHit(x, y, d, d, act);
+    addScreenHit(x, y, d, d, act);
   }
 
   /* All fourteen pages in: the notebook writes its last page. */
@@ -7856,8 +7856,16 @@ function sightSp(sg) {
 
   function drawTitle(cssW, cssH) {
     hits = [];
-    var rW = cssW, rH = cssH;
+    var realW = cssW, realH = cssH;
     pageBegin(cssW, cssH);
+
+    /* The horizon is the island itself, so it reaches both edges of whatever
+       window it is drawn in. The sheet stays 390 wide for the words and the pair -
+       a page is a page - but a wide window shows the sea continuing past it
+       instead of the island behind the title in the side bands. Every y below is
+       the page's own, so the composition holds on a phone and on a monitor. */
+    var wideX = -pageTX / pageK;
+    var wideW = cssW / pageK;
     cssW = 390;
     cssH = 844;
 
@@ -7866,15 +7874,31 @@ function sightSp(sg) {
     skyG.addColorStop(0, '#C6D3CF');
     skyG.addColorStop(1, '#E2DED0');
     ctx.fillStyle = skyG;
-    ctx.fillRect(0, 0, rW, 430);
+    ctx.fillRect(wideX, 0, wideW, 430);
 
+    // The ridge is a range of hills, not a comb: one hill every 130 page units,
+    // each with a shoulder and an uneven summit, so a wide window shows more
+    // country rather than the same five peaks stretched flat. The heights cycle
+    // through a short table so the skyline never repeats a visible rhythm.
     var ridgePath = new Path2D();
-    ridgePath.moveTo(0, 320);
-    ridgePath.lineTo(40, 286); ridgePath.lineTo(72, 302); ridgePath.lineTo(108, 258);
-    ridgePath.lineTo(148, 292); ridgePath.lineTo(186, 268); ridgePath.lineTo(222, 298);
-    ridgePath.lineTo(270, 250); ridgePath.lineTo(316, 294); ridgePath.lineTo(356, 268);
-    ridgePath.lineTo(rW, 294);
-    ridgePath.lineTo(rW, 340); ridgePath.lineTo(0, 340);
+    var hillW = 130;
+    var hills = [
+      [0, 318, 44, 264, 88, 292, 130, 316],
+      [0, 316, 40, 286, 92, 246, 130, 320],
+      [0, 320, 50, 258, 84, 288, 130, 314],
+      [0, 314, 46, 278, 96, 268, 130, 318]
+    ];
+    ridgePath.moveTo(wideX, 318);
+    var hillN = Math.ceil(wideW / hillW) + 1;
+    for (var hi = 0; hi < hillN; hi++) {
+      var hp = hills[hi % hills.length];
+      var hx = wideX + hi * hillW;
+      for (var hj = 0; hj < hp.length; hj += 2) {
+        ridgePath.lineTo(hx + hp[hj], hp[hj + 1]);
+      }
+    }
+    ridgePath.lineTo(wideX + hillN * hillW, 340);
+    ridgePath.lineTo(wideX, 340);
     ridgePath.closePath();
     ctx.fillStyle = 'rgba(127,144,120,0.55)';
     ctx.fill(ridgePath);
@@ -7885,25 +7909,28 @@ function sightSp(sg) {
     seaG.addColorStop(0.5, '#9FB6B4');
     seaG.addColorStop(1, '#B7C6BD');
     ctx.fillStyle = seaG;
-    ctx.fillRect(0, seaTop, rW, seaH);
+    ctx.fillRect(wideX, seaTop, wideW, seaH);
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.fillRect(0, seaTop - 1, rW, 2);
+    ctx.fillRect(wideX, seaTop - 1, wideW, 2);
 
     var gTop = seaTop + seaH;
-    var groundG = ctx.createLinearGradient(0, gTop, 0, rH);
+    var groundG = ctx.createLinearGradient(0, gTop, 0, cssH);
     groundG.addColorStop(0, '#B3B992');
     groundG.addColorStop(0.34, '#A2B183');
     groundG.addColorStop(1, '#8F9F74');
     ctx.fillStyle = groundG;
-    ctx.fillRect(0, gTop, rW, rH - gTop);
+    ctx.fillRect(wideX, gTop, wideW, cssH - gTop);
 
-    // Grass tufts on the ground, between the sea and the pair.
+    // Grass tufts on the ground, between the sea and the pair. Spaced by the
+    // page's own rhythm, so a wide window grows more grass rather than one clump
+    // in the middle.
     ctx.strokeStyle = 'rgba(90,108,68,0.3)';
     ctx.lineWidth = 1.2;
-    var tuftXs = [52, 96, 148, 196, 244, 296, 344];
-    var tuftYs = [gTop + 48, gTop + 80, gTop + 110, gTop + 88, gTop + 130, gTop + 70, gTop + 100];
-    for (var t = 0; t < tuftXs.length; t++) {
-      var tx = tuftXs[t], ty = tuftYs[t];
+    var tuftH = [48, 80, 110, 88, 130, 70, 100, 62, 96];
+    var tuftIdx = 0;
+    for (var tx = wideX + 24; tx < wideX + wideW; tx += 52) {
+      var ty = gTop + tuftH[tuftIdx % tuftH.length];
+      tuftIdx++;
       ctx.beginPath();
       ctx.moveTo(tx - 5, ty + 8); ctx.lineTo(tx - 2, ty); ctx.lineTo(tx + 1, ty + 8);
       ctx.moveTo(tx + 2, ty + 6); ctx.lineTo(tx + 5, ty - 2); ctx.lineTo(tx + 7, ty + 8);
@@ -8010,11 +8037,13 @@ function sightSp(sg) {
 
     ctx.textAlign = 'left';
 
-    // The book, and the two things she carries, on the cover as on every page.
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    bookTab(rW, rH);
-    carryTabs(rW, rH);
+    // These are screen furniture, not page content: drawn after pageEnd, in the
+    // window's own pixels, so they sit at the window's corners and stay reachable
+    // when the window is wider than the 390-wide sheet behind them.
     pageEnd();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    bookTab(realW, realH);
+    carryTabs(realW, realH);
   }
 
   /* ---- The map ------------------------------------------------------------ */
@@ -10528,12 +10557,16 @@ function sightSp(sg) {
     return t;
   };
   /* What the last frame registered as tappable, and where the page thinks a
-     screen point falls. Two probes, so a dead tap can be seen instead of guessed. */
+     screen point falls. Two probes, so a dead tap can be seen instead of guessed.
+     The furniture is included, in screen pixels, with `space` saying which. */
   window.__hits = function () {
-    return hits.map(function (h) {
-      return { act: h.act, arg: h.arg, x: Math.round(h.x), y: Math.round(h.y),
-        w: Math.round(h.w), h: Math.round(h.h) };
-    });
+    function row(space) {
+      return function (h) {
+        return { space: space, act: h.act, arg: h.arg, x: Math.round(h.x), y: Math.round(h.y),
+          w: Math.round(h.w), h: Math.round(h.h) };
+      };
+    }
+    return hits.map(row('page')).concat(screenHits.map(row('screen')));
   };
   window.__page = function (clientX, clientY) {
     var pt = pagePoint({ clientX: clientX, clientY: clientY });
@@ -11029,6 +11062,34 @@ function sightSp(sg) {
       }
     }
 
+    // 9b. Translation guard: known-bad-word audit for Farsi and Finglish.
+    // The blind-rename class of error (daf→tabl corrupting sadaf, daftar, dafn)
+    // is caught by flagging Finglish words that are known wrong forms.
+    var BAD_WORDS = [
+      { lang: "fi", bad: "satabl", good: "sadaf" },
+      { lang: "fi", bad: "satabli", good: "sadafi" },
+      { lang: "fi", bad: "tabltar", good: "daftar" },
+      { lang: "fi", bad: "tabln", good: "dafn" },
+      { lang: "fi", bad: "hozd", good: "hóz" },
+      { lang: "fi", bad: "har khat", good: "har radif" },
+      { lang: "fi", bad: "hich khat", good: "hich radif" },
+      { lang: "fa", bad: "هر خط", good: "هر ردیف" },
+      { lang: "fa", bad: "هیچ خطی", good: "هیچ ردیفی" }
+    ];
+    var langTables = { fi: TRANSLATIONS.fi || {}, fa: TRANSLATIONS.fa || {} };
+    for (var bi = 0; bi < BAD_WORDS.length; bi++) {
+      var bw = BAD_WORDS[bi];
+      var tbl = langTables[bw.lang];
+      if (!tbl) continue;
+      for (var bk2 in tbl) {
+        if (!tbl.hasOwnProperty(bk2)) continue;
+        var tv = String(tbl[bk2]);
+        if (tv.indexOf(bw.bad) >= 0) {
+          fail("translation " + bw.lang, "found '" + bw.bad + "' in key '" + bk2 + "' — should be '" + bw.good + "'");
+        }
+      }
+    }
+
     return {
       ok: problems.length === 0,
       checked: {
@@ -11168,6 +11229,7 @@ props: islandProps.map(function (p) {
   }
   function pageEnd() { ctx.restore(); }
 
+
   function pagePoint(e) {
     var rect = canvas.getBoundingClientRect();
     return {
@@ -11183,13 +11245,23 @@ props: islandProps.map(function (p) {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
   function addHit(x, y, w, h, act, arg) { hits.push({ x: x, y: y, w: w, h: h, act: act, arg: arg }); }
-  function hitAt(p) {
-    for (var i = hits.length - 1; i >= 0; i--) {
-      var h = hits[i];
+  /* The furniture - the notebook tab, the map, the bag - is drawn in the window's
+     own pixels, not on the 390x844 sheet, so its rectangles cannot live in `hits`
+     with the page's: one list, two coordinate spaces, and every tap lands in the
+     wrong place on a window that is not exactly 390 wide. Two lists, one space
+     each. */
+  function addScreenHit(x, y, w, h, act, arg) {
+    screenHits.push({ x: x, y: y, w: w, h: h, act: act, arg: arg });
+  }
+  function hitIn(list, p) {
+    for (var i = list.length - 1; i >= 0; i--) {
+      var h = list[i];
       if (p.x >= h.x && p.x <= h.x + h.w && p.y >= h.y && p.y <= h.y + h.h) return h;
     }
     return null;
   }
+  function hitAt(p) { return hitIn(hits, p); }
+  function screenHitAt(p) { return hitIn(screenHits, p); }
   function wrapText(text, maxWidth, font) {
     ctx.font = font;
     var words = text.split(' ');
@@ -11615,10 +11687,11 @@ props: islandProps.map(function (p) {
   }
 
   /* Every interface line, in every language, keyed by the English line itself.
-     English is the key, so an untranslated line falls back to itself instead of
-     going blank, and a new language is one more object in this table. A line may
-     use {0} {1} {2} for its parts, so "page 2 of 5" stays one sentence and its
-     translator can put the number wherever that language puts it. */
+     English is the key (fallback when a translation is missing).
+     SOURCE-OF-TRUTH: the Farsi (fa) and Finglish (fi) columns are authored by a
+     Farsi speaker; the other 7 languages are translated FROM Farsi. English is
+     a translation of the Farsi, not the origin. The __audit translation guard
+     checks the fa/fi columns for known-bad forms. */
   var TRANSLATIONS = {
     sv: {
       'Sobh bekhayr.': 'God morgon.',
@@ -17521,7 +17594,7 @@ props: islandProps.map(function (p) {
       'an animal': 'yek jánvar',
       'sit and watch': 'benshin va tamáshá kon',
       'tap to look away': 'baráye bargashtan bezan',
-      'The sea took the rest of the world.': 'Daryá bághi-ye jahán-rá gereft.',
+      'The sea took the rest of the world.': 'Daryá bághi-ye donyá-rá gereft.',
       'This is the piece that stayed.': 'In hamán tekye-ast ke mánd.',
       'look at the well': 'be cháh negáh kon',
       'the well': 'cháh',
@@ -17530,7 +17603,7 @@ props: islandProps.map(function (p) {
       'I went down first. You came after me. Now I find them and you write them down.': 'Man avval páyin raftam. To donbálam ámadi. Hálá man peydá mikonam va to minevisi.',
       'Mámánbozorg': 'Mámánbozorg',
       'She kept it before me. She went out to the water and the water kept her.': 'U pish az man in-já-rá negah dásht. Be áb raft va áb u-rá negah dásht.',
-            'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'án-su-ye kam-omghi áb tárik shod, va hamán daryá-i bud ke Eránshahr rá gereft: bághi-ye jahán.',
+            'Out past the shallows the water went dark, and it was the same sea that took Eranshahr: the rest of the world.': 'án-su-ye kam-omghi áb tárik shod, va hamán daryá-i bud ke Eránshahr rá gereft: bághi-ye donyá.',
       'go back to the well and close the book': 'be cháh bargard va daftar-rá beband',
       'the day began there, by the capped well': 'Ruz az ánjá shoru shod, kenár-e cháh-e sarpushide',
       'Enough of the {0}.': '{0} bas ast.',
@@ -30311,14 +30384,26 @@ var ANIMAL_SIZES = {
      THE SHORE. Water on the side that leads to the sea, a wet sand band in front
      of it, surf where the two meet, and the tide's own debris along the line.
      --------------------------------------------------------------------------- */
-  /* Which edge of this section the sea is on, as a direction: {dx, dy}. The open
-     edge with a sea neighbour wins; with none, the sea lies east, inland of the
-     strand. */
+  /* Which edge of this section the sea is on, as a direction: {dx, dy}. A
+     neighbour that IS the sea wins. With none, the sea is on a CLOSED edge, never
+     on an open one: the shore's east side leads to the strand, and a sea drawn
+     across that seam put a band of surf on the way out, so walking east from the
+     shore pushed her back onto the sand every frame, and arriving from the strand
+     pushed her a third of the way into the shore. */
   function shoreSide() {
     var dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
-    for (var i = 0; i < dirs.length; i++) {
-      var n = SECTIONS[sectionId(section.cx + dirs[i][0], section.cy + dirs[i][1])];
+    var i, n;
+    for (i = 0; i < dirs.length; i++) {
+      n = SECTIONS[sectionId(section.cx + dirs[i][0], section.cy + dirs[i][1])];
       if (n && n.kind === 'sea') return { dx: dirs[i][0], dy: dirs[i][1] };
+    }
+    // No sea beside this beach: the water lies off the coast, on an edge that leads
+    // nowhere. South first (the coast runs along the bottom row), then west, then
+    // north, then east.
+    var closed = [[0, 1], [-1, 0], [0, -1], [1, 0]];
+    for (i = 0; i < closed.length; i++) {
+      n = SECTIONS[sectionId(section.cx + closed[i][0], section.cy + closed[i][1])];
+      if (!n) return { dx: closed[i][0], dy: closed[i][1] };
     }
     return { dx: 1, dy: 0 };
   }
@@ -33273,12 +33358,22 @@ var ANIMAL_SIZES = {
     if (!neighbourOf(0, -1) && hero.y < 74) { hero.y = 74; hero.vy = Math.max(0, hero.vy); }
     if (!neighbourOf(0, 1) && hero.y > H - keep) { hero.y = H - keep; hero.vy = Math.min(0, hero.vy); }
 
-    var nx = section.cx, ny = section.cy, hx = hero.x, hy = hero.y, moved = false;
-    if (hero.x < m) { nx -= 1; hx = W - m - 40; moved = true; }
-    else if (hero.x > W - m) { nx += 1; hx = m + 40; moved = true; }
-    if (hero.y < 110) { ny -= 1; hy = H - 120; moved = true; }
-    else if (hero.y > H - m) { ny += 1; hy = 190; moved = true; }
-    if (!moved) return;
+    // WHERE ALONG THE SEAM SHE STANDS. Her place along the seam is an ABSOLUTE
+    // coordinate and it is carried across unchanged: the two sections face each
+    // other, so a point on one edge maps to the same point on the other. It is not
+    // a share of the page and must never become one - the sections differ in size
+    // (the woods are 1.8 screens, the pond one), so a share of the old page would
+    // put her two thirds of the way into a new one she has only just entered.
+    // Only a clamp keeps her out of the next wall.
+    var nx = section.cx, ny = section.cy;
+    var crossX = hero.x, crossY = hero.y;
+    var west = hero.x < m, east = hero.x > W - m;
+    var north = hero.y < 110, south = hero.y > H - m;
+    if (west) nx -= 1;
+    else if (east) nx += 1;
+    if (north) ny -= 1;
+    else if (south) ny += 1;
+    if (!(west || east || north || south)) return;
     var nextDef = SECTIONS[sectionId(nx, ny)];
     if (!nextDef) { walkTarget = null; return; }
     // The open water is reachable only by boat. Walking across a seam into it, or
@@ -33307,17 +33402,45 @@ var ANIMAL_SIZES = {
     }
     section.cx = nx;
     section.cy = ny;
-    hero.x = hx;
-    hero.y = hy;
     hero.vx = 0;
     hero.vy = 0;
     walkTarget = null;
     islandVerb = null;
+    // The size is fitted FIRST: the place she enters is not the size of the one she
+    // left, so where the opposite edge lies is only known once fitSection has run.
     // No boat repair is needed here: the guard above refuses a boat onto land, so the
     // rule has one enforcement point for a crossing and settleBoatFor handles the
     // transitions she cannot steer (travel, a probe).
     enterSection();
+    landOnSeam(west, east, north, south, crossX, crossY);
     visitSection(nx, ny);
+  }
+
+  /* She comes out at the edge she walked into, at the same distance along that
+     edge from its corner. That distance is the same number in both sections, which
+     is exactly why it is carried as a coordinate and not as a share of the page:
+     the pages are different sizes, so a share of the old one lands her in the
+     middle of the new one.
+
+     Every measure here is taken on the NEW page, after it has been fitted. The
+     inset from the wall is a little more than the seam test, so a held key does not
+     walk her straight back out; and the arrival is set clear of the strip at the
+     top and the chip at the foot, so she is not under the furniture. */
+  function landOnSeam(west, east, north, south, crossX, crossY) {
+    var W = world.w, H = world.h;
+    // The seam tests in sectionCross: x < 26, x > W - 26, y < 110, y > H - 26.
+    var clearSide = 30, clearTop = 114;
+    var inFromSide = 66, inFromTop = 190, inFromBottom = 120;
+    if (west || east) {
+      hero.y = clamp(crossY, clearTop, Math.max(clearTop, H - clearSide));
+      hero.x = west ? W - inFromSide : inFromSide;
+    } else if (north || south) {
+      hero.x = clamp(crossX, clearSide, Math.max(clearSide, W - clearSide));
+      hero.y = north ? H - inFromBottom : inFromTop;
+    }
+    hero.vx = 0;
+    hero.vy = 0;
+    followCamera(true);
   }
 
   /* ---- Drawing the section ----------------------------------------------- */
@@ -36412,13 +36535,15 @@ var ANIMAL_SIZES = {
     if (scene !== 'island') {
       // The book first: while it is open it owns every tap, here as on the island.
       if (BOOK.open) { bookTap(pagePoint(e)); e.preventDefault(); return; }
-      // The foot's marks are drawn by every page, so they must answer in every
-      // page: a place that supplies its own `down` used to swallow them.
+      // The furniture - the notebook tab, the map, the bag - is drawn in the
+      // window's own pixels, so it is read there; the page's own controls are read
+      // on the 390x844 sheet. One tap, two spaces, each in its own.
+      var sp0 = cssPoint(e);
+      var sh0 = screenHitAt(sp0);
+      if (sh0 && sh0.act === 'book') { openBook(); e.preventDefault(); return; }
+      if (sh0 && sh0.act === 'bag') { enterBagPlace(); e.preventDefault(); return; }
+      if (sh0 && sh0.act === 'map') { enterMapPlace(); e.preventDefault(); return; }
       var hp = pagePoint(e);
-      var hh = hitAt(hp);
-      if (hh && hh.act === 'book') { openBook(); e.preventDefault(); return; }
-      if (hh && hh.act === 'bag') { enterBagPlace(); e.preventDefault(); return; }
-      if (hh && hh.act === 'map') { enterMapPlace(); e.preventDefault(); return; }
       if (chromeTap(hp)) { e.preventDefault(); return; }
       var pl = placeDef(scene);
       if (pl && pl.down) { pl.down(hp); e.preventDefault(); }
@@ -36427,10 +36552,11 @@ var ANIMAL_SIZES = {
 
     if (phase === 'title') {
       if (BOOK.open) { bookTap(pagePoint(e)); e.preventDefault(); return; }
+      var shT = screenHitAt(cssPoint(e));
+      if (shT && shT.act === 'book') { openBook(); return; }
+      if (shT && shT.act === 'bag') { enterBagPlace(); return; }
+      if (shT && shT.act === 'map') { enterMapPlace(); return; }
       var th = hitAt(pagePoint(e));
-      if (th && th.act === 'book') { openBook(); return; }
-      if (th && th.act === 'bag') { enterBagPlace(); return; }
-      if (th && th.act === 'map') { enterMapPlace(); return; }
       if (th && th.act === 'sister') { chooseSister(th.arg); return; }
       if (th && th.act === 'start') { startJourney(); return; }
       return;
@@ -36466,10 +36592,11 @@ var ANIMAL_SIZES = {
     }
     if (stage === 'island') {
       var pp0 = cssPoint(e);
+      var sh1 = screenHitAt(pp0);
+      if (sh1 && sh1.act === 'book') { openBook(); e.preventDefault(); return; }
+      if (sh1 && sh1.act === 'bag') { enterBagPlace(); e.preventDefault(); return; }
+      if (sh1 && sh1.act === 'map') { enterMapPlace(); e.preventDefault(); return; }
       var bh0 = hitAt(pp0);
-      if (bh0 && bh0.act === 'book') { openBook(); e.preventDefault(); return; }
-      if (bh0 && bh0.act === 'bag') { enterBagPlace(); e.preventDefault(); return; }
-      if (bh0 && bh0.act === 'map') { enterMapPlace(); e.preventDefault(); return; }
       if (bh0 && bh0.act === 'sky') { enterPlace('sky'); e.preventDefault(); return; }
       // The talk is open on a slip: its replies answer before anything in the
       // world does, because the slip is on top of the world.
